@@ -1,0 +1,15 @@
+[Unit]
+Description=Chatter BBS web control deck
+After=network.target
+
+[Service]
+Type=simple
+WorkingDirectory=/opt/chatter-web
+ExecStart=/usr/bin/node /opt/chatter-web/dist/server.js
+Restart=on-failure
+Environment=PORT=8081
+User=www-data
+Group=www-data
+
+[Install]
+WantedBy=multi-user.target

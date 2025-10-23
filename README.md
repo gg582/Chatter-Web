@@ -21,6 +21,31 @@ npm run build
 `npm run build` compiles the TypeScript sources with the system `tsc` and copies the static assets into `dist/`. Open
 `dist/index.html` in any modern browser (or host the folder behind a static file server) to explore the dashboard.
 
+## Serve locally
+
+```bash
+npm start
+```
+
+`npm start` launches the bundled Node static server (`dist/server.js`). It listens on `0.0.0.0:8081` by default so the
+dashboard is immediately available at http://localhost:8081. Override the defaults with environment variables such as
+`PORT=8081 HOST=127.0.0.1 npm start` when required.
+
+Run `npm run build` whenever the TypeScript sources change so the server can serve the latest assets.
+
+## Systemd integration
+
+`deploy/chatter-frontend.service` provides a ready-to-use unit file. Copy it into `/etc/systemd/system/`, update the
+`User`, `Group`, and `WorkingDirectory` to match your deployment, and then enable it:
+
+```bash
+sudo systemctl daemon-reload
+sudo systemctl enable --now chatter-frontend
+```
+
+The unit calls `node dist/server.js` so make sure the project has been built before starting the service. Use `systemctl
+stop chatter-frontend` to shut down the listener or `systemctl restart chatter-frontend` after a rebuild.
+
 ## Testing
 
 ```bash

@@ -27,6 +27,19 @@ async function main() {
   await run('tsc', ['-p', 'tsconfig.build.json'], { cwd: root });
   await mkdir(dist, { recursive: true });
   await cp(publicDir, dist, { recursive: true });
+
+  const serverSource = join(dist, 'src', 'server.js');
+  const serverDestination = join(dist, 'server.js');
+
+  try {
+    await cp(serverSource, serverDestination);
+  } catch (error) {
+    if (error && typeof error === 'object' && 'code' in error && error.code === 'ENOENT') {
+      console.warn('Server entrypoint not found; skipping copy.');
+    } else {
+      throw error;
+    }
+  }
 }
 
 main().catch((error) => {
