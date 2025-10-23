@@ -1,11 +1,12 @@
 import { ChatStore } from '../state/chatStore';
 import { escapeHtml, formatRelative } from './helpers';
 
-export const renderSession = (store: ChatStore, container: HTMLElement) => {
+export const renderSession = (store: ChatStore, container: HTMLElement, root?: HTMLElement) => {
   const state = store.snapshot();
   const profile = state.currentUser;
   const helpFeedback = container.dataset.feedback ?? '';
   const helpType = container.dataset.feedbackType ?? 'info';
+  const host = root ?? container.closest<HTMLElement>('[data-chatter-root]') ?? undefined;
 
   container.innerHTML = `
     <h2>Session</h2>
@@ -30,11 +31,14 @@ export const renderSession = (store: ChatStore, container: HTMLElement) => {
   container.dataset.feedbackType = '';
 
   container.querySelector<HTMLButtonElement>('button[data-action="scroll-help"]')?.addEventListener('click', () => {
-    const cheatsheet = document.querySelector('[data-component="cheatsheet"]');
+    const cheatsheet =
+      host?.querySelector<HTMLElement>('[data-component="cheatsheet"]') ??
+      container.ownerDocument?.querySelector<HTMLElement>('[data-component="cheatsheet"]') ??
+      undefined;
     cheatsheet?.scrollIntoView({ behavior: 'smooth', block: 'start' });
     container.dataset.feedback = 'Scrolled to help panel.';
     container.dataset.feedbackType = 'success';
-    renderSession(store, container);
+    renderSession(store, container, host);
   });
 
   container.querySelector<HTMLButtonElement>('button[data-action="toggle-session"]')?.addEventListener('click', () => {
@@ -42,7 +46,7 @@ export const renderSession = (store: ChatStore, container: HTMLElement) => {
     if (!result.ok) {
       container.dataset.feedback = result.error ?? 'Unable to update session.';
       container.dataset.feedbackType = 'error';
-      renderSession(store, container);
+      renderSession(store, container, host);
       return;
     }
     container.dataset.feedback = result.message ?? 'Session updated.';

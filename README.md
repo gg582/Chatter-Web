@@ -1,50 +1,51 @@
 # Chatter-Web
 
-A zero-dependency TypeScript dashboard that mirrors the SSH help output of the Chatter BBS. The interface is rendered with
-vanilla DOM updates, bundled with Bun, and organised into panels that correspond one-to-one with every slash command exposed in
-the terminal client.
+A Vercel-ready Next.js + TypeScript control deck for the Chatter BBS. The client-side bootstrap reuses the `ChatStore` and
+rendering helpers that mirror every `/help` command, while the App Router provides a deployable shell for hosting on Vercel or
+any Node-compatible platform.
 
-## Project layout
-
-- **`public/`** – static assets copied into the production bundle (`index.html`, `styles.css`).
-- **`src/state/`** – the `ChatStore` state container with CLI-equivalent methods (`/pm`, `/delete-msg`, `/poll`, `/bbs`, …).
-- **`src/ui/`** – rendering helpers for the chat feed, utility panel, session card, and cheat sheet.
-- **`src/data/commandCatalog.ts`** – grouping of all CLI commands and their matching GUI affordances.
-- **`scripts/`** – Bun-powered build and dev scripts used by the npm-style commands below.
-- **`tests/`** – Bun test coverage for key state helpers such as `getMessageById`, `reactToMessage`, and `deleteMessages`.
-
-## Requirements
-
-Install [Bun](https://bun.sh) (v1.2 or newer). No external npm packages are required – the build and test steps run entirely
-with the Bun toolchain.
-
-## Running locally
+## Getting started
 
 ```bash
-bun install  # no-op, kept for parity with package managers
-bun run dev  # rebuilds on change and serves http://localhost:3000
+npm install
 ```
 
-The development server copies `public/` into `dist/`, recompiles `src/main.ts` on file changes, and serves the static site. Use
-`Ctrl+C` to exit.
+This installs the Next.js toolchain, React runtime, TypeScript typings, ESLint, and the Vitest test runner.
+
+## Local development
+
+```bash
+npm run dev
+```
+
+The development server runs at `http://localhost:3000`, loading the same dashboard layout as the SSH client’s `/help`
+reference. Hot refresh keeps the utility panel, chat feed, and cheat sheet in sync with the TypeScript modules under `src/`.
 
 ## Production build
 
 ```bash
-bun run build
+npm run build
 ```
 
-The build script writes minified assets to `dist/` by copying `public/` and bundling `src/main.ts` (including sourcemaps).
-Deploy the contents of `dist/` to any static host – Vercel can treat it as a static export.
+`next build` outputs an optimised production bundle in `.next/`, ready for `vercel deploy` or `npm run start`. The generated
+app hydrates the existing DOM-based renderers so the GUI remains in lockstep with the CLI mapping.
 
 ## Testing
 
 ```bash
-bun test
+npm test
 ```
 
-`tests/chatStore.test.ts` verifies that the `ChatStore` mirrors the CLI helpers used by the UI (message lookup, reactions, and
-moderation deletions). Extend the suite with additional behaviour as new commands are surfaced.
+Vitest runs the existing `ChatStore` unit tests to ensure helpers for message lookup, reactions, and deletions keep matching
+the CLI semantics.
+
+## Project layout
+
+- **`app/`** – App Router layout, metadata, and the page shell that hydrates the control deck.
+- **`src/state/`** – the `ChatStore` state container with CLI-equivalent methods (`/pm`, `/delete-msg`, `/poll`, `/bbs`, …).
+- **`src/ui/`** – rendering helpers for the chat feed, utility panel, session card, and cheat sheet.
+- **`src/data/commandCatalog.ts`** – grouping of all CLI commands and their matching GUI affordances.
+- **`tests/`** – Vitest coverage for key state helpers such as `getMessageById`, `reactToMessage`, and `deleteMessages`.
 
 ## Matching the CLI
 

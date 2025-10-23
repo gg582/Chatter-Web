@@ -1,4 +1,4 @@
-import { describe, expect, test } from 'bun:test';
+import { describe, expect, test } from 'vitest';
 import { ChatStore } from '../src/state/chatStore';
 import { seedState } from '../src/state/seed';
 
