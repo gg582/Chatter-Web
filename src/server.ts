@@ -1,0 +1,141 @@
+import { createReadStream } from 'node:fs';
+import { stat } from 'node:fs/promises';
+import { createServer } from 'node:http';
+import { extname, join } from 'node:path';
+import { fileURLToPath } from 'node:url';
+
+const distRoot = fileURLToPath(new URL('..', import.meta.url));
+const staticRoot = distRoot;
+
+const MIME_TYPES: Record<string, string> = {
+  '.html': 'text/html; charset=utf-8',
+  '.css': 'text/css; charset=utf-8',
+  '.js': 'application/javascript; charset=utf-8',
+  '.json': 'application/json; charset=utf-8',
+  '.png': 'image/png',
+  '.jpg': 'image/jpeg',
+  '.jpeg': 'image/jpeg',
+  '.gif': 'image/gif',
+  '.svg': 'image/svg+xml',
+  '.ico': 'image/x-icon',
+  '.txt': 'text/plain; charset=utf-8',
+  '.woff': 'font/woff',
+  '.woff2': 'font/woff2'
+};
+
+function sanitisePath(urlPath: string): string {
+  const [pathWithoutQuery] = urlPath.split('?');
+  const decoded = decodeURIComponent(pathWithoutQuery);
+  const segments = decoded.split('/').filter((segment) => segment && segment !== '.');
+  const safeSegments: string[] = [];
+
+  for (const segment of segments) {
+    if (segment === '..') {
+      safeSegments.pop();
+    } else {
+      safeSegments.push(segment);
+    }
+  }
+
+  return safeSegments.join('/');
+}
+
+async function resolveFile(urlPath: string) {
+  const safePath = sanitisePath(urlPath);
+  let candidate = join(staticRoot, safePath);
+
+  try {
+    let fileStat = await stat(candidate);
+    if (fileStat.isDirectory()) {
+      candidate = join(candidate, 'index.html');
+      fileStat = await stat(candidate);
+    }
+
+    return { path: candidate, stats: fileStat };
+  } catch (error) {
+    if (!safePath) {
+      const fallback = join(staticRoot, 'index.html');
+      const stats = await stat(fallback);
+      return { path: fallback, stats };
+    }
+
+    return null;
+  }
+}
+
+async function handleRequest(req: import('node:http').IncomingMessage, res: import('node:http').ServerResponse) {
+  if (!req.url) {
+    res.statusCode = 400;
+    res.setHeader('Content-Type', 'text/plain; charset=utf-8');
+    res.end('Bad Request');
+    return;
+  }
+
+  const method = req.method ?? 'GET';
+
+  if (method !== 'GET' && method !== 'HEAD') {
+    res.statusCode = 405;
+    res.setHeader('Allow', 'GET, HEAD');
+    res.end('Method Not Allowed');
+    return;
+  }
+
+  try {
+    const resolved = await resolveFile(req.url);
+
+    if (!resolved) {
+      res.statusCode = 404;
+      res.setHeader('Content-Type', 'text/plain; charset=utf-8');
+      res.end('Not Found');
+      return;
+    }
+
+    const { path, stats } = resolved;
+    const extension = extname(path).toLowerCase();
+    const contentType = MIME_TYPES[extension] ?? 'application/octet-stream';
+
+    res.statusCode = 200;
+    res.setHeader('Content-Type', contentType);
+    res.setHeader('Content-Length', stats.size);
+    if (extension === '.html') {
+      res.setHeader('Cache-Control', 'no-cache');
+    } else {
+      res.setHeader('Cache-Control', 'public, max-age=31536000, immutable');
+    }
+
+    if (method === 'HEAD') {
+      res.end();
+      return;
+    }
+
+    const stream = createReadStream(path);
+    stream.on('error', (error) => {
+      console.error('Failed to stream', path, error);
+      if (!res.headersSent) {
+        res.statusCode = 500;
+        res.setHeader('Content-Type', 'text/plain; charset=utf-8');
+      }
+      res.end('Internal Server Error');
+    });
+
+    stream.pipe(res);
+  } catch (error) {
+    console.error('Unhandled error while serving request', error);
+    res.statusCode = 500;
+    res.setHeader('Content-Type', 'text/plain; charset=utf-8');
+    res.end('Internal Server Error');
+  }
+}
+
+const port = Number.parseInt(process.env.PORT ?? '8081', 10);
+const host = process.env.HOST ?? '0.0.0.0';
+
+const server = createServer((req, res) => {
+  void handleRequest(req, res);
+});
+
+server.listen(port, host, () => {
+  console.log(`Chatter frontend available at http://${host}:${port}`);
+});
+
+export { server };

@@ -1,4 +1,4 @@
-import { seedState } from './seed';
+import { seedState } from './seed.js';
 import type {
   AttachmentEntry,
   AttachmentKind,
@@ -11,7 +11,7 @@ import type {
   RssFeed,
   TimezoneLookup,
   WeatherReport
-} from './types';
+} from './types.js';
 
 const clone = <T>(value: T): T =>
   typeof structuredClone === 'function' ? structuredClone(value) : JSON.parse(JSON.stringify(value));

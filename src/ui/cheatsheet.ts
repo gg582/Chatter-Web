@@ -1,5 +1,5 @@
-import { commandGroups } from '../data/commandCatalog';
-import { escapeHtml } from './helpers';
+import { commandGroups } from '../data/commandCatalog.js';
+import { escapeHtml } from './helpers.js';
 
 export const renderCheatSheet = (container: HTMLElement) => {
   container.innerHTML = `

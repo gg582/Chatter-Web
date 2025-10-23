@@ -1,5 +1,5 @@
-import { ChatStore } from '../state/chatStore';
-import { escapeHtml } from './helpers';
+import { ChatStore } from '../state/chatStore.js';
+import { escapeHtml } from './helpers.js';
 
 export const renderMotd = (store: ChatStore, container: HTMLElement) => {
   const state = store.snapshot();

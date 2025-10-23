@@ -8,7 +8,7 @@ import type {
   ReactionTally,
   RssFeed,
   UserProfile
-} from './types';
+} from './types.js';
 
 const createReactions = (): ReactionTally => ({
   good: 0,

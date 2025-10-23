@@ -1,8 +1,8 @@
 # Chatter-Web
 
-A Vercel-ready Next.js + TypeScript control deck for the Chatter BBS. The client-side bootstrap reuses the `ChatStore` and
-rendering helpers that mirror every `/help` command, while the App Router provides a deployable shell for hosting on Vercel or
-any Node-compatible platform.
+A standalone TypeScript front-end for the Chatter BBS control deck. The project mirrors every `/help` command with a matching
+GUI workflow so the SSH client and the browser stay feature-aligned. The codebase avoids external npm dependencies so it can
+build and test in constrained environments.
 
 ## Getting started
 
@@ -10,25 +10,54 @@ any Node-compatible platform.
 npm install
 ```
 
-This installs the Next.js toolchain, React runtime, TypeScript typings, ESLint, and the Vitest test runner.
+The project does not rely on third-party packages, so this step simply creates a lockfile.
 
-## Local development
-
-```bash
-npm run dev
-```
-
-The development server runs at `http://localhost:3000`, loading the same dashboard layout as the SSH client’s `/help`
-reference. Hot refresh keeps the utility panel, chat feed, and cheat sheet in sync with the TypeScript modules under `src/`.
-
-## Production build
+## Build
 
 ```bash
 npm run build
 ```
 
-`next build` outputs an optimised production bundle in `.next/`, ready for `vercel deploy` or `npm run start`. The generated
-app hydrates the existing DOM-based renderers so the GUI remains in lockstep with the CLI mapping.
+`npm run build` compiles the TypeScript sources with the system `tsc` and copies the static assets into `dist/`. Open
+`dist/index.html` in any modern browser (or host the folder behind a static file server) to explore the dashboard.
+
+## Serve locally
+
+```bash
+npm start
+```
+
+`npm start` launches the bundled Node static server (`dist/server.js`). It listens on `0.0.0.0:8081` by default so the
+dashboard is immediately available at http://localhost:8081. Override the defaults with environment variables such as
+`PORT=8081 HOST=127.0.0.1 npm start` when required.
+
+Run `npm run build` whenever the TypeScript sources change so the server can serve the latest assets.
+
+## Systemd integration
+
+`deploy/chatter-frontend.service` provides a ready-to-use unit file. Copy it into `/etc/systemd/system/`, update the
+`User`, `Group`, and `WorkingDirectory` to match your deployment, and then enable it:
+
+```bash
+sudo systemctl daemon-reload
+sudo systemctl enable --now chatter-frontend
+```
+
+The unit calls `node dist/server.js` so make sure the project has been built before starting the service. Use `systemctl
+stop chatter-frontend` to shut down the listener or `systemctl restart chatter-frontend` after a rebuild.
+
+## Automated install script
+
+Run `deploy/install.sh` to build the project and (optionally) set up the service in one go:
+
+```bash
+./deploy/install.sh              # installs dependencies and builds dist/
+sudo ./deploy/install.sh --systemd --user www-data --group www-data
+```
+
+The script compiles the dashboard, writes the systemd unit into `/etc/systemd/system/`, and starts it immediately when
+the `--systemd` flag is supplied. Use `--service-name`, `--port`, `--user`, `--group`, or `--node` to override the
+defaults that land in the generated unit.
 
 ## Testing
 
@@ -36,28 +65,30 @@ app hydrates the existing DOM-based renderers so the GUI remains in lockstep wit
 npm test
 ```
 
-Vitest runs the existing `ChatStore` unit tests to ensure helpers for message lookup, reactions, and deletions keep matching
-the CLI semantics.
+The test script performs a build and then executes the compiled unit tests with Node’s built-in `node:test` runner. Coverage
+focuses on the `ChatStore` helpers that back the moderation, messaging, and archival workflows in the GUI.
 
 ## Project layout
 
-- **`app/`** – App Router layout, metadata, and the page shell that hydrates the control deck.
-- **`src/state/`** – the `ChatStore` state container with CLI-equivalent methods (`/pm`, `/delete-msg`, `/poll`, `/bbs`, …).
-- **`src/ui/`** – rendering helpers for the chat feed, utility panel, session card, and cheat sheet.
-- **`src/data/commandCatalog.ts`** – grouping of all CLI commands and their matching GUI affordances.
-- **`tests/`** – Vitest coverage for key state helpers such as `getMessageById`, `reactToMessage`, and `deleteMessages`.
+- **`public/`** – HTML shell, global styles, and font links for the static bundle.
+- **`scripts/`** – minimal Node scripts that drive the TypeScript compilation and asset copying.
+- **`src/state/`** – the `ChatStore` state container with methods for messaging, media, moderation, polls, and RSS tools.
+- **`src/ui/`** – DOM renderers for the chat feed, utility panes, cheat sheet, and session controls.
+- **`src/data/commandCatalog.ts`** – catalogue that maps each CLI command to its corresponding GUI affordance.
+- **`tests/`** – unit tests executed with Node’s built-in runner after compilation.
 
 ## Matching the CLI
 
-Every command advertised by the in-game `/help` has a dedicated UI surface:
+Every command advertised by the Chatter SSH `/help` has a dedicated surface:
 
 - **Orientation:** `/help`, `/motd`, `/exit`, `/users`, `/connected`, `/search`, and scroll history.
 - **Identity:** `/nick`, `/status`, `/showstatus`, `/os`, `/getos`, `/birthday`, `/soulmate`, `/pair`.
 - **Messaging:** regular messages, `/reply`, `/pm`, `/chat`, `/delete-msg`, reactions (`/good`…`/wtf`).
-- **Media:** `/image`, `/video`, `/audio`, `/files`, `/asciiart` with an attachment library per type.
+- **Media:** `/image`, `/video`, `/audio`, `/files`, `/asciiart` with dedicated attachment panes.
 - **Appearance & translation:** `/color`, `/systemcolor`, `/palette`, `/translate`, `/set-trans-lang`, `/set-target-lang`,
   `/translate-scope`, `/chat-spacing`.
-- **Assistants & fun:** `/game`, `/suspend!`, `/gemini`, `/gemini-unfreeze`, `/eliza`, `/eliza-chat`, `/today`, `/date`, `/weather`.
+- **Assistants & fun:** `/game`, `/suspend!`, `/gemini`, `/gemini-unfreeze`, `/eliza`, `/eliza-chat`, `/today`, `/date`,
+  `/weather`.
 - **Moderation:** `/grant`, `/revoke`, `/ban`, `/banlist`, `/pardon`, `/block`, `/unblock`, `/poke`, `/kick`, `/poll`, `/vote`,
   `/vote-single`, `/elect`, `/1 .. /5`.
 - **BBS & feeds:** `/bbs` actions (list/read/post/comment/regen/delete) and `/rss` commands (list/read/add).

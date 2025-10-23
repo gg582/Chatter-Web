@@ -1,6 +1,6 @@
-import { ChatStore } from '../state/chatStore';
-import type { AttachmentKind, ReactionType } from '../state/types';
-import { escapeHtml, formatRelative } from './helpers';
+import { ChatStore } from '../state/chatStore.js';
+import type { AttachmentKind, ReactionType } from '../state/types.js';
+import { escapeHtml, formatRelative } from './helpers.js';
 
 const reactionTypes: ReactionType[] = ['good', 'sad', 'cool', 'angry', 'checked', 'love', 'wtf'];
 const paletteOptions = ['default', 'twilight', 'midnight', 'aurora', 'neon'];

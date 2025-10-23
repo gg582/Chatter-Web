@@ -1,6 +1,6 @@
-import type { ChatMessage } from '../state/types';
-import { ChatStore } from '../state/chatStore';
-import { escapeHtml, formatRelative } from './helpers';
+import type { ChatMessage } from '../state/types.js';
+import { ChatStore } from '../state/chatStore.js';
+import { escapeHtml, formatRelative } from './helpers.js';
 
 const renderReactions = (message: ChatMessage) => {
   const entries = Object.entries(message.reactions).filter(([, count]) => count > 0);

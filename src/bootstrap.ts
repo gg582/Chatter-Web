@@ -1,9 +1,9 @@
-import { ChatStore } from './state/chatStore';
-import { renderChatFeed } from './ui/chatFeed';
-import { renderUtilityPanel } from './ui/utilityPanel';
-import { renderCheatSheet } from './ui/cheatsheet';
-import { renderSession } from './ui/sessionCard';
-import { renderMotd } from './ui/motd';
+import { ChatStore } from './state/chatStore.js';
+import { renderChatFeed } from './ui/chatFeed.js';
+import { renderUtilityPanel } from './ui/utilityPanel.js';
+import { renderCheatSheet } from './ui/cheatsheet.js';
+import { renderSession } from './ui/sessionCard.js';
+import { renderMotd } from './ui/motd.js';
 
 export const mountChatter = (root: HTMLElement) => {
   const store = new ChatStore();

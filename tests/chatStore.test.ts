@@ -1,28 +1,29 @@
-import { describe, expect, test } from 'vitest';
-import { ChatStore } from '../src/state/chatStore';
-import { seedState } from '../src/state/seed';
+import assert from 'node:assert/strict';
+import { describe, it } from 'node:test';
+import { ChatStore } from '../src/state/chatStore.js';
+import { seedState } from '../src/state/seed.js';
 
 const createStore = () => new ChatStore(seedState);
 
 describe('ChatStore messaging helpers', () => {
-  test('getMessageById returns seeded message', () => {
+  it('getMessageById returns seeded message', () => {
     const store = createStore();
     const message = store.getMessageById('m-1001');
-    expect(message?.author).toBe('admin');
+    assert.equal(message?.author, 'admin');
   });
 
-  test('reactToMessage increments reaction counts', () => {
+  it('reactToMessage increments reaction counts', () => {
     const store = createStore();
     const result = store.reactToMessage('m-1001', 'good');
-    expect(result.ok).toBe(true);
+    assert.equal(result.ok, true);
     const message = store.getMessageById('m-1001');
-    expect(message?.reactions.good).toBe(1);
+    assert.equal(message?.reactions.good, 1);
   });
 
-  test('deleteMessages removes provided ids', () => {
+  it('deleteMessages removes provided ids', () => {
     const store = createStore();
     const result = store.deleteMessages(['m-1002']);
-    expect(result.ok).toBe(true);
-    expect(store.getMessageById('m-1002')).toBeUndefined();
+    assert.equal(result.ok, true);
+    assert.equal(store.getMessageById('m-1002'), undefined);
   });
 });

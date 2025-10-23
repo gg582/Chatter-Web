@@ -1,5 +1,5 @@
-import { ChatStore } from '../state/chatStore';
-import { escapeHtml, formatRelative } from './helpers';
+import { ChatStore } from '../state/chatStore.js';
+import { escapeHtml, formatRelative } from './helpers.js';
 
 export const renderSession = (store: ChatStore, container: HTMLElement, root?: HTMLElement) => {
   const state = store.snapshot();

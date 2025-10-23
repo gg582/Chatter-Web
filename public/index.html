@@ -4,22 +4,26 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>Chatter BBS Control Deck</title>
-    <link rel="stylesheet" href="./styles.css" />
+    <meta
+      name="description"
+      content="A browser-based control deck for Chatter BBS that mirrors every CLI command."
+    />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link
       href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;600;700&family=Space+Grotesk:wght@400;500;600&display=swap"
       rel="stylesheet"
     />
+    <link rel="stylesheet" href="./styles.css" />
   </head>
   <body>
-    <div class="page">
+    <div class="page" data-chatter-root>
       <header class="page__header">
         <div class="page__title">
           <h1>Chatter BBS Control Deck</h1>
           <p>
-            This dashboard mirrors the SSH help output of Chatter. Every command listed in the CLI has a matching
-            control, so you can browse, moderate, and customise the BBS without typing a slash command.
+            This dashboard mirrors the SSH help output of Chatter. Every command listed in the CLI has a matching control,
+            so you can browse, moderate, and customise the BBS without typing a slash command.
           </p>
         </div>
         <div class="page__status" data-component="session"></div>
@@ -33,6 +37,6 @@
         <aside class="column column--cheatsheet" data-component="cheatsheet"></aside>
       </main>
     </div>
-    <script type="module" src="./main.js"></script>
+    <script type="module" src="./src/main.js"></script>
   </body>
 </html>
