@@ -1,3 +1,5 @@
+# Template for manual installation. `deploy/install.sh` can generate a customised unit automatically.
+
 [Unit]
 Description=Chatter BBS web control deck
 After=network.target

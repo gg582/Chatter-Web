@@ -46,6 +46,19 @@ sudo systemctl enable --now chatter-frontend
 The unit calls `node dist/server.js` so make sure the project has been built before starting the service. Use `systemctl
 stop chatter-frontend` to shut down the listener or `systemctl restart chatter-frontend` after a rebuild.
 
+## Automated install script
+
+Run `deploy/install.sh` to build the project and (optionally) set up the service in one go:
+
+```bash
+./deploy/install.sh              # installs dependencies and builds dist/
+sudo ./deploy/install.sh --systemd --user www-data --group www-data
+```
+
+The script compiles the dashboard, writes the systemd unit into `/etc/systemd/system/`, and starts it immediately when
+the `--systemd` flag is supplied. Use `--service-name`, `--port`, `--user`, `--group`, or `--node` to override the
+defaults that land in the generated unit.
+
 ## Testing
 
 ```bash
