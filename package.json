@@ -1,0 +1,11 @@
+{
+  "name": "chatter-web",
+  "version": "1.0.0",
+  "type": "module",
+  "scripts": {
+    "build": "bun run scripts/build.ts",
+    "dev": "bun run --hot scripts/dev.ts",
+    "test": "bun test"
+  },
+  "packageManager": "bun@1.2.14"
+}
