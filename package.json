@@ -1,25 +1,11 @@
 {
   "name": "chatter-web",
-  "version": "0.1.0",
-  "private": true,
+  "version": "1.0.0",
+  "type": "module",
   "scripts": {
-    "dev": "next dev",
-    "build": "next build",
-    "start": "next start",
-    "lint": "next lint"
+    "build": "bun run scripts/build.ts",
+    "dev": "bun run --hot scripts/dev.ts",
+    "test": "bun test"
   },
-  "dependencies": {
-    "next": "14.2.3",
-    "react": "18.2.0",
-    "react-dom": "18.2.0"
-  },
-  "devDependencies": {
-    "@types/node": "20.11.30",
-    "@types/react": "18.2.21",
-    "@types/react-dom": "18.2.7",
-    "eslint": "8.57.0",
-    "eslint-config-next": "14.2.3",
-    "postcss": "8.4.35",
-    "typescript": "5.4.5"
-  }
+  "packageManager": "bun@1.2.14"
 }
