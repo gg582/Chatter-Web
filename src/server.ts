@@ -90,6 +90,65 @@ const normaliseUsername = (value: string | null): { valid: boolean; username: st
   return { valid: true, username: trimmed };
 };
 
+const normaliseProtocolOverride = (
+  value: string | null
+): { present: boolean; valid: boolean; protocol: BbsProtocol | null } => {
+  if (value === null) {
+    return { present: false, valid: true, protocol: null };
+  }
+
+  const trimmed = value.trim();
+  if (!trimmed) {
+    return { present: true, valid: false, protocol: null };
+  }
+
+  const lower = trimmed.toLowerCase();
+  if (lower !== 'ssh' && lower !== 'telnet') {
+    return { present: true, valid: false, protocol: null };
+  }
+
+  return { present: true, valid: true, protocol: lower as BbsProtocol };
+};
+
+const normaliseHostOverride = (
+  value: string | null
+): { present: boolean; valid: boolean; host: string | null } => {
+  if (value === null) {
+    return { present: false, valid: true, host: null };
+  }
+
+  const trimmed = value.trim();
+  if (!trimmed) {
+    return { present: true, valid: false, host: null };
+  }
+
+  if (/\s/.test(trimmed) || trimmed.length > 255) {
+    return { present: true, valid: false, host: null };
+  }
+
+  return { present: true, valid: true, host: trimmed };
+};
+
+const normalisePortOverride = (
+  value: string | null
+): { present: boolean; valid: boolean; port: number | null } => {
+  if (value === null) {
+    return { present: false, valid: true, port: null };
+  }
+
+  const trimmed = value.trim();
+  if (!trimmed) {
+    return { present: true, valid: false, port: null };
+  }
+
+  const parsed = Number.parseInt(trimmed, 10);
+  if (!Number.isFinite(parsed) || parsed <= 0 || parsed > 65_535) {
+    return { present: true, valid: false, port: null };
+  }
+
+  return { present: true, valid: true, port: parsed };
+};
+
 const resolveRuntimeConfig = () => {
   const config: Record<string, string> = {};
   const settings = readBbsSettings({ silent: true });
@@ -103,7 +162,18 @@ const resolveRuntimeConfig = () => {
       config.bbsSshUser = settings.sshUser;
     }
   } else if (protocol) {
-    config.bbsProtocol = protocol;
+    const normalisedProtocol: BbsProtocol = protocol === 'ssh' ? 'ssh' : 'telnet';
+    config.bbsProtocol = normalisedProtocol;
+    const rawPort = process.env.CHATTER_BBS_PORT?.trim();
+    if (rawPort) {
+      config.bbsPort = rawPort;
+    } else {
+      config.bbsPort = normalisedProtocol === 'ssh' ? '22' : '23';
+    }
+    const sshUser = process.env.CHATTER_BBS_SSH_USER?.trim();
+    if (sshUser) {
+      config.bbsSshUser = sshUser;
+    }
   }
 
   return config;
@@ -599,12 +669,23 @@ const handleUpgrade = (req: IncomingMessage, socket: NetSocket, head: Buffer) =>
   }
 
   const settings = readBbsSettings();
-  if (!settings) {
-    respondUpgradeError(socket, 503, 'BBS target not configured');
-    return;
-  }
+  const fallbackProtocol = (process.env.CHATTER_BBS_PROTOCOL ?? 'telnet').trim().toLowerCase() === 'ssh' ? 'ssh' : 'telnet';
+  const defaultPort = fallbackProtocol === 'ssh' ? 22 : 23;
+
+  const sessionSettings: BbsSettings = settings
+    ? { ...settings }
+    : {
+        host: '',
+        port: defaultPort,
+        protocol: fallbackProtocol,
+        sshUser: process.env.CHATTER_BBS_SSH_USER?.trim() || undefined,
+        sshCommand: process.env.CHATTER_BBS_SSH_COMMAND?.trim() || undefined
+      };
 
   let usernameOverride: string | null = null;
+  let protocolOverride: BbsProtocol | null = null;
+  let hostOverride: string | null = null;
+  let portOverride: number | null = null;
 
   if (requestUrl) {
     const normalised = normaliseUsername(requestUrl.searchParams.get('username'));
@@ -613,12 +694,57 @@ const handleUpgrade = (req: IncomingMessage, socket: NetSocket, head: Buffer) =>
       return;
     }
     usernameOverride = normalised.username;
+
+    const protocolResult = normaliseProtocolOverride(requestUrl.searchParams.get('protocol'));
+    if (!protocolResult.valid) {
+      respondUpgradeError(socket, 400, 'Invalid protocol override');
+      return;
+    }
+    if (protocolResult.present) {
+      protocolOverride = protocolResult.protocol;
+    }
+
+    const hostResult = normaliseHostOverride(requestUrl.searchParams.get('host'));
+    if (!hostResult.valid) {
+      respondUpgradeError(socket, 400, 'Invalid host override');
+      return;
+    }
+    if (hostResult.present) {
+      hostOverride = hostResult.host;
+    }
+
+    const portResult = normalisePortOverride(requestUrl.searchParams.get('port'));
+    if (!portResult.valid) {
+      respondUpgradeError(socket, 400, 'Invalid port override');
+      return;
+    }
+    if (portResult.present) {
+      portOverride = portResult.port;
+    }
   }
 
-  const sessionSettings: BbsSettings = { ...settings };
+  if (protocolOverride) {
+    sessionSettings.protocol = protocolOverride;
+    if (portOverride === null) {
+      sessionSettings.port = protocolOverride === 'ssh' ? 22 : 23;
+    }
+  }
+
+  if (hostOverride) {
+    sessionSettings.host = hostOverride;
+  }
+
+  if (portOverride !== null) {
+    sessionSettings.port = portOverride;
+  }
 
   if (usernameOverride) {
     sessionSettings.sshUser = usernameOverride;
+  }
+
+  if (!sessionSettings.host) {
+    respondUpgradeError(socket, 503, 'BBS target not configured');
+    return;
   }
 
   if (sessionSettings.protocol === 'ssh' && !sessionSettings.sshUser) {
