@@ -332,7 +332,7 @@ export class ChatStore {
     return reply;
   }
 
-  setActiveGame(game: '' | 'tetris' | 'liargame') {
+  setActiveGame(game: '' | 'tetris' | 'liargame' | 'alpha') {
     this.state.activeGame = game;
     this.emit();
   }

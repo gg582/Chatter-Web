@@ -383,12 +383,16 @@ export const renderUtilityPanel = (store: ChatStore, container: HTMLElement) => 
             <option value="">None</option>
             <option value="tetris" ${state.activeGame === 'tetris' ? 'selected' : ''}>Tetris</option>
             <option value="liargame" ${state.activeGame === 'liargame' ? 'selected' : ''}>Liar Game</option>
+            <option value="alpha" ${state.activeGame === 'alpha' ? 'selected' : ''}>Fly me to Alpha Centauri</option>
           </select>
           <div style="display:flex;gap:0.6rem;flex-wrap:wrap;">
             <button type="submit">Start game</button>
             <button type="button" data-action="suspend-game">Suspend (/suspend!)</button>
           </div>
           <p class="feedback">${state.activeGame ? `Running: ${state.activeGame}` : 'No active game.'}</p>
+          <p class="feedback">
+            Fly me to Alpha Centauri expects knowledge of the BBS navigation charts; review the docs before starting.
+          </p>
           <p class="feedback" data-feedback="game"></p>
         </form>
         <div style="display:flex;gap:0.6rem;flex-wrap:wrap;">
@@ -733,7 +737,7 @@ export const renderUtilityPanel = (store: ChatStore, container: HTMLElement) => 
         break;
       }
       case 'set-game': {
-        const game = String(formData.get('game') ?? '') as '' | 'tetris' | 'liargame';
+        const game = String(formData.get('game') ?? '') as '' | 'tetris' | 'liargame' | 'alpha';
         store.setActiveGame(game);
         setFeedback('game', game ? `Started ${game}.` : 'Game cleared.', 'success');
         break;

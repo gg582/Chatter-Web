@@ -216,9 +216,14 @@ export const commandGroups: CommandGroup[] = [
     summary: 'Games, AI helpers, and daily curiosities.',
     commands: [
       {
-        command: '/game <tetris|liargame>',
+        command: '/game <tetris|liargame|alpha>',
         description: 'Start a terminal minigame.',
         ui: 'Assistants → Games launcher.'
+      },
+      {
+        command: '/game alpha',
+        description: 'Launch “Fly me to Alpha Centauri” — study the navigation charts before playing.',
+        ui: 'Assistants → Games launcher → Fly me to Alpha Centauri.'
       },
       {
         command: '/suspend!',

@@ -82,6 +82,154 @@ body {
   color: var(--accent);
 }
 
+.card--terminal {
+  gap: 1rem;
+}
+
+.terminal__header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 1.5rem;
+}
+
+.terminal__status {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  font-family: var(--font-ibm-plex-mono), monospace;
+  font-size: 0.82rem;
+}
+
+.terminal__indicator {
+  width: 0.65rem;
+  height: 0.65rem;
+  border-radius: 50%;
+  background: rgba(71, 85, 105, 0.75);
+  box-shadow: 0 0 0 0 rgba(71, 85, 105, 0.4);
+  transition: box-shadow 150ms ease, background 150ms ease;
+}
+
+.terminal__indicator[data-state='connecting'] {
+  background: #facc15;
+  box-shadow: 0 0 0.65rem rgba(250, 204, 21, 0.45);
+}
+
+.terminal__indicator[data-state='connected'] {
+  background: #34d399;
+  box-shadow: 0 0 0.75rem rgba(52, 211, 153, 0.55);
+}
+
+.terminal__controls {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1rem;
+  align-items: flex-end;
+}
+
+.terminal__controls label {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  font-size: 0.74rem;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  color: var(--muted);
+}
+
+.terminal__controls input {
+  background: rgba(15, 23, 42, 0.7);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  color: var(--text);
+  padding: 0.45rem 0.7rem;
+  min-width: 280px;
+  font-family: var(--font-ibm-plex-mono), monospace;
+}
+
+.terminal__controls-buttons {
+  display: flex;
+  gap: 0.6rem;
+  flex-wrap: wrap;
+}
+
+.terminal__note {
+  margin: 0;
+  font-size: 0.78rem;
+  color: var(--muted);
+}
+
+.terminal__note--alpha {
+  color: var(--warning);
+  font-family: var(--font-ibm-plex-mono), monospace;
+}
+
+.terminal__viewport {
+  border: 1px solid rgba(148, 163, 184, 0.35);
+  border-radius: 16px;
+  background: rgba(2, 6, 23, 0.85);
+  padding: 1rem;
+  min-height: 200px;
+  max-height: 340px;
+  overflow: auto;
+  transition: border-color 150ms ease, box-shadow 150ms ease;
+}
+
+.terminal__viewport--focused {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 2px rgba(56, 189, 248, 0.25);
+}
+
+.terminal__output {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  font-family: var(--font-ibm-plex-mono), monospace;
+  font-size: 0.82rem;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.terminal__line {
+  margin: 0;
+}
+
+.terminal__line--info {
+  color: rgba(226, 232, 240, 0.85);
+}
+
+.terminal__line--error {
+  color: var(--danger);
+}
+
+.terminal__line--incoming {
+  color: var(--text-strong);
+}
+
+.terminal__line--outgoing {
+  color: var(--accent);
+}
+
+.terminal__capture {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  border: 0;
+  clip: rect(0, 0, 0, 0);
+  clip-path: inset(50%);
+  overflow: hidden;
+  white-space: nowrap;
+}
+
+.terminal__game {
+  margin: 0;
+  font-size: 0.8rem;
+  color: rgba(226, 232, 240, 0.75);
+  font-family: var(--font-ibm-plex-mono), monospace;
+}
+
 .page__status button,
 .card button,
 form button {
