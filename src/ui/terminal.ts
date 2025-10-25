@@ -13,7 +13,7 @@ type TargetOverrides = {
 };
 
 const normaliseProtocolName = (value: string | undefined): 'telnet' | 'ssh' =>
-  value === 'ssh' ? 'ssh' : 'telnet';
+  value === 'telnet' ? 'telnet' : 'ssh';
 
 const loadTargetOverrides = (): TargetOverrides => {
   if (typeof window === 'undefined' || typeof window.localStorage === 'undefined') {
@@ -116,8 +116,14 @@ const resolveTarget = (): TerminalTarget => {
   const defaultProtocol = normaliseProtocolName(
     typeof config?.bbsProtocol === 'string' ? config.bbsProtocol.trim().toLowerCase() : undefined
   );
-  const defaultHost = typeof config?.bbsHost === 'string' ? config.bbsHost.trim() : '';
-  const defaultPort = typeof config?.bbsPort === 'string' ? config.bbsPort.trim() : '';
+  const configuredHost = typeof config?.bbsHost === 'string' ? config.bbsHost.trim() : '';
+  const configuredHostDefault =
+    typeof config?.bbsHostDefault === 'string' ? config.bbsHostDefault.trim() : '';
+  const defaultHost = configuredHost || configuredHostDefault;
+  const configuredPort = typeof config?.bbsPort === 'string' ? config.bbsPort.trim() : '';
+  const configuredPortDefault =
+    typeof config?.bbsPortDefault === 'string' ? config.bbsPortDefault.trim() : '';
+  const defaultPort = configuredPort || configuredPortDefault;
   const defaultUsername = typeof config?.bbsSshUser === 'string' ? config.bbsSshUser.trim() : '';
   const configuredHostPlaceholder =
     typeof config?.bbsHostPlaceholder === 'string' ? config.bbsHostPlaceholder.trim() : '';
