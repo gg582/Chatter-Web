@@ -4,8 +4,9 @@ import { createServer } from 'node:http';
 import { extname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-const distRoot = fileURLToPath(new URL('..', import.meta.url));
-const staticRoot = distRoot;
+const serverDirectory = fileURLToPath(new URL('.', import.meta.url));
+const parentDirectory = join(serverDirectory, '..');
+const staticRoots = parentDirectory === serverDirectory ? [serverDirectory] : [serverDirectory, parentDirectory];
 
 const MIME_TYPES: Record<string, string> = {
   '.html': 'text/html; charset=utf-8',
@@ -40,9 +41,8 @@ function sanitisePath(urlPath: string): string {
   return safeSegments.join('/');
 }
 
-async function resolveFile(urlPath: string) {
-  const safePath = sanitisePath(urlPath);
-  let candidate = join(staticRoot, safePath);
+async function tryResolve(root: string, safePath: string) {
+  let candidate = join(root, safePath);
 
   try {
     let fileStat = await stat(candidate);
@@ -54,13 +54,44 @@ async function resolveFile(urlPath: string) {
     return { path: candidate, stats: fileStat };
   } catch (error) {
     if (!safePath) {
-      const fallback = join(staticRoot, 'index.html');
-      const stats = await stat(fallback);
-      return { path: fallback, stats };
+      try {
+        const fallback = join(root, 'index.html');
+        const stats = await stat(fallback);
+        return { path: fallback, stats };
+      } catch (fallbackError) {
+        if (
+          fallbackError &&
+          typeof fallbackError === 'object' &&
+          'code' in fallbackError &&
+          (fallbackError as { code?: string }).code !== 'ENOENT'
+        ) {
+          throw fallbackError;
+        }
+      }
+    } else if (
+      error &&
+      typeof error === 'object' &&
+      'code' in error &&
+      (error as { code?: string }).code !== 'ENOENT'
+    ) {
+      throw error;
     }
 
     return null;
   }
+}
+
+async function resolveFile(urlPath: string) {
+  const safePath = sanitisePath(urlPath);
+
+  for (const root of staticRoots) {
+    const resolved = await tryResolve(root, safePath);
+    if (resolved) {
+      return resolved;
+    }
+  }
+
+  return null;
 }
 
 async function handleRequest(req: import('node:http').IncomingMessage, res: import('node:http').ServerResponse) {
