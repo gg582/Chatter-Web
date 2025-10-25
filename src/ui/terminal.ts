@@ -4,6 +4,91 @@ import { escapeHtml } from './helpers.js';
 const runtimeMap = new WeakMap<HTMLElement, TerminalRuntime>();
 const textEncoder = new TextEncoder();
 const textDecoder = new TextDecoder();
+const TARGET_STORAGE_KEY = 'chatter-terminal-target';
+
+type TargetOverrides = {
+  protocol?: 'telnet' | 'ssh';
+  host?: string;
+  port?: string;
+};
+
+const normaliseProtocolName = (value: string | undefined): 'telnet' | 'ssh' =>
+  value === 'ssh' ? 'ssh' : 'telnet';
+
+const loadTargetOverrides = (): TargetOverrides => {
+  if (typeof window === 'undefined' || typeof window.localStorage === 'undefined') {
+    return {};
+  }
+
+  try {
+    const raw = window.localStorage.getItem(TARGET_STORAGE_KEY);
+    if (!raw) {
+      return {};
+    }
+    const parsed = JSON.parse(raw) as Partial<TargetOverrides>;
+    const overrides: TargetOverrides = {};
+
+    if (typeof parsed.protocol === 'string') {
+      const protocol = parsed.protocol.trim().toLowerCase();
+      if (protocol === 'telnet' || protocol === 'ssh') {
+        overrides.protocol = protocol;
+      }
+    }
+
+    if (typeof parsed.host === 'string') {
+      const host = parsed.host.trim();
+      if (host) {
+        overrides.host = host;
+      }
+    }
+
+    if (typeof parsed.port === 'string') {
+      const port = parsed.port.trim();
+      if (port) {
+        overrides.port = port;
+      }
+    }
+
+    return overrides;
+  } catch (error) {
+    console.warn('Failed to read terminal target overrides', error);
+    return {};
+  }
+};
+
+const saveTargetOverrides = (overrides: TargetOverrides) => {
+  if (typeof window === 'undefined' || typeof window.localStorage === 'undefined') {
+    return;
+  }
+
+  const payload: TargetOverrides = {};
+
+  if (overrides.protocol === 'telnet' || overrides.protocol === 'ssh') {
+    payload.protocol = overrides.protocol;
+  }
+
+  if (typeof overrides.host === 'string' && overrides.host.trim()) {
+    payload.host = overrides.host.trim();
+  }
+
+  if (typeof overrides.port === 'string' && overrides.port.trim()) {
+    payload.port = overrides.port.trim();
+  }
+
+  if (!payload.protocol && !payload.host && !payload.port) {
+    window.localStorage.removeItem(TARGET_STORAGE_KEY);
+    return;
+  }
+
+  window.localStorage.setItem(TARGET_STORAGE_KEY, JSON.stringify(payload));
+};
+
+const clearTargetOverrides = () => {
+  if (typeof window === 'undefined' || typeof window.localStorage === 'undefined') {
+    return;
+  }
+  window.localStorage.removeItem(TARGET_STORAGE_KEY);
+};
 
 const readRuntimeConfig = () => {
   if (typeof window === 'undefined') {
@@ -17,38 +102,71 @@ type TerminalTarget = {
   description: string;
   host: string;
   port: string;
-  protocol: string;
+  protocol: 'telnet' | 'ssh';
   defaultUsername: string;
+  overridesApplied: { host: boolean; port: boolean; protocol: boolean };
+  defaults: { host: string; port: string; protocol: 'telnet' | 'ssh'; username: string };
+  placeholders: { host: string; port: string };
 };
 
 const resolveTarget = (): TerminalTarget => {
   const config = readRuntimeConfig();
-  const protocol = (config?.bbsProtocol ?? 'telnet').trim().toLowerCase();
-  const host = typeof config?.bbsHost === 'string' ? config.bbsHost.trim() : '';
-  const port = typeof config?.bbsPort === 'string' ? config.bbsPort.trim() : '';
-  const defaultUsername = typeof config?.bbsSshUser === 'string' ? config.bbsSshUser.trim() : '';
+  const overrides = loadTargetOverrides();
 
-  if (!host) {
-    return {
-      available: false,
-      description: 'BBS target is not configured. Ask the operator to set CHATTER_BBS_*.',
-      host: '',
-      port: '',
-      protocol,
-      defaultUsername
-    };
+  const defaultProtocol = normaliseProtocolName(
+    typeof config?.bbsProtocol === 'string' ? config.bbsProtocol.trim().toLowerCase() : undefined
+  );
+  const defaultHost = typeof config?.bbsHost === 'string' ? config.bbsHost.trim() : '';
+  const defaultPort = typeof config?.bbsPort === 'string' ? config.bbsPort.trim() : '';
+  const defaultUsername = typeof config?.bbsSshUser === 'string' ? config.bbsSshUser.trim() : '';
+  const configuredHostPlaceholder =
+    typeof config?.bbsHostPlaceholder === 'string' ? config.bbsHostPlaceholder.trim() : '';
+
+  const protocol = normaliseProtocolName(overrides.protocol ?? defaultProtocol);
+  const host = (overrides.host ?? defaultHost ?? '').trim();
+  const port = (overrides.port ?? defaultPort ?? '').trim();
+
+  const overridesApplied = {
+    protocol: typeof overrides.protocol === 'string' && overrides.protocol !== defaultProtocol,
+    host: typeof overrides.host === 'string' && overrides.host !== defaultHost,
+    port: typeof overrides.port === 'string' && overrides.port !== defaultPort
+  };
+
+  const defaults = {
+    host: defaultHost,
+    port: defaultPort,
+    protocol: defaultProtocol,
+    username: defaultUsername
+  };
+
+  const hostPlaceholder = configuredHostPlaceholder || defaultHost || 'bbs.example.com';
+  const portPlaceholder = defaultPort || (defaultProtocol === 'ssh' ? '22' : '23');
+
+  const descriptorParts: string[] = [protocol.toUpperCase()];
+  if (host) {
+    const displayPort = port || defaultPort || (protocol === 'ssh' ? '22' : '23');
+    descriptorParts.push(displayPort ? `${host}:${displayPort}` : host);
+  }
+  if (overridesApplied.host || overridesApplied.port || overridesApplied.protocol) {
+    descriptorParts.push('· custom target');
   }
 
-  const pieces = [protocol ? protocol.toUpperCase() : 'TELNET'];
-  pieces.push(port ? `${host}:${port}` : host);
+  const description = descriptorParts.join(' ');
+  const username = protocol === 'ssh' ? defaultUsername : '';
 
   return {
-    available: true,
-    description: pieces.join(' '),
+    available: Boolean(host),
+    description,
     host,
     port,
     protocol,
-    defaultUsername
+    defaultUsername: username,
+    overridesApplied,
+    defaults,
+    placeholders: {
+      host: hostPlaceholder,
+      port: portPlaceholder
+    }
   };
 };
 
@@ -98,6 +216,7 @@ type TerminalRuntime = {
   endpointElement: HTMLElement;
   usernameInput: HTMLInputElement;
   usernameField: HTMLElement;
+  optionsElement: HTMLDetailsElement;
   connected: boolean;
   socketUrl: string | null;
   target: TerminalTarget;
@@ -124,6 +243,9 @@ const describeKey = (event: KeyboardEvent): string => {
 const createRuntime = (container: HTMLElement): TerminalRuntime => {
   const target = resolveTarget();
   const socketUrl = resolveSocketUrl(container);
+  const hostPlaceholderText = target.placeholders.host || 'bbs.example.com';
+  const portPlaceholderText =
+    target.placeholders.port || (target.defaults.protocol === 'ssh' ? '22' : '23');
 
   container.innerHTML = `
     <section class="card card--terminal">
@@ -144,24 +266,72 @@ const createRuntime = (container: HTMLElement): TerminalRuntime => {
           <span class="terminal__endpoint-label">Target:</span>
           <span class="terminal__endpoint-value" data-terminal-endpoint>${escapeHtml(target.description)}</span>
         </div>
-        <label class="terminal__field" data-terminal-username-field>
-          <span class="terminal__field-label">SSH username</span>
-          <input
-            type="text"
-            data-terminal-username
-            placeholder="Required for SSH"
-            value="${escapeHtml(target.defaultUsername)}"
-            autocomplete="off"
-            autocapitalize="none"
-            spellcheck="false"
-          />
-        </label>
         <div class="terminal__controls-buttons">
           <button type="button" data-terminal-connect>Connect</button>
           <button type="button" data-terminal-disconnect disabled>Disconnect</button>
           <button type="button" data-terminal-focus>Focus terminal</button>
         </div>
       </div>
+      <details class="terminal__options" data-terminal-options>
+        <summary class="terminal__options-summary">
+          <span>Optional connection settings</span>
+          <span class="terminal__options-summary-icon" aria-hidden="true"></span>
+        </summary>
+        <div class="terminal__options-body">
+          <form class="terminal__target-form" data-terminal-target-form>
+            <p class="terminal__note terminal__note--muted" data-terminal-target-status></p>
+            <div class="terminal__target-grid">
+              <label class="terminal__field">
+                <span class="terminal__field-label">Protocol</span>
+                <select data-terminal-protocol>
+                  <option value="telnet">Telnet</option>
+                  <option value="ssh">SSH</option>
+                </select>
+              </label>
+              <label class="terminal__field">
+                <span class="terminal__field-label">Host override</span>
+                <input
+                  type="text"
+                  data-terminal-host
+                  placeholder="${escapeHtml(hostPlaceholderText)}"
+                  autocomplete="off"
+                  autocapitalize="none"
+                  autocorrect="off"
+                  spellcheck="false"
+                />
+              </label>
+              <label class="terminal__field">
+                <span class="terminal__field-label">Port override</span>
+                <input
+                  type="text"
+                  data-terminal-port
+                  placeholder="${escapeHtml(portPlaceholderText)}"
+                  autocomplete="off"
+                  autocorrect="off"
+                  inputmode="numeric"
+                  pattern="[0-9]*"
+                />
+              </label>
+            </div>
+            <div class="terminal__target-actions">
+              <button type="submit">Save target</button>
+              <button type="button" data-terminal-target-reset>Reset overrides</button>
+            </div>
+          </form>
+          <label class="terminal__field" data-terminal-username-field>
+            <span class="terminal__field-label">SSH username</span>
+            <input
+              type="text"
+              data-terminal-username
+              placeholder="Required for SSH"
+              value="${escapeHtml(target.defaultUsername)}"
+              autocomplete="off"
+              autocapitalize="none"
+              spellcheck="false"
+            />
+          </label>
+        </div>
+      </details>
       <p class="terminal__note">
         Tip: Arrow keys, Tab, and Ctrl shortcuts are forwarded to the session. Use the focus button if the terminal stops
         receiving input.
@@ -197,6 +367,13 @@ const createRuntime = (container: HTMLElement): TerminalRuntime => {
   const endpointElement = container.querySelector<HTMLElement>('[data-terminal-endpoint]');
   const usernameInput = container.querySelector<HTMLInputElement>('[data-terminal-username]');
   const usernameField = container.querySelector<HTMLElement>('[data-terminal-username-field]');
+  const targetForm = container.querySelector<HTMLFormElement>('[data-terminal-target-form]');
+  const protocolSelect = container.querySelector<HTMLSelectElement>('[data-terminal-protocol]');
+  const hostInput = container.querySelector<HTMLInputElement>('[data-terminal-host]');
+  const portInput = container.querySelector<HTMLInputElement>('[data-terminal-port]');
+  const targetResetButton = container.querySelector<HTMLButtonElement>('[data-terminal-target-reset]');
+  const targetStatus = container.querySelector<HTMLElement>('[data-terminal-target-status]');
+  const optionsElement = container.querySelector<HTMLDetailsElement>('[data-terminal-options]');
 
   if (
     !statusElement ||
@@ -210,7 +387,14 @@ const createRuntime = (container: HTMLElement): TerminalRuntime => {
     !gameStatus ||
     !endpointElement ||
     !usernameInput ||
-    !usernameField
+    !usernameField ||
+    !targetForm ||
+    !protocolSelect ||
+    !hostInput ||
+    !portInput ||
+    !targetResetButton ||
+    !targetStatus ||
+    !optionsElement
   ) {
     throw new Error('Failed to mount the web terminal.');
   }
@@ -229,6 +413,7 @@ const createRuntime = (container: HTMLElement): TerminalRuntime => {
     endpointElement,
     usernameInput,
     usernameField,
+    optionsElement,
     socketUrl: typeof socketUrl === 'string' && socketUrl.trim() ? socketUrl.trim() : null,
     target,
     connected: false,
@@ -263,13 +448,94 @@ const createRuntime = (container: HTMLElement): TerminalRuntime => {
     }
   };
 
-  syncUsernameField();
+  const updateTargetStatus = () => {
+    if (!targetStatus) {
+      return;
+    }
+
+    if (runtime.target.overridesApplied.host || runtime.target.overridesApplied.port || runtime.target.overridesApplied.protocol) {
+      targetStatus.textContent =
+        'Using custom overrides saved in this browser. Leave fields blank to fall back to the server configuration.';
+      return;
+    }
+
+    if (runtime.target.defaults.host) {
+      const portLabel =
+        runtime.target.defaults.port ||
+        (runtime.target.defaults.protocol === 'ssh' ? '22' : runtime.target.defaults.protocol === 'telnet' ? '23' : '');
+      const hostLabel = portLabel ? `${runtime.target.defaults.host}:${portLabel}` : runtime.target.defaults.host;
+      targetStatus.textContent = `Using server-provided target ${hostLabel}.`;
+      return;
+    }
+
+    targetStatus.textContent =
+      'No server target configured. Expand Connection options to save a host override and connect directly.';
+  };
+
+  const updateFormPlaceholders = () => {
+    const protocolValue =
+      (protocolSelect.value === 'ssh' || protocolSelect.value === 'telnet'
+        ? protocolSelect.value
+        : runtime.target.defaults.protocol) ?? 'telnet';
+    hostInput.placeholder = runtime.target.placeholders.host || 'bbs.example.com';
+    const fallbackPort =
+      runtime.target.defaults.port || (protocolValue === 'ssh' ? '22' : protocolValue === 'telnet' ? '23' : '');
+    portInput.placeholder = fallbackPort || runtime.target.placeholders.port || '23';
+  };
+
+  let lastOverrideSignature = JSON.stringify(runtime.target.overridesApplied);
+  let lastAvailability = runtime.target.available;
+
+  const refreshTarget = (announce = false) => {
+    const previousOverrides = lastOverrideSignature;
+    const previousAvailability = lastAvailability;
+
+    runtime.target = resolveTarget();
+    runtime.endpointElement.textContent = runtime.target.description;
+    syncUsernameField();
+
+    const overridesSignature = JSON.stringify(runtime.target.overridesApplied);
+    if (announce && overridesSignature !== previousOverrides) {
+      if (runtime.target.overridesApplied.host || runtime.target.overridesApplied.port || runtime.target.overridesApplied.protocol) {
+        runtime.appendLine('Custom terminal target overrides active — connections will use your manual settings.', 'info');
+      } else {
+        runtime.appendLine('Reverted to the server-provided terminal target.', 'info');
+      }
+    }
+    lastOverrideSignature = overridesSignature;
+
+    if (announce && runtime.target.available && !previousAvailability) {
+      runtime.appendLine('Terminal target available. You can connect now.', 'info');
+    } else if (announce && !runtime.target.available && previousAvailability) {
+      runtime.appendLine('Terminal target cleared. Provide a host override to reconnect.', 'error');
+    }
+    lastAvailability = runtime.target.available;
+
+    const overrides = loadTargetOverrides();
+    protocolSelect.value = overrides.protocol ?? runtime.target.defaults.protocol;
+    hostInput.value = overrides.host ?? '';
+    portInput.value = overrides.port ?? '';
+
+    updateFormPlaceholders();
+    updateTargetStatus();
+
+    if (!runtime.target.available) {
+      runtime.optionsElement.open = true;
+    }
+
+    if (!runtime.connected) {
+      runtime.connectButton.disabled = !runtime.target.available || !runtime.socketUrl;
+    }
+  };
 
   runtime.updateStatus('Disconnected', 'disconnected');
   runtime.appendLine('Web terminal ready. Press Connect to reach the configured BBS target.');
+  refreshTarget(false);
   if (!runtime.target.available) {
-    runtime.appendLine('No BBS host is configured; contact the service operator.', 'error');
-    runtime.connectButton.disabled = true;
+    runtime.appendLine(
+      'No BBS host is configured. Expand Connection options to provide a host override or contact the operator.',
+      'error'
+    );
   }
   if (!runtime.socketUrl) {
     runtime.appendLine('Unable to resolve terminal bridge URL from the current origin.', 'error');
@@ -277,15 +543,16 @@ const createRuntime = (container: HTMLElement): TerminalRuntime => {
   }
 
   connectButton.addEventListener('click', () => {
-    runtime.target = resolveTarget();
-    runtime.endpointElement.textContent = runtime.target.description;
-    syncUsernameField();
+    refreshTarget(false);
     if (runtime.connected) {
       runtime.appendLine('Already connected.', 'info');
       return;
     }
     if (!runtime.target.available) {
-      runtime.appendLine('Cannot connect without a configured BBS target.', 'error');
+      runtime.appendLine(
+        'Cannot connect without a target host. Expand Connection options to save overrides or configure the server.',
+        'error'
+      );
       return;
     }
     const socketUrlText = runtime.socketUrl;
@@ -307,6 +574,17 @@ const createRuntime = (container: HTMLElement): TerminalRuntime => {
     runtime.connectButton.disabled = true;
     try {
       const socketUrl = new URL(socketUrlText);
+      socketUrl.searchParams.set('protocol', runtime.target.protocol);
+      if (runtime.target.host) {
+        socketUrl.searchParams.set('host', runtime.target.host);
+      } else {
+        socketUrl.searchParams.delete('host');
+      }
+      if (runtime.target.port) {
+        socketUrl.searchParams.set('port', runtime.target.port);
+      } else {
+        socketUrl.searchParams.delete('port');
+      }
       if (username) {
         socketUrl.searchParams.set('username', username);
       } else {
@@ -336,6 +614,7 @@ const createRuntime = (container: HTMLElement): TerminalRuntime => {
         runtime.connectButton.disabled = false;
         runtime.updateStatus('Disconnected', 'disconnected');
         runtime.appendLine(`Connection closed (code ${event.code}).`, 'info');
+        refreshTarget(false);
       });
       socket.addEventListener('error', () => {
         runtime.appendLine('Terminal connection error.', 'error');
@@ -348,6 +627,58 @@ const createRuntime = (container: HTMLElement): TerminalRuntime => {
       runtime.updateStatus('Disconnected', 'disconnected');
       runtime.appendLine(`Failed to connect: ${(error as Error).message}`, 'error');
     }
+  });
+
+  targetForm.addEventListener('submit', (event) => {
+    event.preventDefault();
+
+    const protocolValue = protocolSelect.value.trim().toLowerCase();
+    const hostValue = hostInput.value.trim();
+    const portValue = portInput.value.trim();
+
+    if (hostValue && (hostValue.length > 255 || /\s/.test(hostValue))) {
+      runtime.appendLine('Host overrides cannot contain spaces and must be under 255 characters.', 'error');
+      return;
+    }
+
+    if (portValue) {
+      const parsedPort = Number.parseInt(portValue, 10);
+      if (!Number.isFinite(parsedPort) || parsedPort <= 0 || parsedPort > 65_535) {
+        runtime.appendLine('Port overrides must be a number between 1 and 65535.', 'error');
+        return;
+      }
+    }
+
+    const overrides: TargetOverrides = {};
+
+    if ((protocolValue === 'ssh' || protocolValue === 'telnet') && protocolValue !== runtime.target.defaults.protocol) {
+      overrides.protocol = protocolValue;
+    }
+
+    if (hostValue && hostValue !== runtime.target.defaults.host) {
+      overrides.host = hostValue;
+    }
+
+    if (portValue && portValue !== runtime.target.defaults.port) {
+      overrides.port = portValue;
+    }
+
+    const previousSignature = JSON.stringify(runtime.target.overridesApplied);
+    saveTargetOverrides(overrides);
+    refreshTarget(true);
+    const currentSignature = JSON.stringify(runtime.target.overridesApplied);
+    if (previousSignature === currentSignature) {
+      runtime.appendLine('Terminal target overrides unchanged.', 'info');
+    }
+  });
+
+  targetResetButton.addEventListener('click', () => {
+    clearTargetOverrides();
+    refreshTarget(true);
+  });
+
+  protocolSelect.addEventListener('change', () => {
+    updateFormPlaceholders();
   });
 
   disconnectButton.addEventListener('click', () => {
