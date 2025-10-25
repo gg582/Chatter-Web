@@ -5,7 +5,25 @@ const runtimeMap = new WeakMap<HTMLElement, TerminalRuntime>();
 const textEncoder = new TextEncoder();
 const textDecoder = new TextDecoder();
 
-const defaultGateway = 'wss://bbs.chatter.example/pty';
+const fallbackGateway = 'wss://bbs.chatter.example/pty';
+
+const readRuntimeConfig = () => {
+  if (typeof window === 'undefined') {
+    return undefined;
+  }
+  return window.__CHATTER_CONFIG__;
+};
+
+const resolveDefaultGateway = () => {
+  const config = readRuntimeConfig();
+  if (config && typeof config.terminalGateway === 'string') {
+    const trimmed = config.terminalGateway.trim();
+    if (trimmed) {
+      return trimmed;
+    }
+  }
+  return fallbackGateway;
+};
 
 const keySequences: Record<string, string> = {
   Enter: '\r',
@@ -60,6 +78,7 @@ const describeKey = (event: KeyboardEvent): string => {
 };
 
 const createRuntime = (container: HTMLElement): TerminalRuntime => {
+  const defaultGateway = resolveDefaultGateway();
   const savedGateway =
     typeof window !== 'undefined' ? window.localStorage?.getItem('chatterTerminalGateway') ?? '' : '';
   const gateway = container.dataset.gateway ?? savedGateway ?? defaultGateway;
@@ -170,6 +189,14 @@ const createRuntime = (container: HTMLElement): TerminalRuntime => {
 
   runtime.updateStatus('Disconnected', 'disconnected');
   runtime.appendLine('Web terminal ready. Press Connect to reach the telnet gateway.');
+  const config = readRuntimeConfig();
+  if (config?.terminalGateway) {
+    runtime.appendLine(`Service default gateway: ${config.terminalGateway}`, 'info');
+    const hostPort = [config.terminalHost, config.terminalPort].filter(Boolean).join(':');
+    if (hostPort) {
+      runtime.appendLine(`Configured BBS endpoint: ${hostPort}`, 'info');
+    }
+  }
 
   connectButton.addEventListener('click', () => {
     if (runtime.connected) {

@@ -10,6 +10,10 @@ WorkingDirectory=/opt/chatter-web
 ExecStart=/usr/bin/node /opt/chatter-web/server.js
 Restart=on-failure
 Environment=PORT=8081
+Environment=CHATTER_TERMINAL_HOST=bbs.chatter.example
+Environment=CHATTER_TERMINAL_PORT=443
+Environment=CHATTER_TERMINAL_PATH=/pty
+Environment=CHATTER_TERMINAL_GATEWAY=wss://bbs.chatter.example/pty
 User=www-data
 Group=www-data
 
