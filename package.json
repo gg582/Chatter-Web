@@ -9,10 +9,17 @@
     "start": "node dist/server.js",
     "test": "npm run build && node --test --experimental-specifier-resolution=node dist/tests/**/*.test.js"
   },
-  "dependencies": {},
   "devDependencies": {
     "@types/node": "^20.12.7",
     "typescript": "^5.4.5"
   },
-  "packageManager": "npm@10.5.0"
+  "packageManager": "npm@10.5.0",
+  "description": "A standalone TypeScript front-end for the Chatter BBS control deck. The project mirrors every `/help` command with a matching GUI workflow so the SSH client and the browser stay feature-aligned. The codebase avoids external npm dependencies so it can build and test in constrained environments.",
+  "main": "next.config.js",
+  "directories": {
+    "test": "tests"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC"
 }

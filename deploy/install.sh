@@ -91,11 +91,6 @@ npm run build
 echo "Build completed. Artifacts available in dist/."
 
 if (( INSTALL_SERVICE )); then
-  if [[ ${EUID:-$(id -u)} -ne 0 ]]; then
-    echo "Error: systemd installation requires root privileges." >&2
-    exit 1
-  fi
-
   if [[ -z "$NODE_BIN" ]]; then
     NODE_BIN=$(command -v node || true)
   fi
@@ -111,15 +106,15 @@ if (( INSTALL_SERVICE )); then
 
   SERVICE_PATH="/etc/systemd/system/${SERVICE_NAME}.service"
 
-  cat > "$SERVICE_PATH" <<EOF2
+sudo -E /bin/bash  -c "cat > \"$SERVICE_PATH\" <<EOF2
 [Unit]
 Description=Chatter BBS web control deck
 After=network.target
 
 [Service]
 Type=simple
-WorkingDirectory=$PROJECT_ROOT
-ExecStart=$NODE_BIN $PROJECT_ROOT/dist/server.js
+WorkingDirectory=$PROJECT_ROOT/dist
+ExecStart=$NODE_BIN server.js
 Restart=on-failure
 Environment=PORT=$SERVICE_PORT
 User=$SERVICE_USER
@@ -127,10 +122,10 @@ Group=$SERVICE_GROUP
 
 [Install]
 WantedBy=multi-user.target
-EOF2
+EOF2"
 
-  systemctl daemon-reload
-  systemctl enable --now "$SERVICE_NAME"
+  sudo systemctl daemon-reload
+  sudo systemctl enable --now "$SERVICE_NAME"
 
   echo "Systemd unit installed at $SERVICE_PATH and started."
   echo "Use 'systemctl restart $SERVICE_NAME' after rebuilding." 
