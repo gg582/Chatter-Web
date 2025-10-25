@@ -1,0 +1,23 @@
+export const basicCommands: string[] = [
+  '/help',
+  '/motd',
+  '/exit',
+  '/users',
+  '/connected',
+  '/search <text>',
+  'Up/Down arrows',
+  '/nick <name>',
+  '/status <message|clear>',
+  '/showstatus <username>',
+  '/os <name>',
+  '/getos <username>',
+  '/birthday YYYY-MM-DD',
+  '/soulmate',
+  '/pair',
+  'Regular messages',
+  '/reply <message-id|r<reply-id>> <text>',
+  '/pm <username> <message>',
+  '/chat <message-id>',
+  '/good|/sad|/cool|/angry|/checked|/love|/wtf <id>',
+  '/delete-msg <id|start-end>'
+];
