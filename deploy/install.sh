@@ -14,6 +14,10 @@ Options:
   --user USER          Set the service user when installing with systemd (default: www-data)
   --group GROUP        Set the service group when installing with systemd (default: www-data)
   --port PORT          Set the PORT environment variable for the service (default: 8081)
+  --bbs-host HOST      Set the remote BBS host for the terminal bridge (default: bbs.chatter.example)
+  --bbs-port PORT      Set the remote BBS port (default: 23 for telnet, 22 for ssh)
+  --bbs-protocol MODE  Select telnet or ssh for the bridge protocol (default: telnet)
+  --bbs-ssh-command CMD Remote command to run after connecting via SSH
   --node PATH          Explicit path to the Node.js executable
   --prefix PATH        Destination directory for the compiled assets (default: /opt/chatter-web)
   --help               Show this message
@@ -35,6 +39,11 @@ SERVICE_GROUP="www-data"
 SERVICE_PORT="8081"
 NODE_BIN=""
 INSTALL_PREFIX="/opt/chatter-web"
+BBS_HOST="bbs.chatter.example"
+BBS_PROTOCOL="telnet"
+BBS_PORT="23"
+BBS_PORT_SET=0
+BBS_SSH_COMMAND=""
 
 ensure_prefix_permissions() {
   if [[ $EUID -eq 0 ]]; then
@@ -83,6 +92,23 @@ while [[ $# -gt 0 ]]; do
       shift || { echo "Missing value for --port" >&2; exit 1; }
       SERVICE_PORT="$1"
       ;;
+    --bbs-host)
+      shift || { echo "Missing value for --bbs-host" >&2; exit 1; }
+      BBS_HOST="$1"
+      ;;
+    --bbs-port)
+      shift || { echo "Missing value for --bbs-port" >&2; exit 1; }
+      BBS_PORT="$1"
+      BBS_PORT_SET=1
+      ;;
+    --bbs-protocol)
+      shift || { echo "Missing value for --bbs-protocol" >&2; exit 1; }
+      BBS_PROTOCOL="${1,,}"
+      ;;
+    --bbs-ssh-command)
+      shift || { echo "Missing value for --bbs-ssh-command" >&2; exit 1; }
+      BBS_SSH_COMMAND="$1"
+      ;;
     --node)
       shift || { echo "Missing value for --node" >&2; exit 1; }
       NODE_BIN="$1"
@@ -119,8 +145,45 @@ if (( INSTALL_SERVICE )) && [[ $EUID -ne 0 ]]; then
   exit 1
 fi
 
+if [[ -z "${BBS_HOST// /}" ]]; then
+  echo "Error: --bbs-host cannot be empty." >&2
+  exit 1
+fi
+
+BBS_PROTOCOL=${BBS_PROTOCOL,,}
+if [[ "$BBS_PROTOCOL" != "telnet" && "$BBS_PROTOCOL" != "ssh" ]]; then
+  echo "Error: --bbs-protocol must be either telnet or ssh." >&2
+  exit 1
+fi
+
+if (( BBS_PORT_SET == 0 )); then
+  if [[ "$BBS_PROTOCOL" == "ssh" ]]; then
+    BBS_PORT="22"
+  else
+    BBS_PORT="23"
+  fi
+fi
+
 if ! command -v npm >/dev/null 2>&1; then
   echo "Error: npm is required to build the project." >&2
+  exit 1
+fi
+
+if ! command -v node >/dev/null 2>&1; then
+  echo "Error: Node.js 22 or newer is required but 'node' was not found." >&2
+  exit 1
+fi
+
+NODE_VERSION_RAW=$(node -v)
+NODE_VERSION_TRIMMED=${NODE_VERSION_RAW#v}
+NODE_MAJOR=${NODE_VERSION_TRIMMED%%.*}
+if ! [[ $NODE_MAJOR =~ ^[0-9]+$ ]]; then
+  echo "Error: Unable to parse Node.js version string '$NODE_VERSION_RAW'." >&2
+  exit 1
+fi
+
+if (( NODE_MAJOR < 22 )); then
+  echo "Error: Node.js 22 or newer is required (detected $NODE_VERSION_RAW)." >&2
   exit 1
 fi
 
@@ -141,6 +204,12 @@ mkdir -p "$INSTALL_PREFIX"
 cp -a "$PROJECT_ROOT/dist/." "$INSTALL_PREFIX/"
 
 echo "Install location prepared at $INSTALL_PREFIX."
+
+if [[ -n "$BBS_PORT" ]]; then
+  echo "Terminal bridge target: $BBS_PROTOCOL $BBS_HOST:$BBS_PORT"
+else
+  echo "Terminal bridge target: $BBS_PROTOCOL $BBS_HOST"
+fi
 
 if (( INSTALL_SERVICE )); then
   if [[ -z "$NODE_BIN" ]]; then
@@ -179,6 +248,16 @@ WorkingDirectory=$INSTALL_PREFIX
 ExecStart=\"$NODE_BIN\" \"$START_SCRIPT\"
 Restart=on-failure
 Environment=PORT=$SERVICE_PORT
+Environment=CHATTER_BBS_HOST=$BBS_HOST
+Environment=CHATTER_BBS_PROTOCOL=$BBS_PROTOCOL
+Environment=CHATTER_BBS_PORT=$BBS_PORT
+EOF2"
+
+  if [[ -n "$BBS_SSH_COMMAND" ]]; then
+    echo "Environment=CHATTER_BBS_SSH_COMMAND=$BBS_SSH_COMMAND" >>"$SERVICE_PATH"
+  fi
+
+  /bin/bash -c "cat >> \"$SERVICE_PATH\" <<EOF2
 User=$SERVICE_USER
 Group=$SERVICE_GROUP
 

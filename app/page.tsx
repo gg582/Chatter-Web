@@ -28,6 +28,7 @@ export default function Home() {
         </div>
         <div className="page__status" data-component="session" />
       </header>
+      <div data-component="terminal" />
       <main className="layout">
         <section className="column column--chat">
           <div className="card card--motd" data-component="motd" />
