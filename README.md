@@ -48,16 +48,21 @@ stop chatter-frontend` to shut down the listener or `systemctl restart chatter-f
 
 ## Automated install script
 
-Run `deploy/install.sh` to build the project and (optionally) set up the service in one go:
+Run `deploy/install.sh` to build the project, copy the bundle into `/opt/chatter-web` (or a custom prefix), and (optionally) set up the service in one go:
 
 ```bash
-./deploy/install.sh              # installs dependencies and builds dist/
+./deploy/install.sh --prefix "$HOME/.local/chatter-web"   # build + stage assets without touching system directories
 sudo ./deploy/install.sh --systemd --user www-data --group www-data
 ```
 
-The script compiles the dashboard, writes the systemd unit into `/etc/systemd/system/`, and starts it immediately when
-the `--systemd` flag is supplied. Use `--service-name`, `--port`, `--user`, `--group`, or `--node` to override the
-defaults that land in the generated unit.
+The script compiles the dashboard, replicates the contents of `dist/` into the installation directory, and changes the
+ownership to match the service user when `--systemd` is enabled. It then writes the systemd unit into
+`/etc/systemd/system/` and starts it immediately. Use `--service-name`, `--port`, `--user`, `--group`, `--node`, or
+`--prefix` to override the defaults that land in the generated unit.
+
+The default installation prefix is `/opt/chatter-web`, so run the script with elevated privileges (for example via
+`sudo`) when targeting system locations. Supply a writable `--prefix` to stage the bundle for a single user without
+administrator access.
 
 ## Testing
 

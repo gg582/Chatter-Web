@@ -7,7 +7,7 @@ After=network.target
 [Service]
 Type=simple
 WorkingDirectory=/opt/chatter-web
-ExecStart=/usr/bin/node /opt/chatter-web/dist/server.js
+ExecStart=/usr/bin/node /opt/chatter-web/server.js
 Restart=on-failure
 Environment=PORT=8081
 User=www-data
