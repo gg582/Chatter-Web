@@ -371,7 +371,7 @@ const attachTelnetBridge = (context: TerminalClientContext) => {
 const attachSshBridge = (context: TerminalClientContext) => {
   const { host, port, sshUser, sshCommand } = context.settings;
   const target = sshUser ? `${sshUser}@${host}` : host;
-  const args = ['-tt', '-o', 'StrictHostKeyChecking=no', '-o', 'UserKnownHostsFile=/dev/null'];
+  const args = ['-tt'];
 
   if (port) {
     args.push('-p', String(port));
