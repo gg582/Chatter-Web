@@ -6,7 +6,7 @@ import { fileURLToPath } from 'node:url';
 
 const serverDirectory = fileURLToPath(new URL('.', import.meta.url));
 const parentDirectory = join(serverDirectory, '..');
-const staticRoots = parentDirectory === serverDirectory ? [serverDirectory] : [serverDirectory, parentDirectory];
+const staticRoots = [serverDirectory];
 
 const MIME_TYPES: Record<string, string> = {
   '.html': 'text/html; charset=utf-8',
