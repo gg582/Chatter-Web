@@ -14,8 +14,11 @@ Options:
   --user USER          Set the service user when installing with systemd (default: www-data)
   --group GROUP        Set the service group when installing with systemd (default: www-data)
   --port PORT          Set the PORT environment variable for the service (default: 8081)
-  --gateway-host HOST  Set the terminal gateway host for the web terminal (default: bbs.chatter.example)
-  --gateway-port PORT  Set the terminal gateway port for the web terminal (default: 23)
+  --bbs-host HOST      Set the remote BBS host for the terminal bridge (default: bbs.chatter.example)
+  --bbs-port PORT      Set the remote BBS port (default: 23 for telnet, 22 for ssh)
+  --bbs-protocol MODE  Select telnet or ssh for the bridge protocol (default: telnet)
+  --bbs-ssh-user USER  Provide an SSH username when using the ssh protocol
+  --bbs-ssh-command CMD Remote command to run after connecting via SSH
   --node PATH          Explicit path to the Node.js executable
   --prefix PATH        Destination directory for the compiled assets (default: /opt/chatter-web)
   --help               Show this message
@@ -37,41 +40,12 @@ SERVICE_GROUP="www-data"
 SERVICE_PORT="8081"
 NODE_BIN=""
 INSTALL_PREFIX="/opt/chatter-web"
-GATEWAY_HOST="bbs.chatter.example"
-GATEWAY_PORT="23"
-GATEWAY_PATH="/pty"
-
-build_gateway_url() {
-  local host="$1"
-  local port="$2"
-  local path="$3"
-
-  if [[ -z "$host" ]]; then
-    echo ""
-    return
-  fi
-
-  local scheme="wss"
-  local port_segment=""
-  if [[ -n "$port" ]]; then
-    if [[ "$port" == "443" ]]; then
-      scheme="wss"
-    else
-      scheme="ws"
-      port_segment=":$port"
-    fi
-  fi
-
-  if [[ -z "$path" ]]; then
-    path="$GATEWAY_PATH"
-  fi
-
-  if [[ "${path:0:1}" != "/" ]]; then
-    path="/$path"
-  fi
-
-  echo "$scheme://$host$port_segment$path"
-}
+BBS_HOST="bbs.chatter.example"
+BBS_PROTOCOL="telnet"
+BBS_PORT="23"
+BBS_PORT_SET=0
+BBS_SSH_USER=""
+BBS_SSH_COMMAND=""
 
 ensure_prefix_permissions() {
   if [[ $EUID -eq 0 ]]; then
@@ -120,13 +94,26 @@ while [[ $# -gt 0 ]]; do
       shift || { echo "Missing value for --port" >&2; exit 1; }
       SERVICE_PORT="$1"
       ;;
-    --gateway-host)
-      shift || { echo "Missing value for --gateway-host" >&2; exit 1; }
-      GATEWAY_HOST="$1"
+    --bbs-host)
+      shift || { echo "Missing value for --bbs-host" >&2; exit 1; }
+      BBS_HOST="$1"
       ;;
-    --gateway-port)
-      shift || { echo "Missing value for --gateway-port" >&2; exit 1; }
-      GATEWAY_PORT="$1"
+    --bbs-port)
+      shift || { echo "Missing value for --bbs-port" >&2; exit 1; }
+      BBS_PORT="$1"
+      BBS_PORT_SET=1
+      ;;
+    --bbs-protocol)
+      shift || { echo "Missing value for --bbs-protocol" >&2; exit 1; }
+      BBS_PROTOCOL="${1,,}"
+      ;;
+    --bbs-ssh-user)
+      shift || { echo "Missing value for --bbs-ssh-user" >&2; exit 1; }
+      BBS_SSH_USER="$1"
+      ;;
+    --bbs-ssh-command)
+      shift || { echo "Missing value for --bbs-ssh-command" >&2; exit 1; }
+      BBS_SSH_COMMAND="$1"
       ;;
     --node)
       shift || { echo "Missing value for --node" >&2; exit 1; }
@@ -164,16 +151,23 @@ if (( INSTALL_SERVICE )) && [[ $EUID -ne 0 ]]; then
   exit 1
 fi
 
-if [[ -z "${GATEWAY_HOST// /}" ]]; then
-  echo "Error: --gateway-host cannot be empty." >&2
+if [[ -z "${BBS_HOST// /}" ]]; then
+  echo "Error: --bbs-host cannot be empty." >&2
   exit 1
 fi
 
-GATEWAY_URL=$(build_gateway_url "$GATEWAY_HOST" "$GATEWAY_PORT" "$GATEWAY_PATH")
-
-if [[ -z "$GATEWAY_URL" ]]; then
-  echo "Error: unable to compute terminal gateway URL." >&2
+BBS_PROTOCOL=${BBS_PROTOCOL,,}
+if [[ "$BBS_PROTOCOL" != "telnet" && "$BBS_PROTOCOL" != "ssh" ]]; then
+  echo "Error: --bbs-protocol must be either telnet or ssh." >&2
   exit 1
+fi
+
+if (( BBS_PORT_SET == 0 )); then
+  if [[ "$BBS_PROTOCOL" == "ssh" ]]; then
+    BBS_PORT="22"
+  else
+    BBS_PORT="23"
+  fi
 fi
 
 if ! command -v npm >/dev/null 2>&1; then
@@ -199,10 +193,10 @@ cp -a "$PROJECT_ROOT/dist/." "$INSTALL_PREFIX/"
 
 echo "Install location prepared at $INSTALL_PREFIX."
 
-if [[ -n "$GATEWAY_PORT" ]]; then
-  echo "Terminal gateway target: $GATEWAY_HOST:$GATEWAY_PORT ($GATEWAY_URL)"
+if [[ -n "$BBS_PORT" ]]; then
+  echo "Terminal bridge target: $BBS_PROTOCOL $BBS_HOST:$BBS_PORT"
 else
-  echo "Terminal gateway target: $GATEWAY_HOST ($GATEWAY_URL)"
+  echo "Terminal bridge target: $BBS_PROTOCOL $BBS_HOST"
 fi
 
 if (( INSTALL_SERVICE )); then
@@ -242,10 +236,20 @@ WorkingDirectory=$INSTALL_PREFIX
 ExecStart=\"$NODE_BIN\" \"$START_SCRIPT\"
 Restart=on-failure
 Environment=PORT=$SERVICE_PORT
-Environment=CHATTER_TERMINAL_HOST=$GATEWAY_HOST
-Environment=CHATTER_TERMINAL_PORT=$GATEWAY_PORT
-Environment=CHATTER_TERMINAL_PATH=$GATEWAY_PATH
-Environment=CHATTER_TERMINAL_GATEWAY=$GATEWAY_URL
+Environment=CHATTER_BBS_HOST=$BBS_HOST
+Environment=CHATTER_BBS_PROTOCOL=$BBS_PROTOCOL
+Environment=CHATTER_BBS_PORT=$BBS_PORT
+EOF2"
+
+  if [[ -n "$BBS_SSH_USER" ]]; then
+    echo "Environment=CHATTER_BBS_SSH_USER=$BBS_SSH_USER" >>"$SERVICE_PATH"
+  fi
+
+  if [[ -n "$BBS_SSH_COMMAND" ]]; then
+    echo "Environment=CHATTER_BBS_SSH_COMMAND=$BBS_SSH_COMMAND" >>"$SERVICE_PATH"
+  fi
+
+  /bin/bash -c "cat >> \"$SERVICE_PATH\" <<EOF2
 User=$SERVICE_USER
 Group=$SERVICE_GROUP
 

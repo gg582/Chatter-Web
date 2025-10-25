@@ -1,3 +1,4 @@
+import { DEFAULT_OPERATING_SYSTEM } from '../data/operatingSystems.js';
 import type {
   AttachmentEntry,
   AttachmentKind,
@@ -26,13 +27,13 @@ const profiles: Record<string, UserProfile> = {
   admin: {
     username: 'admin',
     status: 'Curating the BBS. Type /help for the full command list.',
-    os: 'OpenBSD',
+    os: DEFAULT_OPERATING_SYSTEM,
     birthday: '1994-09-12'
   },
   ada: {
     username: 'ada',
     status: 'Working on a new terminal UI experiment.',
-    os: 'Void Linux',
+    os: 'Linux',
     birthday: '1990-12-10'
   },
   eliza: {

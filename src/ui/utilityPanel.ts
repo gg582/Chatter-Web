@@ -1,3 +1,4 @@
+import { DEFAULT_OPERATING_SYSTEM, OPERATING_SYSTEMS } from '../data/operatingSystems.js';
 import { ChatStore } from '../state/chatStore.js';
 import type { AttachmentKind, ReactionType } from '../state/types.js';
 import { escapeHtml, formatRelative } from './helpers.js';
@@ -16,6 +17,19 @@ const attachmentLabels: Record<AttachmentKind, string> = {
   video: 'Video',
   audio: 'Audio',
   file: 'File'
+};
+
+const normaliseOs = (value: string) => value.trim().toLowerCase();
+
+const renderOperatingSystemOptions = (current?: string): string => {
+  const selected =
+    OPERATING_SYSTEMS.find((entry) => normaliseOs(entry) === normaliseOs(current ?? '')) ??
+    DEFAULT_OPERATING_SYSTEM;
+
+  return OPERATING_SYSTEMS.map((entry) => {
+    const isSelected = normaliseOs(entry) === normaliseOs(selected);
+    return `<option value="${escapeHtml(entry)}"${isSelected ? ' selected' : ''}>${escapeHtml(entry)}</option>`;
+  }).join('');
 };
 
 const parseDeleteInput = (value: string): string[] => {
@@ -200,7 +214,9 @@ export const renderUtilityPanel = (store: ChatStore, container: HTMLElement) => 
         </form>
         <form class="form-grid" data-action="set-os">
           <label for="os-input">Operating system</label>
-          <input id="os-input" name="os" value="${escapeHtml(state.currentUser.os ?? '')}" placeholder="/os" />
+          <select id="os-input" name="os">
+            ${renderOperatingSystemOptions(state.currentUser.os)}
+          </select>
           <button type="submit">Record OS</button>
           <p class="feedback" data-feedback="set-os"></p>
         </form>

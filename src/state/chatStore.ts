@@ -1,3 +1,4 @@
+import { OPERATING_SYSTEMS } from '../data/operatingSystems.js';
 import { seedState } from './seed.js';
 import type {
   AttachmentEntry,
@@ -198,12 +199,21 @@ export class ChatStore {
   setOperatingSystem(os: string): CommandResult {
     const value = os.trim();
     if (!value) {
-      return { ok: false, error: 'Provide an operating system name.' };
+      return { ok: false, error: 'Choose an operating system.' };
     }
-    this.state.currentUser.os = value;
-    this.state.profiles[this.state.currentUser.username].os = value;
+
+    const resolved = OPERATING_SYSTEMS.find((entry) => normalise(entry) === normalise(value));
+    if (!resolved) {
+      return {
+        ok: false,
+        error: `Supported systems: ${OPERATING_SYSTEMS.join(', ')}.`
+      };
+    }
+
+    this.state.currentUser.os = resolved;
+    this.state.profiles[this.state.currentUser.username].os = resolved;
     this.emit();
-    return { ok: true, message: 'Operating system recorded.' };
+    return { ok: true, message: `Operating system set to ${resolved}.` };
   }
 
   getOperatingSystem(username: string): string | undefined {

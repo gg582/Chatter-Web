@@ -1,7 +1,8 @@
 interface ChatterRuntimeConfig {
-  terminalGateway?: string;
-  terminalHost?: string;
-  terminalPort?: string;
+  bbsProtocol?: string;
+  bbsHost?: string;
+  bbsPort?: string;
+  bbsSshUser?: string;
 }
 
 declare global {

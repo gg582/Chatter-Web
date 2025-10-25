@@ -12,37 +12,58 @@ const readRuntimeConfig = () => {
   return window.__CHATTER_CONFIG__;
 };
 
-type GatewayConfig = {
-  url: string | null;
+type TerminalTarget = {
+  available: boolean;
   description: string;
+  host: string;
+  port: string;
+  protocol: string;
+  sshUser: string;
 };
 
-const resolveGateway = (): GatewayConfig => {
+const resolveTarget = (): TerminalTarget => {
   const config = readRuntimeConfig();
-  if (!config) {
-    return { url: null, description: 'Terminal gateway is not configured. Ask the operator to set CHATTER_TERMINAL_*.' };
-  }
+  const protocol = (config?.bbsProtocol ?? 'telnet').trim().toLowerCase();
+  const host = typeof config?.bbsHost === 'string' ? config.bbsHost.trim() : '';
+  const port = typeof config?.bbsPort === 'string' ? config.bbsPort.trim() : '';
+  const sshUser = typeof config?.bbsSshUser === 'string' ? config.bbsSshUser.trim() : '';
 
-  const gateway = typeof config.terminalGateway === 'string' ? config.terminalGateway.trim() : '';
-  if (!gateway) {
+  if (!host) {
     return {
-      url: null,
-      description: 'Terminal gateway is not configured. Ask the operator to set CHATTER_TERMINAL_*.'
+      available: false,
+      description: 'BBS target is not configured. Ask the operator to set CHATTER_BBS_*.',
+      host: '',
+      port: '',
+      protocol,
+      sshUser
     };
   }
 
-  const host = typeof config.terminalHost === 'string' ? config.terminalHost.trim() : '';
-  const port = typeof config.terminalPort === 'string' ? config.terminalPort.trim() : '';
-
-  let descriptor = gateway;
-  if (host) {
-    descriptor = port ? `${host}:${port}` : host;
-  }
+  const pieces = [protocol ? protocol.toUpperCase() : 'TELNET'];
+  const hostLabel = sshUser ? `${sshUser}@${host}` : host;
+  pieces.push(port ? `${hostLabel}:${port}` : hostLabel);
 
   return {
-    url: gateway,
-    description: descriptor
+    available: true,
+    description: pieces.join(' '),
+    host,
+    port,
+    protocol,
+    sshUser
   };
+};
+
+const resolveSocketUrl = (container: HTMLElement): string | null => {
+  if (typeof window === 'undefined') {
+    return null;
+  }
+
+  const path = container.dataset.terminalPath ?? '/terminal';
+  const trimmedPath = path.trim() || '/terminal';
+  const safePath = trimmedPath.startsWith('/') ? trimmedPath : `/${trimmedPath}`;
+  const scheme = window.location.protocol === 'https:' ? 'wss' : 'ws';
+  const host = window.location.host;
+  return `${scheme}://${host}${safePath}`;
 };
 
 const keySequences: Record<string, string> = {
@@ -75,8 +96,10 @@ type TerminalRuntime = {
   focusButton: HTMLButtonElement;
   viewport: HTMLElement;
   gameStatus: HTMLElement;
+  endpointElement: HTMLElement;
   connected: boolean;
-  gatewayUrl: string | null;
+  socketUrl: string | null;
+  target: TerminalTarget;
   appendLine: (text: string, kind?: TerminalLineKind) => void;
   updateStatus: (label: string, state: 'disconnected' | 'connecting' | 'connected') => void;
 };
@@ -98,8 +121,8 @@ const describeKey = (event: KeyboardEvent): string => {
 };
 
 const createRuntime = (container: HTMLElement): TerminalRuntime => {
-  const gatewayConfig = resolveGateway();
-  const gatewayUrl = container.dataset.gateway ?? gatewayConfig.url;
+  const target = resolveTarget();
+  const socketUrl = resolveSocketUrl(container);
 
   container.innerHTML = `
     <section class="card card--terminal">
@@ -117,10 +140,8 @@ const createRuntime = (container: HTMLElement): TerminalRuntime => {
       </header>
       <div class="terminal__controls">
         <div class="terminal__endpoint">
-          <span class="terminal__endpoint-label">Gateway:</span>
-          <span class="terminal__endpoint-value" data-terminal-endpoint>${escapeHtml(
-            gatewayConfig.description
-          )}</span>
+          <span class="terminal__endpoint-label">Target:</span>
+          <span class="terminal__endpoint-value" data-terminal-endpoint>${escapeHtml(target.description)}</span>
         </div>
         <div class="terminal__controls-buttons">
           <button type="button" data-terminal-connect>Connect</button>
@@ -160,6 +181,7 @@ const createRuntime = (container: HTMLElement): TerminalRuntime => {
   const focusButton = container.querySelector<HTMLButtonElement>('[data-terminal-focus]');
   const viewport = container.querySelector<HTMLElement>('[data-terminal-viewport]');
   const gameStatus = container.querySelector<HTMLElement>('[data-terminal-game]');
+  const endpointElement = container.querySelector<HTMLElement>('[data-terminal-endpoint]');
 
   if (
     !statusElement ||
@@ -170,7 +192,8 @@ const createRuntime = (container: HTMLElement): TerminalRuntime => {
     !disconnectButton ||
     !focusButton ||
     !viewport ||
-    !gameStatus
+    !gameStatus ||
+    !endpointElement
   ) {
     throw new Error('Failed to mount the web terminal.');
   }
@@ -186,7 +209,9 @@ const createRuntime = (container: HTMLElement): TerminalRuntime => {
     focusButton,
     viewport,
     gameStatus,
-    gatewayUrl: typeof gatewayUrl === 'string' && gatewayUrl.trim() ? gatewayUrl.trim() : null,
+    endpointElement,
+    socketUrl: typeof socketUrl === 'string' && socketUrl.trim() ? socketUrl.trim() : null,
+    target,
     connected: false,
     appendLine: (text: string, kind: TerminalLineKind = 'info') => {
       const lines = text.replace(/\r/g, '').split('\n');
@@ -206,34 +231,36 @@ const createRuntime = (container: HTMLElement): TerminalRuntime => {
   };
 
   runtime.updateStatus('Disconnected', 'disconnected');
-  runtime.appendLine('Web terminal ready. Press Connect to reach the telnet gateway.');
-  const config = readRuntimeConfig();
-  if (config?.terminalGateway) {
-    runtime.appendLine(`Service default gateway: ${config.terminalGateway}`, 'info');
-    const hostPort = [config.terminalHost, config.terminalPort].filter(Boolean).join(':');
-    if (hostPort) {
-      runtime.appendLine(`Configured BBS endpoint: ${hostPort}`, 'info');
-    }
+  runtime.appendLine('Web terminal ready. Press Connect to reach the configured BBS target.');
+  if (!runtime.target.available) {
+    runtime.appendLine('No BBS host is configured; contact the service operator.', 'error');
+    runtime.connectButton.disabled = true;
   }
-  if (!runtime.gatewayUrl) {
-    runtime.appendLine('No terminal gateway URL is configured; contact the service operator.', 'error');
+  if (!runtime.socketUrl) {
+    runtime.appendLine('Unable to resolve terminal bridge URL from the current origin.', 'error');
     runtime.connectButton.disabled = true;
   }
 
   connectButton.addEventListener('click', () => {
+    runtime.target = resolveTarget();
+    runtime.endpointElement.textContent = runtime.target.description;
     if (runtime.connected) {
       runtime.appendLine('Already connected.', 'info');
       return;
     }
-    if (!runtime.gatewayUrl) {
-      runtime.appendLine('Cannot connect without a configured gateway.', 'error');
+    if (!runtime.target.available) {
+      runtime.appendLine('Cannot connect without a configured BBS target.', 'error');
+      return;
+    }
+    if (!runtime.socketUrl) {
+      runtime.appendLine('Cannot connect without a resolved terminal bridge.', 'error');
       return;
     }
     runtime.updateStatus('Connecting…', 'connecting');
-    runtime.appendLine(`Connecting to ${runtime.gatewayUrl} …`, 'info');
+    runtime.appendLine(`Connecting to ${runtime.target.description} …`, 'info');
     runtime.connectButton.disabled = true;
     try {
-      const socket = new WebSocket(runtime.gatewayUrl);
+      const socket = new WebSocket(runtime.socketUrl);
       socket.binaryType = 'arraybuffer';
       runtime.socket = socket;
       socket.addEventListener('open', () => {
@@ -332,6 +359,12 @@ export const renderTerminal = (store: ChatStore, container: HTMLElement) => {
   if (!runtime) {
     runtime = createRuntime(container);
     runtimeMap.set(container, runtime);
+  }
+
+  runtime.target = resolveTarget();
+  runtime.endpointElement.textContent = runtime.target.description;
+  if (!runtime.connected) {
+    runtime.connectButton.disabled = !runtime.target.available || !runtime.socketUrl;
   }
 
   const state = store.snapshot();
