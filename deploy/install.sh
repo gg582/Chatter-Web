@@ -104,8 +104,8 @@ while [[ $# -gt 0 ]]; do
   shift
 done
 
-if [[ -z "$INSTALL_PREFIX" ]]; then
-  echo "Error: installation prefix cannot be empty." >&2
+if [[ -z "${INSTALL_PREFIX// /}" ]]; then
+  echo "Error: installation prefix cannot be empty or contain only spaces." >&2
   exit 1
 fi
 
