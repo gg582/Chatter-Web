@@ -126,7 +126,7 @@ export interface ChatState {
   geminiCooling: boolean;
   elizaEnabled: boolean;
   elizaLog: string[];
-  activeGame: '' | 'tetris' | 'liargame';
+  activeGame: '' | 'tetris' | 'liargame' | 'alpha';
   weatherHistory: WeatherReport[];
   timezoneHistory: TimezoneLookup[];
   polls: Record<string, Poll>;
