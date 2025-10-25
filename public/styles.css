@@ -127,7 +127,7 @@ body {
   align-items: flex-end;
 }
 
-.terminal__controls label {
+.terminal__endpoint {
   display: flex;
   flex-direction: column;
   gap: 0.35rem;
@@ -137,14 +137,17 @@ body {
   color: var(--muted);
 }
 
-.terminal__controls input {
+.terminal__endpoint-value {
   background: rgba(15, 23, 42, 0.7);
   border: 1px solid var(--border);
   border-radius: 12px;
   color: var(--text);
-  padding: 0.45rem 0.7rem;
+  padding: 0.6rem 0.9rem;
   min-width: 280px;
   font-family: var(--font-ibm-plex-mono), monospace;
+  text-transform: none;
+  letter-spacing: normal;
+  word-break: break-word;
 }
 
 .terminal__controls-buttons {

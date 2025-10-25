@@ -7,12 +7,10 @@ import { fileURLToPath } from 'node:url';
 const serverDirectory = fileURLToPath(new URL('.', import.meta.url));
 const staticRoots = [serverDirectory];
 
-const fallbackGatewayHost = 'bbs.chatter.example';
-const fallbackGatewayPort = '443';
 const fallbackGatewayPath = '/pty';
 
 const defaultSchemeForPort = (port: string | undefined) => {
-  if (!port || port === fallbackGatewayPort) {
+  if (!port || port === '443') {
     return 'wss';
   }
   return 'ws';
@@ -39,7 +37,7 @@ const buildGatewayUrl = (host: string | undefined, port: string | undefined, pat
   }
   const trimmedPort = port?.trim() ?? '';
   const scheme = process.env.CHATTER_TERMINAL_SCHEME?.trim() || defaultSchemeForPort(trimmedPort || undefined);
-  const showPort = trimmedPort && !(scheme === 'wss' && trimmedPort === fallbackGatewayPort);
+  const showPort = trimmedPort && !(scheme === 'wss' && trimmedPort === '443');
   const portSegment = showPort ? `:${trimmedPort}` : '';
   const safePath = normalisePath(path);
   return `${scheme}://${trimmedHost}${portSegment}${safePath}`;
@@ -55,11 +53,10 @@ const resolveRuntimeConfig = () => {
   if (!gateway) {
     gateway = buildGatewayUrl(host, port, path);
   }
-  if (!gateway) {
-    gateway = buildGatewayUrl(fallbackGatewayHost, fallbackGatewayPort, fallbackGatewayPath);
+  const config: Record<string, string> = {};
+  if (gateway) {
+    config.terminalGateway = gateway;
   }
-
-  const config: Record<string, string> = { terminalGateway: gateway };
   if (host) {
     config.terminalHost = host;
   }

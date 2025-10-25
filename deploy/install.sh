@@ -15,7 +15,7 @@ Options:
   --group GROUP        Set the service group when installing with systemd (default: www-data)
   --port PORT          Set the PORT environment variable for the service (default: 8081)
   --gateway-host HOST  Set the terminal gateway host for the web terminal (default: bbs.chatter.example)
-  --gateway-port PORT  Set the terminal gateway port for the web terminal (default: 443)
+  --gateway-port PORT  Set the terminal gateway port for the web terminal (default: 23)
   --node PATH          Explicit path to the Node.js executable
   --prefix PATH        Destination directory for the compiled assets (default: /opt/chatter-web)
   --help               Show this message
@@ -38,7 +38,7 @@ SERVICE_PORT="8081"
 NODE_BIN=""
 INSTALL_PREFIX="/opt/chatter-web"
 GATEWAY_HOST="bbs.chatter.example"
-GATEWAY_PORT="443"
+GATEWAY_PORT="23"
 GATEWAY_PATH="/pty"
 
 build_gateway_url() {
@@ -54,7 +54,9 @@ build_gateway_url() {
   local scheme="wss"
   local port_segment=""
   if [[ -n "$port" ]]; then
-    if [[ "$port" != "443" ]]; then
+    if [[ "$port" == "443" ]]; then
+      scheme="wss"
+    else
       scheme="ws"
       port_segment=":$port"
     fi

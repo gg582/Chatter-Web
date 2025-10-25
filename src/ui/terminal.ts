@@ -5,8 +5,6 @@ const runtimeMap = new WeakMap<HTMLElement, TerminalRuntime>();
 const textEncoder = new TextEncoder();
 const textDecoder = new TextDecoder();
 
-const fallbackGateway = 'wss://bbs.chatter.example/pty';
-
 const readRuntimeConfig = () => {
   if (typeof window === 'undefined') {
     return undefined;
@@ -14,15 +12,37 @@ const readRuntimeConfig = () => {
   return window.__CHATTER_CONFIG__;
 };
 
-const resolveDefaultGateway = () => {
+type GatewayConfig = {
+  url: string | null;
+  description: string;
+};
+
+const resolveGateway = (): GatewayConfig => {
   const config = readRuntimeConfig();
-  if (config && typeof config.terminalGateway === 'string') {
-    const trimmed = config.terminalGateway.trim();
-    if (trimmed) {
-      return trimmed;
-    }
+  if (!config) {
+    return { url: null, description: 'Terminal gateway is not configured. Ask the operator to set CHATTER_TERMINAL_*.' };
   }
-  return fallbackGateway;
+
+  const gateway = typeof config.terminalGateway === 'string' ? config.terminalGateway.trim() : '';
+  if (!gateway) {
+    return {
+      url: null,
+      description: 'Terminal gateway is not configured. Ask the operator to set CHATTER_TERMINAL_*.'
+    };
+  }
+
+  const host = typeof config.terminalHost === 'string' ? config.terminalHost.trim() : '';
+  const port = typeof config.terminalPort === 'string' ? config.terminalPort.trim() : '';
+
+  let descriptor = gateway;
+  if (host) {
+    descriptor = port ? `${host}:${port}` : host;
+  }
+
+  return {
+    url: gateway,
+    description: descriptor
+  };
 };
 
 const keySequences: Record<string, string> = {
@@ -53,10 +73,10 @@ type TerminalRuntime = {
   connectButton: HTMLButtonElement;
   disconnectButton: HTMLButtonElement;
   focusButton: HTMLButtonElement;
-  gatewayInput: HTMLInputElement;
   viewport: HTMLElement;
   gameStatus: HTMLElement;
   connected: boolean;
+  gatewayUrl: string | null;
   appendLine: (text: string, kind?: TerminalLineKind) => void;
   updateStatus: (label: string, state: 'disconnected' | 'connecting' | 'connected') => void;
 };
@@ -78,10 +98,8 @@ const describeKey = (event: KeyboardEvent): string => {
 };
 
 const createRuntime = (container: HTMLElement): TerminalRuntime => {
-  const defaultGateway = resolveDefaultGateway();
-  const savedGateway =
-    typeof window !== 'undefined' ? window.localStorage?.getItem('chatterTerminalGateway') ?? '' : '';
-  const gateway = container.dataset.gateway ?? savedGateway ?? defaultGateway;
+  const gatewayConfig = resolveGateway();
+  const gatewayUrl = container.dataset.gateway ?? gatewayConfig.url;
 
   container.innerHTML = `
     <section class="card card--terminal">
@@ -98,10 +116,12 @@ const createRuntime = (container: HTMLElement): TerminalRuntime => {
         </div>
       </header>
       <div class="terminal__controls">
-        <label>
-          Gateway URL
-          <input type="url" data-terminal-gateway value="${escapeHtml(gateway || defaultGateway)}" />
-        </label>
+        <div class="terminal__endpoint">
+          <span class="terminal__endpoint-label">Gateway:</span>
+          <span class="terminal__endpoint-value" data-terminal-endpoint>${escapeHtml(
+            gatewayConfig.description
+          )}</span>
+        </div>
         <div class="terminal__controls-buttons">
           <button type="button" data-terminal-connect>Connect</button>
           <button type="button" data-terminal-disconnect disabled>Disconnect</button>
@@ -138,7 +158,6 @@ const createRuntime = (container: HTMLElement): TerminalRuntime => {
   const connectButton = container.querySelector<HTMLButtonElement>('[data-terminal-connect]');
   const disconnectButton = container.querySelector<HTMLButtonElement>('[data-terminal-disconnect]');
   const focusButton = container.querySelector<HTMLButtonElement>('[data-terminal-focus]');
-  const gatewayInput = container.querySelector<HTMLInputElement>('[data-terminal-gateway]');
   const viewport = container.querySelector<HTMLElement>('[data-terminal-viewport]');
   const gameStatus = container.querySelector<HTMLElement>('[data-terminal-game]');
 
@@ -150,7 +169,6 @@ const createRuntime = (container: HTMLElement): TerminalRuntime => {
     !connectButton ||
     !disconnectButton ||
     !focusButton ||
-    !gatewayInput ||
     !viewport ||
     !gameStatus
   ) {
@@ -166,9 +184,9 @@ const createRuntime = (container: HTMLElement): TerminalRuntime => {
     connectButton,
     disconnectButton,
     focusButton,
-    gatewayInput,
     viewport,
     gameStatus,
+    gatewayUrl: typeof gatewayUrl === 'string' && gatewayUrl.trim() ? gatewayUrl.trim() : null,
     connected: false,
     appendLine: (text: string, kind: TerminalLineKind = 'info') => {
       const lines = text.replace(/\r/g, '').split('\n');
@@ -197,25 +215,25 @@ const createRuntime = (container: HTMLElement): TerminalRuntime => {
       runtime.appendLine(`Configured BBS endpoint: ${hostPort}`, 'info');
     }
   }
+  if (!runtime.gatewayUrl) {
+    runtime.appendLine('No terminal gateway URL is configured; contact the service operator.', 'error');
+    runtime.connectButton.disabled = true;
+  }
 
   connectButton.addEventListener('click', () => {
     if (runtime.connected) {
       runtime.appendLine('Already connected.', 'info');
       return;
     }
-    const url = runtime.gatewayInput.value.trim() || defaultGateway;
-    if (typeof window !== 'undefined') {
-      try {
-        window.localStorage?.setItem('chatterTerminalGateway', url);
-      } catch (error) {
-        console.warn('Unable to persist terminal gateway', error);
-      }
+    if (!runtime.gatewayUrl) {
+      runtime.appendLine('Cannot connect without a configured gateway.', 'error');
+      return;
     }
     runtime.updateStatus('Connecting…', 'connecting');
-    runtime.appendLine(`Connecting to ${url} …`, 'info');
+    runtime.appendLine(`Connecting to ${runtime.gatewayUrl} …`, 'info');
     runtime.connectButton.disabled = true;
     try {
-      const socket = new WebSocket(url);
+      const socket = new WebSocket(runtime.gatewayUrl);
       socket.binaryType = 'arraybuffer';
       runtime.socket = socket;
       socket.addEventListener('open', () => {
