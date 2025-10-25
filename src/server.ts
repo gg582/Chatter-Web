@@ -5,8 +5,70 @@ import { extname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const serverDirectory = fileURLToPath(new URL('.', import.meta.url));
-const parentDirectory = join(serverDirectory, '..');
 const staticRoots = [serverDirectory];
+
+const fallbackGatewayHost = 'bbs.chatter.example';
+const fallbackGatewayPort = '443';
+const fallbackGatewayPath = '/pty';
+
+const defaultSchemeForPort = (port: string | undefined) => {
+  if (!port || port === fallbackGatewayPort) {
+    return 'wss';
+  }
+  return 'ws';
+};
+
+const normalisePath = (path: string | undefined) => {
+  if (!path) {
+    return fallbackGatewayPath;
+  }
+  const trimmed = path.trim();
+  if (!trimmed) {
+    return fallbackGatewayPath;
+  }
+  return trimmed.startsWith('/') ? trimmed : `/${trimmed}`;
+};
+
+const buildGatewayUrl = (host: string | undefined, port: string | undefined, path: string | undefined) => {
+  if (!host) {
+    return '';
+  }
+  const trimmedHost = host.trim();
+  if (!trimmedHost) {
+    return '';
+  }
+  const trimmedPort = port?.trim() ?? '';
+  const scheme = process.env.CHATTER_TERMINAL_SCHEME?.trim() || defaultSchemeForPort(trimmedPort || undefined);
+  const showPort = trimmedPort && !(scheme === 'wss' && trimmedPort === fallbackGatewayPort);
+  const portSegment = showPort ? `:${trimmedPort}` : '';
+  const safePath = normalisePath(path);
+  return `${scheme}://${trimmedHost}${portSegment}${safePath}`;
+};
+
+const resolveRuntimeConfig = () => {
+  const host = process.env.CHATTER_TERMINAL_HOST?.trim();
+  const port = process.env.CHATTER_TERMINAL_PORT?.trim();
+  const path = process.env.CHATTER_TERMINAL_PATH?.trim();
+  const explicitGateway = process.env.CHATTER_TERMINAL_GATEWAY?.trim();
+
+  let gateway = explicitGateway;
+  if (!gateway) {
+    gateway = buildGatewayUrl(host, port, path);
+  }
+  if (!gateway) {
+    gateway = buildGatewayUrl(fallbackGatewayHost, fallbackGatewayPort, fallbackGatewayPath);
+  }
+
+  const config: Record<string, string> = { terminalGateway: gateway };
+  if (host) {
+    config.terminalHost = host;
+  }
+  if (port) {
+    config.terminalPort = port;
+  }
+
+  return config;
+};
 
 const MIME_TYPES: Record<string, string> = {
   '.html': 'text/html; charset=utf-8',
@@ -108,6 +170,26 @@ async function handleRequest(req: import('node:http').IncomingMessage, res: impo
     res.statusCode = 405;
     res.setHeader('Allow', 'GET, HEAD');
     res.end('Method Not Allowed');
+    return;
+  }
+
+  const [urlPath] = req.url.split('?');
+
+  if (urlPath === '/env.js') {
+    const config = resolveRuntimeConfig();
+    const serialised = JSON.stringify(config).replace(/</g, '\\u003C');
+    const script = `window.__CHATTER_CONFIG__ = Object.freeze(${serialised});\n`;
+
+    res.statusCode = 200;
+    res.setHeader('Content-Type', 'application/javascript; charset=utf-8');
+    res.setHeader('Cache-Control', 'no-cache');
+
+    if (method === 'HEAD') {
+      res.end();
+      return;
+    }
+
+    res.end(script);
     return;
   }
 
