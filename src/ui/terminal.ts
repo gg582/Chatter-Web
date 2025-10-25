@@ -18,7 +18,7 @@ type TerminalTarget = {
   host: string;
   port: string;
   protocol: string;
-  sshUser: string;
+  defaultUsername: string;
 };
 
 const resolveTarget = (): TerminalTarget => {
@@ -26,7 +26,7 @@ const resolveTarget = (): TerminalTarget => {
   const protocol = (config?.bbsProtocol ?? 'telnet').trim().toLowerCase();
   const host = typeof config?.bbsHost === 'string' ? config.bbsHost.trim() : '';
   const port = typeof config?.bbsPort === 'string' ? config.bbsPort.trim() : '';
-  const sshUser = typeof config?.bbsSshUser === 'string' ? config.bbsSshUser.trim() : '';
+  const defaultUsername = typeof config?.bbsSshUser === 'string' ? config.bbsSshUser.trim() : '';
 
   if (!host) {
     return {
@@ -35,13 +35,12 @@ const resolveTarget = (): TerminalTarget => {
       host: '',
       port: '',
       protocol,
-      sshUser
+      defaultUsername
     };
   }
 
   const pieces = [protocol ? protocol.toUpperCase() : 'TELNET'];
-  const hostLabel = sshUser ? `${sshUser}@${host}` : host;
-  pieces.push(port ? `${hostLabel}:${port}` : hostLabel);
+  pieces.push(port ? `${host}:${port}` : host);
 
   return {
     available: true,
@@ -49,7 +48,7 @@ const resolveTarget = (): TerminalTarget => {
     host,
     port,
     protocol,
-    sshUser
+    defaultUsername
   };
 };
 
@@ -97,6 +96,8 @@ type TerminalRuntime = {
   viewport: HTMLElement;
   gameStatus: HTMLElement;
   endpointElement: HTMLElement;
+  usernameInput: HTMLInputElement;
+  usernameField: HTMLElement;
   connected: boolean;
   socketUrl: string | null;
   target: TerminalTarget;
@@ -143,6 +144,18 @@ const createRuntime = (container: HTMLElement): TerminalRuntime => {
           <span class="terminal__endpoint-label">Target:</span>
           <span class="terminal__endpoint-value" data-terminal-endpoint>${escapeHtml(target.description)}</span>
         </div>
+        <label class="terminal__field" data-terminal-username-field>
+          <span class="terminal__field-label">SSH username</span>
+          <input
+            type="text"
+            data-terminal-username
+            placeholder="Required for SSH"
+            value="${escapeHtml(target.defaultUsername)}"
+            autocomplete="off"
+            autocapitalize="none"
+            spellcheck="false"
+          />
+        </label>
         <div class="terminal__controls-buttons">
           <button type="button" data-terminal-connect>Connect</button>
           <button type="button" data-terminal-disconnect disabled>Disconnect</button>
@@ -182,6 +195,8 @@ const createRuntime = (container: HTMLElement): TerminalRuntime => {
   const viewport = container.querySelector<HTMLElement>('[data-terminal-viewport]');
   const gameStatus = container.querySelector<HTMLElement>('[data-terminal-game]');
   const endpointElement = container.querySelector<HTMLElement>('[data-terminal-endpoint]');
+  const usernameInput = container.querySelector<HTMLInputElement>('[data-terminal-username]');
+  const usernameField = container.querySelector<HTMLElement>('[data-terminal-username-field]');
 
   if (
     !statusElement ||
@@ -193,7 +208,9 @@ const createRuntime = (container: HTMLElement): TerminalRuntime => {
     !focusButton ||
     !viewport ||
     !gameStatus ||
-    !endpointElement
+    !endpointElement ||
+    !usernameInput ||
+    !usernameField
   ) {
     throw new Error('Failed to mount the web terminal.');
   }
@@ -210,6 +227,8 @@ const createRuntime = (container: HTMLElement): TerminalRuntime => {
     viewport,
     gameStatus,
     endpointElement,
+    usernameInput,
+    usernameField,
     socketUrl: typeof socketUrl === 'string' && socketUrl.trim() ? socketUrl.trim() : null,
     target,
     connected: false,
@@ -230,6 +249,22 @@ const createRuntime = (container: HTMLElement): TerminalRuntime => {
     }
   };
 
+  const syncUsernameField = () => {
+    if (runtime.target.protocol === 'ssh') {
+      runtime.usernameField.style.display = '';
+      runtime.usernameInput.disabled = false;
+      if (!runtime.usernameInput.value && runtime.target.defaultUsername) {
+        runtime.usernameInput.value = runtime.target.defaultUsername;
+      }
+    } else {
+      runtime.usernameField.style.display = 'none';
+      runtime.usernameInput.disabled = true;
+      runtime.usernameInput.value = '';
+    }
+  };
+
+  syncUsernameField();
+
   runtime.updateStatus('Disconnected', 'disconnected');
   runtime.appendLine('Web terminal ready. Press Connect to reach the configured BBS target.');
   if (!runtime.target.available) {
@@ -244,6 +279,7 @@ const createRuntime = (container: HTMLElement): TerminalRuntime => {
   connectButton.addEventListener('click', () => {
     runtime.target = resolveTarget();
     runtime.endpointElement.textContent = runtime.target.description;
+    syncUsernameField();
     if (runtime.connected) {
       runtime.appendLine('Already connected.', 'info');
       return;
@@ -252,15 +288,31 @@ const createRuntime = (container: HTMLElement): TerminalRuntime => {
       runtime.appendLine('Cannot connect without a configured BBS target.', 'error');
       return;
     }
-    if (!runtime.socketUrl) {
+    const socketUrlText = runtime.socketUrl;
+    if (!socketUrlText) {
       runtime.appendLine('Cannot connect without a resolved terminal bridge.', 'error');
       return;
     }
+    const username = runtime.usernameInput.value.trim();
+    if (runtime.target.protocol === 'ssh' && !username) {
+      runtime.appendLine('Enter an SSH username before connecting.', 'error');
+      return;
+    }
+    const protocolLabel = runtime.target.protocol ? runtime.target.protocol.toUpperCase() : 'TELNET';
+    const hostPortLabel = runtime.target.port ? `${runtime.target.host}:${runtime.target.port}` : runtime.target.host;
+    const displayTarget =
+      runtime.target.protocol === 'ssh' && username ? `${username}@${hostPortLabel}` : hostPortLabel;
     runtime.updateStatus('Connecting…', 'connecting');
-    runtime.appendLine(`Connecting to ${runtime.target.description} …`, 'info');
+    runtime.appendLine(`Connecting to ${protocolLabel} ${displayTarget} …`, 'info');
     runtime.connectButton.disabled = true;
     try {
-      const socket = new WebSocket(runtime.socketUrl);
+      const socketUrl = new URL(socketUrlText);
+      if (username) {
+        socketUrl.searchParams.set('username', username);
+      } else {
+        socketUrl.searchParams.delete('username');
+      }
+      const socket = new WebSocket(socketUrl.toString());
       socket.binaryType = 'arraybuffer';
       runtime.socket = socket;
       socket.addEventListener('open', () => {

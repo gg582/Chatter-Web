@@ -73,6 +73,23 @@ const readBbsSettings = (options: { silent?: boolean } = {}): BbsSettings | null
   };
 };
 
+const normaliseUsername = (value: string | null): { valid: boolean; username: string | null } => {
+  if (value === null) {
+    return { valid: true, username: null };
+  }
+
+  const trimmed = value.trim();
+  if (!trimmed) {
+    return { valid: true, username: null };
+  }
+
+  if (!/^[A-Za-z0-9._-]{1,32}$/.test(trimmed)) {
+    return { valid: false, username: null };
+  }
+
+  return { valid: true, username: trimmed };
+};
+
 const resolveRuntimeConfig = () => {
   const config: Record<string, string> = {};
   const settings = readBbsSettings({ silent: true });
@@ -87,66 +104,6 @@ const resolveRuntimeConfig = () => {
     }
   } else if (protocol) {
     config.bbsProtocol = protocol;
-  }
-
-  return config;
-};
-
-const fallbackGatewayPath = '/pty';
-
-const defaultSchemeForPort = (port: string | undefined) => {
-  if (!port || port === '443') {
-    return 'wss';
-  }
-  return 'ws';
-};
-
-const normalisePath = (path: string | undefined) => {
-  if (!path) {
-    return fallbackGatewayPath;
-  }
-  const trimmed = path.trim();
-  if (!trimmed) {
-    return fallbackGatewayPath;
-  }
-  return trimmed.startsWith('/') ? trimmed : `/${trimmed}`;
-};
-
-const buildGatewayUrl = (host: string | undefined, port: string | undefined, path: string | undefined) => {
-  if (!host) {
-    return '';
-  }
-  const trimmedHost = host.trim();
-  if (!trimmedHost) {
-    return '';
-  }
-  const trimmedPort = port?.trim() ?? '';
-  const scheme = process.env.CHATTER_TERMINAL_SCHEME?.trim() || defaultSchemeForPort(trimmedPort || undefined);
-  const showPort = trimmedPort && !(scheme === 'wss' && trimmedPort === '443');
-  const portSegment = showPort ? `:${trimmedPort}` : '';
-  const safePath = normalisePath(path);
-  return `${scheme}://${trimmedHost}${portSegment}${safePath}`;
-};
-
-const resolveRuntimeConfig = () => {
-  const host = process.env.CHATTER_TERMINAL_HOST?.trim();
-  const port = process.env.CHATTER_TERMINAL_PORT?.trim();
-  const path = process.env.CHATTER_TERMINAL_PATH?.trim();
-  const explicitGateway = process.env.CHATTER_TERMINAL_GATEWAY?.trim();
-
-  let gateway = explicitGateway;
-  if (!gateway) {
-    gateway = buildGatewayUrl(host, port, path);
-  }
-  const config: Record<string, string> = {};
-  if (gateway) {
-    config.terminalGateway = gateway;
-  }
-  if (host) {
-    config.terminalHost = host;
-  }
-  if (port) {
-    config.terminalPort = port;
   }
 
   return config;
@@ -370,8 +327,15 @@ const attachTelnetBridge = (context: TerminalClientContext) => {
 
 const attachSshBridge = (context: TerminalClientContext) => {
   const { host, port, sshUser, sshCommand } = context.settings;
-  const target = sshUser ? `${sshUser}@${host}` : host;
-  const args = ['-tt'];
+
+  if (!sshUser) {
+    sendTextFrame(context, 'SSH requires a username. Provide one before connecting.');
+    terminate(context, 1008, 'SSH username missing');
+    return;
+  }
+
+  const target = `${sshUser}@${host}`;
+  const args = ['-tt', '-o', 'StrictHostKeyChecking=no', '-o', 'UserKnownHostsFile=/dev/null'];
 
   if (port) {
     args.push('-p', String(port));
@@ -619,13 +583,15 @@ const respondUpgradeError = (socket: NetSocket, status: number, message: string)
 
 const handleUpgrade = (req: IncomingMessage, socket: NetSocket, head: Buffer) => {
   const urlText = req.url ?? '/';
-  let pathname = '/';
+  let requestUrl: URL | null = null;
 
   try {
-    pathname = new URL(urlText, 'http://localhost').pathname;
+    requestUrl = new URL(urlText, 'http://localhost');
   } catch (error) {
     console.error('Failed to parse upgrade URL', error);
   }
+
+  const pathname = requestUrl?.pathname ?? '/';
 
   if (pathname !== TERMINAL_PATH) {
     respondUpgradeError(socket, 404, 'Not Found');
@@ -635,6 +601,28 @@ const handleUpgrade = (req: IncomingMessage, socket: NetSocket, head: Buffer) =>
   const settings = readBbsSettings();
   if (!settings) {
     respondUpgradeError(socket, 503, 'BBS target not configured');
+    return;
+  }
+
+  let usernameOverride: string | null = null;
+
+  if (requestUrl) {
+    const normalised = normaliseUsername(requestUrl.searchParams.get('username'));
+    if (!normalised.valid) {
+      respondUpgradeError(socket, 400, 'Invalid username');
+      return;
+    }
+    usernameOverride = normalised.username;
+  }
+
+  const sessionSettings: BbsSettings = { ...settings };
+
+  if (usernameOverride) {
+    sessionSettings.sshUser = usernameOverride;
+  }
+
+  if (sessionSettings.protocol === 'ssh' && !sessionSettings.sshUser) {
+    respondUpgradeError(socket, 400, 'SSH username required');
     return;
   }
 
@@ -673,7 +661,7 @@ const handleUpgrade = (req: IncomingMessage, socket: NetSocket, head: Buffer) =>
     closed: false,
     sentClose: false,
     bridge: null,
-    settings
+    settings: sessionSettings
   };
 
   socket.on('data', (chunk: Buffer) => {

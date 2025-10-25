@@ -17,7 +17,6 @@ Options:
   --bbs-host HOST      Set the remote BBS host for the terminal bridge (default: bbs.chatter.example)
   --bbs-port PORT      Set the remote BBS port (default: 23 for telnet, 22 for ssh)
   --bbs-protocol MODE  Select telnet or ssh for the bridge protocol (default: telnet)
-  --bbs-ssh-user USER  Provide an SSH username when using the ssh protocol
   --bbs-ssh-command CMD Remote command to run after connecting via SSH
   --node PATH          Explicit path to the Node.js executable
   --prefix PATH        Destination directory for the compiled assets (default: /opt/chatter-web)
@@ -44,7 +43,6 @@ BBS_HOST="bbs.chatter.example"
 BBS_PROTOCOL="telnet"
 BBS_PORT="23"
 BBS_PORT_SET=0
-BBS_SSH_USER=""
 BBS_SSH_COMMAND=""
 
 ensure_prefix_permissions() {
@@ -107,10 +105,6 @@ while [[ $# -gt 0 ]]; do
       shift || { echo "Missing value for --bbs-protocol" >&2; exit 1; }
       BBS_PROTOCOL="${1,,}"
       ;;
-    --bbs-ssh-user)
-      shift || { echo "Missing value for --bbs-ssh-user" >&2; exit 1; }
-      BBS_SSH_USER="$1"
-      ;;
     --bbs-ssh-command)
       shift || { echo "Missing value for --bbs-ssh-command" >&2; exit 1; }
       BBS_SSH_COMMAND="$1"
@@ -172,6 +166,24 @@ fi
 
 if ! command -v npm >/dev/null 2>&1; then
   echo "Error: npm is required to build the project." >&2
+  exit 1
+fi
+
+if ! command -v node >/dev/null 2>&1; then
+  echo "Error: Node.js 22 or newer is required but 'node' was not found." >&2
+  exit 1
+fi
+
+NODE_VERSION_RAW=$(node -v)
+NODE_VERSION_TRIMMED=${NODE_VERSION_RAW#v}
+NODE_MAJOR=${NODE_VERSION_TRIMMED%%.*}
+if ! [[ $NODE_MAJOR =~ ^[0-9]+$ ]]; then
+  echo "Error: Unable to parse Node.js version string '$NODE_VERSION_RAW'." >&2
+  exit 1
+fi
+
+if (( NODE_MAJOR < 22 )); then
+  echo "Error: Node.js 22 or newer is required (detected $NODE_VERSION_RAW)." >&2
   exit 1
 fi
 
@@ -240,10 +252,6 @@ Environment=CHATTER_BBS_HOST=$BBS_HOST
 Environment=CHATTER_BBS_PROTOCOL=$BBS_PROTOCOL
 Environment=CHATTER_BBS_PORT=$BBS_PORT
 EOF2"
-
-  if [[ -n "$BBS_SSH_USER" ]]; then
-    echo "Environment=CHATTER_BBS_SSH_USER=$BBS_SSH_USER" >>"$SERVICE_PATH"
-  fi
 
   if [[ -n "$BBS_SSH_COMMAND" ]]; then
     echo "Environment=CHATTER_BBS_SSH_COMMAND=$BBS_SSH_COMMAND" >>"$SERVICE_PATH"
