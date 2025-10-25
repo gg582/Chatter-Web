@@ -34,6 +34,22 @@ dashboard is immediately available at http://localhost:8081. Override the defaul
 
 Run `npm run build` whenever the TypeScript sources change so the server can serve the latest assets.
 
+## Terminal bridge configuration
+
+The in-browser terminal pulls its defaults from environment variables. Define them before running `npm start`, or bake them
+into the generated systemd unit via `deploy/install.sh`:
+
+- `CHATTER_BBS_HOST`, `CHATTER_BBS_PORT`, `CHATTER_BBS_PROTOCOL` – direct the bridge to the SSH (default) or telnet endpoint
+  you want to expose in the UI.
+- `CHATTER_BBS_HOST_DEFAULT`, `CHATTER_BBS_PORT_DEFAULT` – pre-fill the Connection options form when the server itself does
+  not supply a host or port but you still want to steer operators toward a common target.
+- `CHATTER_BBS_SSH_USER`, `CHATTER_BBS_SSH_COMMAND` – supply optional SSH defaults when the bridge connects over SSH.
+- `CHATTER_BBS_HOST_PLACEHOLDER` – customise the host placeholder shown in the Connection options drawer when no host is
+  configured on the server.
+
+The terminal keeps optional overrides, including the SSH username prompt, inside the Connection options drawer so the primary
+controls stay compact. Expand the drawer to save local overrides or to enter the SSH username before connecting.
+
 ## Systemd integration
 
 `deploy/chatter-frontend.service` provides a ready-to-use unit file. Copy it into `/etc/systemd/system/`, update the

@@ -13,7 +13,7 @@ type TargetOverrides = {
 };
 
 const normaliseProtocolName = (value: string | undefined): 'telnet' | 'ssh' =>
-  value === 'ssh' ? 'ssh' : 'telnet';
+  value === 'telnet' ? 'telnet' : 'ssh';
 
 const loadTargetOverrides = (): TargetOverrides => {
   if (typeof window === 'undefined' || typeof window.localStorage === 'undefined') {
@@ -106,6 +106,7 @@ type TerminalTarget = {
   defaultUsername: string;
   overridesApplied: { host: boolean; port: boolean; protocol: boolean };
   defaults: { host: string; port: string; protocol: 'telnet' | 'ssh'; username: string };
+  placeholders: { host: string; port: string };
 };
 
 const resolveTarget = (): TerminalTarget => {
@@ -115,9 +116,17 @@ const resolveTarget = (): TerminalTarget => {
   const defaultProtocol = normaliseProtocolName(
     typeof config?.bbsProtocol === 'string' ? config.bbsProtocol.trim().toLowerCase() : undefined
   );
-  const defaultHost = typeof config?.bbsHost === 'string' ? config.bbsHost.trim() : '';
-  const defaultPort = typeof config?.bbsPort === 'string' ? config.bbsPort.trim() : '';
+  const configuredHost = typeof config?.bbsHost === 'string' ? config.bbsHost.trim() : '';
+  const configuredHostDefault =
+    typeof config?.bbsHostDefault === 'string' ? config.bbsHostDefault.trim() : '';
+  const defaultHost = configuredHost || configuredHostDefault;
+  const configuredPort = typeof config?.bbsPort === 'string' ? config.bbsPort.trim() : '';
+  const configuredPortDefault =
+    typeof config?.bbsPortDefault === 'string' ? config.bbsPortDefault.trim() : '';
+  const defaultPort = configuredPort || configuredPortDefault;
   const defaultUsername = typeof config?.bbsSshUser === 'string' ? config.bbsSshUser.trim() : '';
+  const configuredHostPlaceholder =
+    typeof config?.bbsHostPlaceholder === 'string' ? config.bbsHostPlaceholder.trim() : '';
 
   const protocol = normaliseProtocolName(overrides.protocol ?? defaultProtocol);
   const host = (overrides.host ?? defaultHost ?? '').trim();
@@ -135,6 +144,9 @@ const resolveTarget = (): TerminalTarget => {
     protocol: defaultProtocol,
     username: defaultUsername
   };
+
+  const hostPlaceholder = configuredHostPlaceholder || defaultHost || 'bbs.example.com';
+  const portPlaceholder = defaultPort || (defaultProtocol === 'ssh' ? '22' : '23');
 
   const descriptorParts: string[] = [protocol.toUpperCase()];
   if (host) {
@@ -156,7 +168,11 @@ const resolveTarget = (): TerminalTarget => {
     protocol,
     defaultUsername: username,
     overridesApplied,
-    defaults
+    defaults,
+    placeholders: {
+      host: hostPlaceholder,
+      port: portPlaceholder
+    }
   };
 };
 
@@ -206,6 +222,7 @@ type TerminalRuntime = {
   endpointElement: HTMLElement;
   usernameInput: HTMLInputElement;
   usernameField: HTMLElement;
+  optionsElement: HTMLDetailsElement;
   connected: boolean;
   socketUrl: string | null;
   target: TerminalTarget;
@@ -232,6 +249,9 @@ const describeKey = (event: KeyboardEvent): string => {
 const createRuntime = (container: HTMLElement): TerminalRuntime => {
   const target = resolveTarget();
   const socketUrl = resolveSocketUrl(container);
+  const hostPlaceholderText = target.placeholders.host || 'bbs.example.com';
+  const portPlaceholderText =
+    target.placeholders.port || (target.defaults.protocol === 'ssh' ? '22' : '23');
 
   container.innerHTML = `
     <section class="card card--terminal">
@@ -252,64 +272,72 @@ const createRuntime = (container: HTMLElement): TerminalRuntime => {
           <span class="terminal__endpoint-label">Target:</span>
           <span class="terminal__endpoint-value" data-terminal-endpoint>${escapeHtml(target.description)}</span>
         </div>
-        <label class="terminal__field" data-terminal-username-field>
-          <span class="terminal__field-label">SSH username</span>
-          <input
-            type="text"
-            data-terminal-username
-            placeholder="Required for SSH"
-            value="${escapeHtml(target.defaultUsername)}"
-            autocomplete="off"
-            autocapitalize="none"
-            spellcheck="false"
-          />
-        </label>
         <div class="terminal__controls-buttons">
           <button type="button" data-terminal-connect>Connect</button>
           <button type="button" data-terminal-disconnect disabled>Disconnect</button>
           <button type="button" data-terminal-focus>Focus terminal</button>
         </div>
       </div>
-      <form class="terminal__target-form" data-terminal-target-form>
-        <div class="terminal__target-grid">
-          <label class="terminal__field">
-            <span class="terminal__field-label">Protocol</span>
-            <select data-terminal-protocol>
-              <option value="telnet">Telnet</option>
-              <option value="ssh">SSH</option>
-            </select>
-          </label>
-          <label class="terminal__field">
-            <span class="terminal__field-label">Host override</span>
+      <details class="terminal__options" data-terminal-options>
+        <summary class="terminal__options-summary">
+          <span>Optional connection settings</span>
+          <span class="terminal__options-summary-icon" aria-hidden="true"></span>
+        </summary>
+        <div class="terminal__options-body">
+          <form class="terminal__target-form" data-terminal-target-form>
+            <p class="terminal__note terminal__note--muted" data-terminal-target-status></p>
+            <div class="terminal__target-grid">
+              <label class="terminal__field">
+                <span class="terminal__field-label">Protocol</span>
+                <select data-terminal-protocol>
+                  <option value="telnet">Telnet</option>
+                  <option value="ssh">SSH</option>
+                </select>
+              </label>
+              <label class="terminal__field">
+                <span class="terminal__field-label">Host override</span>
+                <input
+                  type="text"
+                  data-terminal-host
+                  placeholder="${escapeHtml(hostPlaceholderText)}"
+                  autocomplete="off"
+                  autocapitalize="none"
+                  autocorrect="off"
+                  spellcheck="false"
+                />
+              </label>
+              <label class="terminal__field">
+                <span class="terminal__field-label">Port override</span>
+                <input
+                  type="text"
+                  data-terminal-port
+                  placeholder="${escapeHtml(portPlaceholderText)}"
+                  autocomplete="off"
+                  autocorrect="off"
+                  inputmode="numeric"
+                  pattern="[0-9]*"
+                />
+              </label>
+            </div>
+            <div class="terminal__target-actions">
+              <button type="submit">Save target</button>
+              <button type="button" data-terminal-target-reset>Reset overrides</button>
+            </div>
+          </form>
+          <label class="terminal__field" data-terminal-username-field>
+            <span class="terminal__field-label">SSH username</span>
             <input
               type="text"
-              data-terminal-host
-              placeholder="bbs.example.com"
+              data-terminal-username
+              placeholder="Required for SSH"
+              value="${escapeHtml(target.defaultUsername)}"
               autocomplete="off"
               autocapitalize="none"
-              autocorrect="off"
               spellcheck="false"
             />
           </label>
-          <label class="terminal__field">
-            <span class="terminal__field-label">Port override</span>
-            <input
-              type="text"
-              data-terminal-port
-              placeholder="23"
-              autocomplete="off"
-              autocorrect="off"
-              inputmode="numeric"
-              pattern="[0-9]*"
-            />
-          </label>
         </div>
-        <div class="terminal__target-actions">
-          <button type="submit">Save target</button>
-          <button type="button" data-terminal-target-reset>Reset overrides</button>
-        </div>
-        <p class="terminal__note terminal__note--muted" data-terminal-target-status></p>
-      </form>
+      </details>
       <p class="terminal__note">
         Tip: Arrow keys, Tab, and Ctrl shortcuts are forwarded to the session. Use the focus button if the terminal stops
         receiving input.
@@ -351,6 +379,7 @@ const createRuntime = (container: HTMLElement): TerminalRuntime => {
   const portInput = container.querySelector<HTMLInputElement>('[data-terminal-port]');
   const targetResetButton = container.querySelector<HTMLButtonElement>('[data-terminal-target-reset]');
   const targetStatus = container.querySelector<HTMLElement>('[data-terminal-target-status]');
+  const optionsElement = container.querySelector<HTMLDetailsElement>('[data-terminal-options]');
 
   if (
     !statusElement ||
@@ -370,7 +399,8 @@ const createRuntime = (container: HTMLElement): TerminalRuntime => {
     !hostInput ||
     !portInput ||
     !targetResetButton ||
-    !targetStatus
+    !targetStatus ||
+    !optionsElement
   ) {
     throw new Error('Failed to mount the web terminal.');
   }
@@ -389,6 +419,7 @@ const createRuntime = (container: HTMLElement): TerminalRuntime => {
     endpointElement,
     usernameInput,
     usernameField,
+    optionsElement,
     socketUrl: typeof socketUrl === 'string' && socketUrl.trim() ? socketUrl.trim() : null,
     target,
     connected: false,
@@ -443,7 +474,8 @@ const createRuntime = (container: HTMLElement): TerminalRuntime => {
       return;
     }
 
-    targetStatus.textContent = 'No server target configured. Save a host override above to connect directly.';
+    targetStatus.textContent =
+      'No server target configured. Expand Connection options to save a host override and connect directly.';
   };
 
   const updateFormPlaceholders = () => {
@@ -451,10 +483,10 @@ const createRuntime = (container: HTMLElement): TerminalRuntime => {
       (protocolSelect.value === 'ssh' || protocolSelect.value === 'telnet'
         ? protocolSelect.value
         : runtime.target.defaults.protocol) ?? 'telnet';
-    hostInput.placeholder = runtime.target.defaults.host || 'bbs.chatter.example';
+    hostInput.placeholder = runtime.target.placeholders.host || 'bbs.example.com';
     const fallbackPort =
       runtime.target.defaults.port || (protocolValue === 'ssh' ? '22' : protocolValue === 'telnet' ? '23' : '');
-    portInput.placeholder = fallbackPort || '23';
+    portInput.placeholder = fallbackPort || runtime.target.placeholders.port || '23';
   };
 
   let lastOverrideSignature = JSON.stringify(runtime.target.overridesApplied);
@@ -493,6 +525,10 @@ const createRuntime = (container: HTMLElement): TerminalRuntime => {
     updateFormPlaceholders();
     updateTargetStatus();
 
+    if (!runtime.target.available) {
+      runtime.optionsElement.open = true;
+    }
+
     if (!runtime.connected) {
       runtime.connectButton.disabled = !runtime.target.available || !runtime.socketUrl;
     }
@@ -502,7 +538,10 @@ const createRuntime = (container: HTMLElement): TerminalRuntime => {
   runtime.appendLine('Web terminal ready. Press Connect to reach the configured BBS target.');
   refreshTarget(false);
   if (!runtime.target.available) {
-    runtime.appendLine('No BBS host is configured. Save a host override above or contact the operator.', 'error');
+    runtime.appendLine(
+      'No BBS host is configured. Expand Connection options to provide a host override or contact the operator.',
+      'error'
+    );
   }
   if (!runtime.socketUrl) {
     runtime.appendLine('Unable to resolve terminal bridge URL from the current origin.', 'error');
@@ -516,7 +555,10 @@ const createRuntime = (container: HTMLElement): TerminalRuntime => {
       return;
     }
     if (!runtime.target.available) {
-      runtime.appendLine('Cannot connect without a target host. Save overrides above or configure the server.', 'error');
+      runtime.appendLine(
+        'Cannot connect without a target host. Expand Connection options to save overrides or configure the server.',
+        'error'
+      );
       return;
     }
     const socketUrlText = runtime.socketUrl;

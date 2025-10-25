@@ -2,7 +2,10 @@ interface ChatterRuntimeConfig {
   bbsProtocol?: string;
   bbsHost?: string;
   bbsPort?: string;
+  bbsPortDefault?: string;
   bbsSshUser?: string;
+  bbsHostPlaceholder?: string;
+  bbsHostDefault?: string;
 }
 
 declare global {

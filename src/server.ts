@@ -40,8 +40,8 @@ type TerminalClientContext = {
 const readBbsSettings = (options: { silent?: boolean } = {}): BbsSettings | null => {
   const { silent = false } = options;
   const host = process.env.CHATTER_BBS_HOST?.trim();
-  const rawProtocol = (process.env.CHATTER_BBS_PROTOCOL ?? 'telnet').trim().toLowerCase();
-  const protocol: BbsProtocol = rawProtocol === 'ssh' ? 'ssh' : 'telnet';
+  const rawProtocol = (process.env.CHATTER_BBS_PROTOCOL ?? 'ssh').trim().toLowerCase();
+  const protocol: BbsProtocol = rawProtocol === 'telnet' ? 'telnet' : 'ssh';
   const defaultPort = protocol === 'ssh' ? 22 : 23;
   const rawPort = process.env.CHATTER_BBS_PORT?.trim();
 
@@ -152,7 +152,7 @@ const normalisePortOverride = (
 const resolveRuntimeConfig = () => {
   const config: Record<string, string> = {};
   const settings = readBbsSettings({ silent: true });
-  const protocol = (process.env.CHATTER_BBS_PROTOCOL ?? 'telnet').trim().toLowerCase();
+  const protocol = (process.env.CHATTER_BBS_PROTOCOL ?? 'ssh').trim().toLowerCase();
 
   if (settings) {
     config.bbsProtocol = settings.protocol;
@@ -162,7 +162,7 @@ const resolveRuntimeConfig = () => {
       config.bbsSshUser = settings.sshUser;
     }
   } else if (protocol) {
-    const normalisedProtocol: BbsProtocol = protocol === 'ssh' ? 'ssh' : 'telnet';
+    const normalisedProtocol: BbsProtocol = protocol === 'telnet' ? 'telnet' : 'ssh';
     config.bbsProtocol = normalisedProtocol;
     const rawPort = process.env.CHATTER_BBS_PORT?.trim();
     if (rawPort) {
@@ -174,6 +174,21 @@ const resolveRuntimeConfig = () => {
     if (sshUser) {
       config.bbsSshUser = sshUser;
     }
+  }
+
+  const hostPlaceholder = process.env.CHATTER_BBS_HOST_PLACEHOLDER?.trim();
+  const hostDefault = process.env.CHATTER_BBS_HOST_DEFAULT?.trim();
+  const portDefault = process.env.CHATTER_BBS_PORT_DEFAULT?.trim();
+  if (hostPlaceholder) {
+    config.bbsHostPlaceholder = hostPlaceholder;
+  }
+
+  if (hostDefault) {
+    config.bbsHostDefault = hostDefault;
+  }
+
+  if (portDefault) {
+    config.bbsPortDefault = portDefault;
   }
 
   return config;
