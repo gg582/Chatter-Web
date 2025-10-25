@@ -1,3 +1,4 @@
+import { DEFAULT_OPERATING_SYSTEM, OPERATING_SYSTEMS } from '../data/operatingSystems.js';
 import { ChatStore } from '../state/chatStore.js';
 import type { AttachmentKind, ReactionType } from '../state/types.js';
 import { escapeHtml, formatRelative } from './helpers.js';
@@ -16,6 +17,19 @@ const attachmentLabels: Record<AttachmentKind, string> = {
   video: 'Video',
   audio: 'Audio',
   file: 'File'
+};
+
+const normaliseOs = (value: string) => value.trim().toLowerCase();
+
+const renderOperatingSystemOptions = (current?: string): string => {
+  const selected =
+    OPERATING_SYSTEMS.find((entry) => normaliseOs(entry) === normaliseOs(current ?? '')) ??
+    DEFAULT_OPERATING_SYSTEM;
+
+  return OPERATING_SYSTEMS.map((entry) => {
+    const isSelected = normaliseOs(entry) === normaliseOs(selected);
+    return `<option value="${escapeHtml(entry)}"${isSelected ? ' selected' : ''}>${escapeHtml(entry)}</option>`;
+  }).join('');
 };
 
 const parseDeleteInput = (value: string): string[] => {
@@ -200,7 +214,9 @@ export const renderUtilityPanel = (store: ChatStore, container: HTMLElement) => 
         </form>
         <form class="form-grid" data-action="set-os">
           <label for="os-input">Operating system</label>
-          <input id="os-input" name="os" value="${escapeHtml(state.currentUser.os ?? '')}" placeholder="/os" />
+          <select id="os-input" name="os">
+            ${renderOperatingSystemOptions(state.currentUser.os)}
+          </select>
           <button type="submit">Record OS</button>
           <p class="feedback" data-feedback="set-os"></p>
         </form>
@@ -383,12 +399,16 @@ export const renderUtilityPanel = (store: ChatStore, container: HTMLElement) => 
             <option value="">None</option>
             <option value="tetris" ${state.activeGame === 'tetris' ? 'selected' : ''}>Tetris</option>
             <option value="liargame" ${state.activeGame === 'liargame' ? 'selected' : ''}>Liar Game</option>
+            <option value="alpha" ${state.activeGame === 'alpha' ? 'selected' : ''}>Fly me to Alpha Centauri</option>
           </select>
           <div style="display:flex;gap:0.6rem;flex-wrap:wrap;">
             <button type="submit">Start game</button>
             <button type="button" data-action="suspend-game">Suspend (/suspend!)</button>
           </div>
           <p class="feedback">${state.activeGame ? `Running: ${state.activeGame}` : 'No active game.'}</p>
+          <p class="feedback">
+            Fly me to Alpha Centauri expects knowledge of the BBS navigation charts; review the docs before starting.
+          </p>
           <p class="feedback" data-feedback="game"></p>
         </form>
         <div style="display:flex;gap:0.6rem;flex-wrap:wrap;">
@@ -733,7 +753,7 @@ export const renderUtilityPanel = (store: ChatStore, container: HTMLElement) => 
         break;
       }
       case 'set-game': {
-        const game = String(formData.get('game') ?? '') as '' | 'tetris' | 'liargame';
+        const game = String(formData.get('game') ?? '') as '' | 'tetris' | 'liargame' | 'alpha';
         store.setActiveGame(game);
         setFeedback('game', game ? `Started ${game}.` : 'Game cleared.', 'success');
         break;

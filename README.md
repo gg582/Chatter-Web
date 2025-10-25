@@ -58,7 +58,11 @@ sudo ./deploy/install.sh --systemd --user www-data --group www-data
 The script compiles the dashboard, replicates the contents of `dist/` into the installation directory, and changes the
 ownership to match the service user when `--systemd` is enabled. It then writes the systemd unit into
 `/etc/systemd/system/` and starts it immediately. Use `--service-name`, `--port`, `--user`, `--group`, `--node`, or
-`--prefix` to override the defaults that land in the generated unit.
+`--prefix` to override the defaults that land in the generated unit. Use `--bbs-host`, `--bbs-port`, and `--bbs-protocol`
+(`telnet` or `ssh`) to bake the terminal bridge configuration into the unit. Optional `--bbs-ssh-user` and
+`--bbs-ssh-command` flags feed SSH credentials when selecting the `ssh` protocol. The installer writes
+`CHATTER_BBS_HOST`, `CHATTER_BBS_PORT`, `CHATTER_BBS_PROTOCOL`, and (when provided) `CHATTER_BBS_SSH_*` so the in-browser
+terminal immediately dials the chosen BBS without exposing manual URL entry.
 
 The default installation prefix is `/opt/chatter-web`, so run the script with elevated privileges (for example via
 `sudo`) when targeting system locations. Supply a writable `--prefix` to stage the bundle for a single user without
