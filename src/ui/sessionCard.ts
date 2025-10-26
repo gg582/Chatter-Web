@@ -8,22 +8,64 @@ export const renderSession = (store: ChatStore, container: HTMLElement, root?: H
   const helpType = container.dataset.feedbackType ?? 'info';
   const host = root ?? container.closest<HTMLElement>('[data-chatter-root]') ?? undefined;
 
+  const rows: Array<{ label: string; value: string }> = [
+    { label: 'Handle', value: escapeHtml(profile.username) },
+    { label: 'Session', value: state.sessionActive ? 'active' : 'logged out' }
+  ];
+
+  if (profile.status) {
+    rows.push({ label: 'Status', value: escapeHtml(profile.status) });
+  }
+  if (profile.os) {
+    rows.push({ label: 'OS', value: escapeHtml(profile.os) });
+  }
+  if (profile.birthday) {
+    rows.push({ label: 'Birthday', value: escapeHtml(profile.birthday) });
+  }
+
+  rows.push({ label: 'Connected', value: `${state.connectedUsers.length.toString()} online` });
+
+  if (state.lastLogoutAt) {
+    rows.push({ label: 'Last exit', value: formatRelative(state.lastLogoutAt) });
+  }
+
+  const detailsMarkup = rows
+    .map(
+      (entry) => `
+        <div class="session-panel__row">
+          <dt>${entry.label}</dt>
+          <dd>${entry.value}</dd>
+        </div>
+      `
+    )
+    .join('');
+
   container.innerHTML = `
-    <h2>Session</h2>
-    <div>
-      <div class="card__badge">Connected as</div>
-      <strong style="font-size:1.15rem">${escapeHtml(profile.username)}</strong>
-      <p class="feedback">${state.sessionActive ? 'Session active' : 'Logged out'}</p>
-      ${profile.status ? `<p class="feedback">Status: ${escapeHtml(profile.status)}</p>` : ''}
-      ${profile.os ? `<p class="feedback">OS: ${escapeHtml(profile.os)}</p>` : ''}
-      ${profile.birthday ? `<p class="feedback">Birthday: ${escapeHtml(profile.birthday)}</p>` : ''}
-      <p class="feedback">Connected users: ${state.connectedUsers.length}</p>
-      ${state.lastLogoutAt ? `<p class="feedback">Last exit: ${formatRelative(state.lastLogoutAt)}</p>` : ''}
-    </div>
-    <div style="display:flex;flex-direction:column;gap:0.6rem;">
-      <button type="button" data-action="scroll-help">Help overview</button>
-      <button type="button" data-action="toggle-session">${state.sessionActive ? 'Log out (/exit)' : 'Resume session'}</button>
-      ${helpFeedback ? `<p class="feedback ${helpType === 'error' ? 'feedback--error' : 'feedback--success'}">${escapeHtml(helpFeedback)}</p>` : ''}
+    <div class="session-panel">
+      <header class="session-panel__header">
+        <span class="session-panel__glyph" aria-hidden="true">sys</span>
+        <div class="session-panel__titles">
+          <h2>Your status</h2>
+          <p>${state.sessionActive ? 'Bridge open and listening.' : 'Reconnect to reopen your bridge.'}</p>
+        </div>
+        <span class="session-panel__status session-panel__status--${state.sessionActive ? 'online' : 'offline'}">
+          ${state.sessionActive ? 'online' : 'offline'}
+        </span>
+      </header>
+      <dl class="session-panel__grid">
+        ${detailsMarkup}
+      </dl>
+      <div class="session-panel__actions">
+        <button type="button" class="button button--ghost" data-action="scroll-help">Command index</button>
+        <button type="button" data-action="toggle-session">${
+          state.sessionActive ? 'Log out (/exit)' : 'Resume session'
+        }</button>
+        ${
+          helpFeedback
+            ? `<p class="feedback ${helpType === 'error' ? 'feedback--error' : 'feedback--success'}">${escapeHtml(helpFeedback)}</p>`
+            : ''
+        }
+      </div>
     </div>
   `;
 

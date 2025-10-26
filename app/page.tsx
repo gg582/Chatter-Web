@@ -17,25 +17,39 @@ export default function Home() {
   }, []);
 
   return (
-    <div className="page" data-chatter-root ref={rootRef}>
-      <header className="page__header">
-        <div className="page__title">
-          <h1>Chatter BBS Control Deck</h1>
-          <p>
-            This dashboard mirrors the SSH help output of Chatter. Every command listed in the CLI has a matching control,
-            so you can browse, moderate, and customise the BBS without typing a slash command.
-          </p>
+    <div className="chatter-app" data-chatter-root ref={rootRef}>
+      <header className="chatter-shell">
+        <div className="shell-brand">
+          <span className="shell-brand__badge">Chatter BBS</span>
+          <h1>Link your console</h1>
+          <p>Hop straight into the telnet or SSH board and keep the lightweight lounge nearby.</p>
         </div>
-        <div className="page__status" data-component="session" />
+        <nav className="shell-menu" aria-label="Lounge menu">
+          <details className="menu-item" data-menu="motd">
+            <summary>Message of the day</summary>
+            <section className="menu-panel" data-component="motd" />
+          </details>
+          <details className="menu-item" data-menu="session" open>
+            <summary>Your session</summary>
+            <section className="menu-panel" data-component="session" />
+          </details>
+          <details className="menu-item" data-menu="utility">
+            <summary>Utilities</summary>
+            <section className="menu-panel" data-component="utility" />
+          </details>
+          <details className="menu-item" data-menu="cheatsheet">
+            <summary>Command cheatsheet</summary>
+            <section className="menu-panel" data-component="cheatsheet" />
+          </details>
+        </nav>
       </header>
-      <div data-component="terminal" />
-      <main className="layout">
-        <section className="column column--chat">
-          <div className="card card--motd" data-component="motd" />
-          <div className="card card--chat" data-component="chat-feed" />
+      <main className="chatter-layout">
+        <section className="terminal-section">
+          <div className="panel panel--terminal" data-component="terminal" />
         </section>
-        <section className="column column--utility" data-component="utility" />
-        <aside className="column column--cheatsheet" data-component="cheatsheet" />
+        <section className="chat-section">
+          <div className="panel panel--chat" data-component="chat-feed" />
+        </section>
       </main>
     </div>
   );

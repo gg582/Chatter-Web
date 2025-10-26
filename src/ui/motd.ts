@@ -7,11 +7,24 @@ export const renderMotd = (store: ChatStore, container: HTMLElement) => {
   const feedbackType = container.dataset.feedbackType ?? 'info';
 
   container.innerHTML = `
-    <div class="card__badge">/motd</div>
-    <h2>Message of the day</h2>
-    <p class="card__description">${escapeHtml(state.motd)}</p>
-    <button type="button" data-action="copy-motd">Copy MOTD</button>
-    ${feedback ? `<p class="feedback ${feedbackType === 'error' ? 'feedback--error' : 'feedback--success'}">${escapeHtml(feedback)}</p>` : ''}
+    <header class="card__header">
+      <span class="card__glyph" aria-hidden="true">motd</span>
+      <div class="card__titles">
+        <h2>Message of the day</h2>
+        <p class="card__subtitle">Straight from the BBS welcome board.</p>
+      </div>
+    </header>
+    <article class="motd">
+      <p class="motd__body">${escapeHtml(state.motd)}</p>
+    </article>
+    <footer class="card__footer">
+      <button type="button" data-action="copy-motd">Copy MOTD</button>
+      ${
+        feedback
+          ? `<p class="feedback ${feedbackType === 'error' ? 'feedback--error' : 'feedback--success'}">${escapeHtml(feedback)}</p>`
+          : ''
+      }
+    </footer>
   `;
 
   container.dataset.feedback = '';

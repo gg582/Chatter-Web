@@ -45,22 +45,31 @@ export const renderChatFeed = (store: ChatStore, container: HTMLElement) => {
     .join('');
 
   container.innerHTML = `
-    <header>
-      <h2>Chat feed</h2>
-      <p class="card__description">Regular messages appear here just like the live SSH room.</p>
+    <header class="card__header">
+      <span class="card__glyph" aria-hidden="true">chat</span>
+      <div class="card__titles">
+        <h2>Room chat</h2>
+        <p class="card__subtitle">Trade short notes with everyone tuning in from terminals or the web.</p>
+      </div>
     </header>
-    <div class="chat-feed" data-element="chat-feed">${messageItems || '<p class="feedback">No messages yet.</p>'}</div>
-    <form class="form-grid" data-action="post-message">
-      <label for="chat-message-input">Message</label>
-      <textarea id="chat-message-input" name="message" placeholder="Share something with everyone"></textarea>
-      <label for="chat-reply-select">Reply to (optional)</label>
-      <select id="chat-reply-select" name="reply">
-        <option value="">No reply target</option>
-        ${replyOptions}
-      </select>
-      <button type="submit">Post message</button>
-      ${feedback ? `<p class="feedback ${feedbackType === 'error' ? 'feedback--error' : 'feedback--success'}">${escapeHtml(feedback)}</p>` : ''}
-    </form>
+    <div class="card__body card__body--stacked">
+      <div class="chat-feed" data-element="chat-feed">${messageItems || '<p class="feedback">No messages yet.</p>'}</div>
+      <form class="form-grid" data-action="post-message">
+        <label for="chat-message-input">Message</label>
+        <textarea id="chat-message-input" name="message" placeholder="Share something with everyone"></textarea>
+        <label for="chat-reply-select">Reply to (optional)</label>
+        <select id="chat-reply-select" name="reply">
+          <option value="">No reply target</option>
+          ${replyOptions}
+        </select>
+        <button type="submit">Post message</button>
+        ${
+          feedback
+            ? `<p class="feedback ${feedbackType === 'error' ? 'feedback--error' : 'feedback--success'}">${escapeHtml(feedback)}</p>`
+            : ''
+        }
+      </form>
+    </div>
   `;
 
   container.dataset.feedback = '';
