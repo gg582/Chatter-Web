@@ -223,6 +223,7 @@ summary::-webkit-details-marker {
   background: linear-gradient(165deg, rgba(18, 29, 55, 0.96), rgba(12, 20, 40, 0.96));
   border: 1px solid var(--terminal-border);
   color: var(--terminal-text);
+  position: relative;
   gap: 1rem;
 }
 
@@ -943,12 +944,13 @@ summary::-webkit-details-marker {
 
 .terminal__capture {
   position: absolute;
-  top: 0;
-  left: 0;
+  top: 50%;
+  left: 50%;
   width: 1px;
   height: 1px;
   opacity: 0;
   pointer-events: none;
+  transform: translate(-50%, -50%);
 }
 
 .terminal__game {
