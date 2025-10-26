@@ -24,6 +24,13 @@ export default function Home() {
           <h1>Link your console</h1>
           <p>Hop straight into the telnet or SSH board and keep the lightweight lounge nearby.</p>
         </div>
+        <section className="shell-mobile-banner" data-mobile-banner>
+          <h2>Mobile lounge ready</h2>
+          <p>
+            When we detect iOS, Android, postmarketOS, UBports, or BlackBerry devices, we highlight the dedicated command entry
+            beneath the terminal so keystrokes, arrows, and Ctrl shortcuts land reliably over telnet or SSH.
+          </p>
+        </section>
         <nav className="shell-menu" aria-label="Lounge menu">
           <details className="menu-item" data-menu="motd">
             <summary>Message of the day</summary>
