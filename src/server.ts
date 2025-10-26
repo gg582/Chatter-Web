@@ -12,6 +12,22 @@ const serverDirectory = fileURLToPath(new URL('.', import.meta.url));
 const staticRoots = [serverDirectory];
 const TERMINAL_PATH = '/terminal';
 
+type EnvLookupResult = { value: string | undefined; source: string | undefined };
+
+const readEnvValue = (...keys: string[]): EnvLookupResult => {
+  for (const key of keys) {
+    const raw = process.env[key];
+    if (typeof raw !== 'string') {
+      continue;
+    }
+    const trimmed = raw.trim();
+    if (trimmed) {
+      return { value: trimmed, source: key };
+    }
+  }
+  return { value: undefined, source: undefined };
+};
+
 type BbsProtocol = 'telnet' | 'ssh';
 
 type BbsSettings = {
@@ -39,11 +55,15 @@ type TerminalClientContext = {
 
 const readBbsSettings = (options: { silent?: boolean } = {}): BbsSettings | null => {
   const { silent = false } = options;
-  const host = process.env.CHATTER_BBS_HOST?.trim();
-  const rawProtocol = (process.env.CHATTER_BBS_PROTOCOL ?? 'ssh').trim().toLowerCase();
-  const protocol: BbsProtocol = rawProtocol === 'telnet' ? 'telnet' : 'ssh';
+  const { value: host } = readEnvValue('CHATTER_BBS_HOST', 'CHATTER_TERMINAL_HOST');
+  const { value: rawProtocol } = readEnvValue('CHATTER_BBS_PROTOCOL', 'CHATTER_TERMINAL_PROTOCOL');
+  const protocolValue = (rawProtocol ?? 'ssh').toLowerCase();
+  const protocol: BbsProtocol = protocolValue === 'telnet' ? 'telnet' : 'ssh';
   const defaultPort = protocol === 'ssh' ? 22 : 23;
-  const rawPort = process.env.CHATTER_BBS_PORT?.trim();
+  const { value: rawPort, source: portSource } = readEnvValue(
+    'CHATTER_BBS_PORT',
+    'CHATTER_TERMINAL_PORT'
+  );
 
   if (!host) {
     return null;
@@ -54,15 +74,19 @@ const readBbsSettings = (options: { silent?: boolean } = {}): BbsSettings | null
     const parsed = Number.parseInt(rawPort, 10);
     if (!Number.isFinite(parsed) || parsed <= 0 || parsed > 65535) {
       if (!silent) {
-        console.warn(`Ignoring invalid CHATTER_BBS_PORT value: ${rawPort}`);
+        const label = portSource ?? 'CHATTER_BBS_PORT';
+        console.warn(`Ignoring invalid ${label} value: ${rawPort}`);
       }
     } else {
       port = parsed;
     }
   }
 
-  const sshUser = process.env.CHATTER_BBS_SSH_USER?.trim();
-  const sshCommand = process.env.CHATTER_BBS_SSH_COMMAND?.trim();
+  const { value: sshUser } = readEnvValue('CHATTER_BBS_SSH_USER', 'CHATTER_TERMINAL_SSH_USER');
+  const { value: sshCommand } = readEnvValue(
+    'CHATTER_BBS_SSH_COMMAND',
+    'CHATTER_TERMINAL_SSH_COMMAND'
+  );
 
   return {
     host,
@@ -152,7 +176,8 @@ const normalisePortOverride = (
 const resolveRuntimeConfig = () => {
   const config: Record<string, string> = {};
   const settings = readBbsSettings({ silent: true });
-  const protocol = (process.env.CHATTER_BBS_PROTOCOL ?? 'ssh').trim().toLowerCase();
+  const { value: protocolEnv } = readEnvValue('CHATTER_BBS_PROTOCOL', 'CHATTER_TERMINAL_PROTOCOL');
+  const normalisedProtocolValue = (protocolEnv ?? 'ssh').toLowerCase();
 
   if (settings) {
     config.bbsProtocol = settings.protocol;
@@ -161,24 +186,37 @@ const resolveRuntimeConfig = () => {
     if (settings.sshUser) {
       config.bbsSshUser = settings.sshUser;
     }
-  } else if (protocol) {
-    const normalisedProtocol: BbsProtocol = protocol === 'telnet' ? 'telnet' : 'ssh';
+  } else {
+    const normalisedProtocol: BbsProtocol =
+      normalisedProtocolValue === 'telnet' ? 'telnet' : 'ssh';
     config.bbsProtocol = normalisedProtocol;
-    const rawPort = process.env.CHATTER_BBS_PORT?.trim();
+    const { value: rawPort } = readEnvValue('CHATTER_BBS_PORT', 'CHATTER_TERMINAL_PORT');
     if (rawPort) {
       config.bbsPort = rawPort;
     } else {
       config.bbsPort = normalisedProtocol === 'ssh' ? '22' : '23';
     }
-    const sshUser = process.env.CHATTER_BBS_SSH_USER?.trim();
+    const { value: sshUser } = readEnvValue(
+      'CHATTER_BBS_SSH_USER',
+      'CHATTER_TERMINAL_SSH_USER'
+    );
     if (sshUser) {
       config.bbsSshUser = sshUser;
     }
   }
 
-  const hostPlaceholder = process.env.CHATTER_BBS_HOST_PLACEHOLDER?.trim();
-  const hostDefault = process.env.CHATTER_BBS_HOST_DEFAULT?.trim();
-  const portDefault = process.env.CHATTER_BBS_PORT_DEFAULT?.trim();
+  const { value: hostPlaceholder } = readEnvValue(
+    'CHATTER_BBS_HOST_PLACEHOLDER',
+    'CHATTER_TERMINAL_HOST_PLACEHOLDER'
+  );
+  const { value: hostDefault } = readEnvValue(
+    'CHATTER_BBS_HOST_DEFAULT',
+    'CHATTER_TERMINAL_HOST_DEFAULT'
+  );
+  const { value: portDefault } = readEnvValue(
+    'CHATTER_BBS_PORT_DEFAULT',
+    'CHATTER_TERMINAL_PORT_DEFAULT'
+  );
   if (hostPlaceholder) {
     config.bbsHostPlaceholder = hostPlaceholder;
   }
@@ -684,7 +722,11 @@ const handleUpgrade = (req: IncomingMessage, socket: NetSocket, head: Buffer) =>
   }
 
   const settings = readBbsSettings();
-  const fallbackProtocol = (process.env.CHATTER_BBS_PROTOCOL ?? 'telnet').trim().toLowerCase() === 'ssh' ? 'ssh' : 'telnet';
+  const { value: fallbackProtocolEnv } = readEnvValue(
+    'CHATTER_BBS_PROTOCOL',
+    'CHATTER_TERMINAL_PROTOCOL'
+  );
+  const fallbackProtocol = (fallbackProtocolEnv ?? 'telnet').toLowerCase() === 'ssh' ? 'ssh' : 'telnet';
   const defaultPort = fallbackProtocol === 'ssh' ? 22 : 23;
 
   const sessionSettings: BbsSettings = settings
@@ -693,8 +735,9 @@ const handleUpgrade = (req: IncomingMessage, socket: NetSocket, head: Buffer) =>
         host: '',
         port: defaultPort,
         protocol: fallbackProtocol,
-        sshUser: process.env.CHATTER_BBS_SSH_USER?.trim() || undefined,
-        sshCommand: process.env.CHATTER_BBS_SSH_COMMAND?.trim() || undefined
+        sshUser: readEnvValue('CHATTER_BBS_SSH_USER', 'CHATTER_TERMINAL_SSH_USER').value || undefined,
+        sshCommand:
+          readEnvValue('CHATTER_BBS_SSH_COMMAND', 'CHATTER_TERMINAL_SSH_COMMAND').value || undefined
       };
 
   let usernameOverride: string | null = null;
