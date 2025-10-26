@@ -971,7 +971,8 @@ summary::-webkit-details-marker {
   font-size: 0.9rem;
   color: var(--terminal-text);
   background-color: var(--terminal-bg);
-  line-height: 1.45;
+  --terminal-line-height: 1.32;
+  line-height: var(--terminal-line-height);
   white-space: pre-wrap;
   overflow: hidden;
 }
@@ -982,6 +983,7 @@ summary::-webkit-details-marker {
   font-size: 0.9rem;
   color: var(--terminal-text);
   background-color: var(--terminal-bg);
+  line-height: var(--terminal-line-height, 1.32);
 }
 
 .terminal__segment {
@@ -989,9 +991,21 @@ summary::-webkit-details-marker {
 }
 
 .terminal__segment--background {
+  position: relative;
   display: inline-block;
-  box-decoration-break: clone;
-  min-height: 1em;
+  vertical-align: top;
+  isolation: isolate;
+}
+
+.terminal__segment--background::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: calc((var(--terminal-line-height, 1.32) - 1) * -0.5em);
+  bottom: calc((var(--terminal-line-height, 1.32) - 1) * -0.5em);
+  background: var(--segment-bg, transparent);
+  z-index: -1;
 }
 
 .terminal__line--incoming {

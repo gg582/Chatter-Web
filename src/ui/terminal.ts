@@ -301,7 +301,7 @@ const createAnsiFragment = (line: string): DocumentFragment => {
       span.style.color = state.color;
     }
     if (state.background) {
-      span.style.backgroundColor = state.background;
+      span.style.setProperty('--segment-bg', state.background);
       span.classList.add('terminal__segment--background');
     }
     if (state.bold) {
