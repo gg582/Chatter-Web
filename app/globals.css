@@ -76,7 +76,8 @@ summary::-webkit-details-marker {
 }
 
 .chatter-app {
-  max-width: 1120px;
+  width: 100%;
+  max-width: none;
   margin: 0 auto;
   padding: 2.75rem 1.5rem 3.5rem;
   display: flex;
