@@ -6,6 +6,9 @@ interface ChatterRuntimeConfig {
   bbsSshUser?: string;
   bbsHostPlaceholder?: string;
   bbsHostDefault?: string;
+  terminalBridgeMode?: 'local' | 'relaydns';
+  terminalSocketUrl?: string;
+  terminalRelayDnsPeer?: string;
 }
 
 declare global {

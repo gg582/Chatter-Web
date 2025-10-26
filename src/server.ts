@@ -235,6 +235,43 @@ const resolveRuntimeConfig = () => {
     config.bbsPortDefault = portDefault;
   }
 
+  const { value: relayDnsPeer } = readEnvValue('CHATTER_BBS_RELAYDNS_PEER');
+
+  const ensureUrlScheme = (value: string) => {
+    if (/^[a-zA-Z][a-zA-Z0-9+.-]*:/.test(value)) {
+      return value;
+    }
+    return `http://${value}`;
+  };
+
+  if (relayDnsPeer) {
+    config.terminalBridgeMode = 'relaydns';
+    config.terminalRelayDnsPeer = relayDnsPeer;
+    const { value: relayBaseOverride } = readEnvValue('CHATTER_BBS_RELAYDNS_BASE_URL');
+    const baseCandidate = (relayBaseOverride && relayBaseOverride.trim()) || 'http://173.249.203.13:8080';
+    try {
+      const baseUrl = new URL(ensureUrlScheme(baseCandidate));
+      const basePath = baseUrl.pathname.replace(/\/+$/, '');
+      baseUrl.pathname = `${basePath}/peer/${encodeURIComponent(relayDnsPeer)}/ws`;
+      baseUrl.search = '';
+      baseUrl.hash = '';
+      const protocol = baseUrl.protocol.toLowerCase();
+      baseUrl.protocol = protocol === 'https:' || protocol === 'wss:' ? 'wss:' : 'ws:';
+      config.terminalSocketUrl = baseUrl.toString();
+    } catch (error) {
+      console.warn('Invalid RelayDNS base URL provided. Falling back to default.', error);
+      try {
+        const fallbackUrl = new URL('ws://173.249.203.13:8080/');
+        fallbackUrl.pathname = `/peer/${encodeURIComponent(relayDnsPeer)}/ws`;
+        config.terminalSocketUrl = fallbackUrl.toString();
+      } catch (fallbackError) {
+        console.warn('Failed to construct RelayDNS socket URL', fallbackError);
+      }
+    }
+  } else {
+    config.terminalBridgeMode = 'local';
+  }
+
   return config;
 };
 
