@@ -898,6 +898,10 @@ summary::-webkit-details-marker {
   font-style: italic;
 }
 
+.terminal__note--error {
+  color: #fb7185;
+}
+
 .terminal__note--alpha {
   font-size: 0.78rem;
   text-transform: uppercase;
