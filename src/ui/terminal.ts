@@ -532,14 +532,14 @@ const createRuntime = (container: HTMLElement): TerminalRuntime => {
             <input
               type="text"
               data-terminal-username
-              placeholder="Enter your handle (English letters only)"
+              placeholder="Enter your handle"
               value="${escapeHtml(target.defaultUsername)}"
               autocomplete="off"
               autocapitalize="none"
               spellcheck="false"
             />
           </label>
-          <p class="terminal__note terminal__note--muted">Use English letters, numbers, dots, underscores, or hyphens.</p>
+          <p class="terminal__note terminal__note--muted">Handles can include letters, numbers, dots, underscores, or hyphens.</p>
         </div>
         <div class="terminal__controls-buttons">
           <button type="button" data-terminal-connect>Connect</button>
@@ -857,8 +857,8 @@ const createRuntime = (container: HTMLElement): TerminalRuntime => {
     runtime.usernameInput.disabled = false;
     const placeholder =
       runtime.target.protocol === 'ssh'
-        ? 'Enter your SSH username (English letters only)'
-        : 'Enter your BBS handle (English letters only)';
+        ? 'Enter your SSH username'
+        : 'Enter your BBS handle';
     runtime.usernameInput.placeholder = placeholder;
     if (!runtime.usernameInput.value.trim() && runtime.target.defaultUsername) {
       runtime.usernameInput.value = runtime.target.defaultUsername;
