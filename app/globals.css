@@ -912,19 +912,24 @@ summary::-webkit-details-marker {
   border-radius: 18px;
   border: 1px solid rgba(226, 232, 240, 0.18);
   background: rgba(6, 12, 24, 0.85);
-  min-height: 420px;
+  min-height: 260px;
+  height: clamp(260px, 65vh, 720px);
   overflow: hidden;
   position: relative;
+  display: flex;
+  flex-direction: column;
 }
 
 .terminal__output {
-  min-height: 420px;
+  flex: 1 1 auto;
+  min-height: 0;
   padding: 1.1rem 1.2rem;
   font-family: 'IBM Plex Mono', 'SFMono-Regular', Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New', monospace;
   font-size: 0.9rem;
   color: var(--terminal-text);
   line-height: 1.45;
   white-space: pre-wrap;
+  overflow: hidden;
 }
 
 .terminal__line {
