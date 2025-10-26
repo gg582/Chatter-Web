@@ -955,8 +955,8 @@ summary::-webkit-details-marker {
   border-radius: 18px;
   border: 1px solid var(--terminal-border);
   background: var(--terminal-panel);
-  min-height: 260px;
-  height: clamp(260px, 65vh, 720px);
+  min-height: 520px;
+  height: clamp(520px, 130vh, 1440px);
   overflow: hidden;
   position: relative;
   display: flex;
