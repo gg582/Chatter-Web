@@ -177,7 +177,6 @@ summary::-webkit-details-marker {
 .chatter-layout {
   display: flex;
   flex-direction: column;
-  gap: 1.5rem;
 }
 
 .terminal-section,
@@ -367,13 +366,51 @@ summary::-webkit-details-marker {
   box-shadow: inset 0 1px 2px rgba(15, 23, 42, 0.05);
 }
 
-.chat-feed {
+.form-grid {
+  display: grid;
+  gap: 0.75rem;
+}
+
+.form-grid label,
+.form-grid textarea,
+.form-grid select,
+.form-grid input {
+  font-family: inherit;
+  font-size: 0.95rem;
+  color: var(--text);
+}
+
+.form-grid textarea,
+.form-grid input,
+.form-grid select {
+  border-radius: 12px;
+  border: 1px solid var(--border);
+  padding: 0.6rem 0.75rem;
+  background: rgba(255, 255, 255, 0.92);
+  box-shadow: inset 0 1px 2px rgba(15, 23, 42, 0.05);
+}
+
+.card__subtitle {
+  font-size: 0.9rem;
+  color: var(--text-faint);
+}
+
+.card__body {
   display: flex;
   flex-direction: column;
   gap: 1.1rem;
   max-height: 420px;
   overflow-y: auto;
   padding-right: 0.5rem;
+}
+
+.chat-feed::-webkit-scrollbar {
+  width: 6px;
+}
+
+.chat-feed::-webkit-scrollbar-thumb {
+  background: rgba(159, 215, 255, 0.75);
+  border-radius: 999px;
 }
 
 .chat-message {
@@ -386,7 +423,7 @@ summary::-webkit-details-marker {
   gap: 0.6rem;
 }
 
-.chat-message__meta {
+.session-panel__grid {
   display: flex;
   flex-wrap: wrap;
   gap: 0.6rem;
@@ -411,7 +448,7 @@ summary::-webkit-details-marker {
   color: var(--text-soft);
 }
 
-.chat-message__reactions {
+.session-panel__actions {
   display: flex;
   flex-wrap: wrap;
   gap: 0.4rem;
@@ -517,7 +554,30 @@ summary::-webkit-details-marker {
   gap: 0.75rem;
 }
 
-.utility-sections {
+.session-panel__row {
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+  font-size: 0.92rem;
+  color: var(--text-soft);
+}
+
+.session-panel__row dt {
+  font-weight: 600;
+  color: var(--text);
+}
+
+.session-panel__row dd {
+  margin: 0;
+}
+
+.session-panel__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+}
+
+.session-panel__actions {
   display: flex;
   flex-direction: column;
   gap: 1.35rem;
@@ -560,7 +620,7 @@ summary::-webkit-details-marker {
 .cheatsheet__section {
   display: flex;
   flex-direction: column;
-  gap: 0.8rem;
+  gap: 1.2rem;
 }
 
 .cheatsheet__header h3 {
@@ -722,7 +782,6 @@ summary::-webkit-details-marker {
 .terminal__endpoint {
   display: flex;
   flex-direction: column;
-  gap: 0.25rem;
 }
 
 .terminal__endpoint-label {
@@ -916,9 +975,11 @@ summary::-webkit-details-marker {
 @media (max-width: 720px) {
   .shell-menu {
     flex-direction: column;
+    align-items: stretch;
   }
 
   .menu-item {
     width: 100%;
+    justify-content: center;
   }
 }
