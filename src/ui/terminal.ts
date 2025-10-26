@@ -158,15 +158,13 @@ const resolveTarget = (): TerminalTarget => {
   }
 
   const description = descriptorParts.join(' ');
-  const username = protocol === 'ssh' ? defaultUsername : '';
-
   return {
     available: Boolean(host),
     description,
     host,
     port,
     protocol,
-    defaultUsername: username,
+    defaultUsername,
     overridesApplied,
     defaults,
     placeholders: {
@@ -224,10 +222,12 @@ type TerminalRuntime = {
   usernameField: HTMLElement;
   optionsElement: HTMLDetailsElement;
   connected: boolean;
+  connecting: boolean;
   socketUrl: string | null;
   target: TerminalTarget;
   appendLine: (text: string, kind?: TerminalLineKind) => void;
   updateStatus: (label: string, state: 'disconnected' | 'connecting' | 'connected') => void;
+  updateConnectAvailability?: () => void;
 };
 
 const limitOutputLines = (output: HTMLElement, maxLines = 600) => {
@@ -269,9 +269,23 @@ const createRuntime = (container: HTMLElement): TerminalRuntime => {
         </div>
       </header>
       <div class="terminal__controls">
-        <div class="terminal__endpoint">
-          <span class="terminal__endpoint-label">Current target</span>
-          <span class="terminal__endpoint-value" data-terminal-endpoint>${escapeHtml(target.description)}</span>
+        <div class="terminal__controls-grid">
+          <div class="terminal__endpoint">
+            <span class="terminal__endpoint-label">Current target</span>
+            <span class="terminal__endpoint-value" data-terminal-endpoint>${escapeHtml(target.description)}</span>
+          </div>
+          <label class="terminal__field terminal__field--inline" data-terminal-username-field>
+            <span class="terminal__field-label">Username</span>
+            <input
+              type="text"
+              data-terminal-username
+              placeholder="Enter your handle"
+              value="${escapeHtml(target.defaultUsername)}"
+              autocomplete="off"
+              autocapitalize="none"
+              spellcheck="false"
+            />
+          </label>
         </div>
         <div class="terminal__controls-buttons">
           <button type="button" data-terminal-connect>Connect</button>
@@ -324,18 +338,6 @@ const createRuntime = (container: HTMLElement): TerminalRuntime => {
               <button type="button" data-terminal-target-reset>Reset to server</button>
             </div>
           </form>
-          <label class="terminal__field" data-terminal-username-field>
-            <span class="terminal__field-label">SSH username</span>
-            <input
-              type="text"
-              data-terminal-username
-              placeholder="Required for SSH"
-              value="${escapeHtml(target.defaultUsername)}"
-              autocomplete="off"
-              autocapitalize="none"
-              spellcheck="false"
-            />
-          </label>
         </div>
       </details>
       <p class="terminal__note">
@@ -422,6 +424,7 @@ const createRuntime = (container: HTMLElement): TerminalRuntime => {
     socketUrl: typeof socketUrl === 'string' && socketUrl.trim() ? socketUrl.trim() : null,
     target,
     connected: false,
+    connecting: false,
     appendLine: (text: string, kind: TerminalLineKind = 'info') => {
       const lines = text.replace(/\r/g, '').split('\n');
       for (const line of lines) {
@@ -478,18 +481,28 @@ const createRuntime = (container: HTMLElement): TerminalRuntime => {
   };
 
   const syncUsernameField = () => {
-    if (runtime.target.protocol === 'ssh') {
-      runtime.usernameField.style.display = '';
-      runtime.usernameInput.disabled = false;
-      if (!runtime.usernameInput.value && runtime.target.defaultUsername) {
-        runtime.usernameInput.value = runtime.target.defaultUsername;
-      }
-    } else {
-      runtime.usernameField.style.display = 'none';
-      runtime.usernameInput.disabled = true;
-      runtime.usernameInput.value = '';
+    runtime.usernameField.style.display = '';
+    runtime.usernameInput.disabled = false;
+    const placeholder =
+      runtime.target.protocol === 'ssh'
+        ? 'Enter your SSH username'
+        : 'Enter your BBS handle';
+    runtime.usernameInput.placeholder = placeholder;
+    if (!runtime.usernameInput.value.trim() && runtime.target.defaultUsername) {
+      runtime.usernameInput.value = runtime.target.defaultUsername;
     }
   };
+
+  const hasUsername = () => runtime.usernameInput.value.trim().length > 0;
+
+  const updateConnectAvailability = () => {
+    if (runtime.connected || runtime.connecting) {
+      runtime.connectButton.disabled = true;
+      return;
+    }
+    runtime.connectButton.disabled = !runtime.target.available || !runtime.socketUrl || !hasUsername();
+  };
+  runtime.updateConnectAvailability = updateConnectAvailability;
 
   const updateTargetStatus = () => {
     if (!targetStatus) {
@@ -566,9 +579,7 @@ const createRuntime = (container: HTMLElement): TerminalRuntime => {
       runtime.optionsElement.open = true;
     }
 
-    if (!runtime.connected) {
-      runtime.connectButton.disabled = !runtime.target.available || !runtime.socketUrl;
-    }
+    updateConnectAvailability();
   };
 
   runtime.updateStatus('Disconnected', 'disconnected');
@@ -579,7 +590,7 @@ const createRuntime = (container: HTMLElement): TerminalRuntime => {
   }
   if (!runtime.socketUrl) {
     runtime.appendLine('Unable to resolve terminal bridge URL from the current origin.', 'error');
-    runtime.connectButton.disabled = true;
+    updateConnectAvailability();
   }
 
   connectButton.addEventListener('click', () => {
@@ -612,16 +623,16 @@ const createRuntime = (container: HTMLElement): TerminalRuntime => {
       return;
     }
     const username = runtime.usernameInput.value.trim();
-    if (runtime.target.protocol === 'ssh' && !username) {
-      runtime.appendLine('Enter an SSH username before connecting.', 'error');
+    if (!username) {
+      runtime.appendLine('Enter a username before connecting.', 'error');
       return;
     }
     const protocolLabel = runtime.target.protocol ? runtime.target.protocol.toUpperCase() : 'TELNET';
     const hostPortLabel = runtime.target.port ? `${runtime.target.host}:${runtime.target.port}` : runtime.target.host;
-    const displayTarget =
-      runtime.target.protocol === 'ssh' && username ? `${username}@${hostPortLabel}` : hostPortLabel;
+    const displayTarget = username ? `${username}@${hostPortLabel}` : hostPortLabel;
     runtime.updateStatus('Connecting…', 'connecting');
     runtime.appendLine(`Connecting to ${protocolLabel} ${displayTarget} …`, 'info');
+    runtime.connecting = true;
     runtime.connectButton.disabled = true;
     try {
       const socketUrl = new URL(socketUrlText);
@@ -645,11 +656,13 @@ const createRuntime = (container: HTMLElement): TerminalRuntime => {
       socket.binaryType = 'arraybuffer';
       runtime.socket = socket;
       socket.addEventListener('open', () => {
+        runtime.connecting = false;
         runtime.connected = true;
         runtime.updateStatus('Connected', 'connected');
         runtime.appendLine('Connection established. Enjoy your TUI session!', 'info');
         runtime.disconnectButton.disabled = false;
         runtime.captureElement.focus();
+        updateConnectAvailability();
       });
       socket.addEventListener('message', (event) => {
         if (typeof event.data === 'string') {
@@ -659,24 +672,26 @@ const createRuntime = (container: HTMLElement): TerminalRuntime => {
         }
       });
       socket.addEventListener('close', (event) => {
+        runtime.connecting = false;
         runtime.connected = false;
         runtime.socket = null;
         runtime.disconnectButton.disabled = true;
-        runtime.connectButton.disabled = false;
         runtime.updateStatus('Disconnected', 'disconnected');
         runtime.appendLine(`Connection closed (code ${event.code}).`, 'info');
         refreshTarget(false);
+        updateConnectAvailability();
       });
       socket.addEventListener('error', () => {
         runtime.appendLine('Terminal connection error.', 'error');
       });
     } catch (error) {
+      runtime.connecting = false;
       runtime.connected = false;
       runtime.socket = null;
-      runtime.connectButton.disabled = false;
       runtime.disconnectButton.disabled = true;
       runtime.updateStatus('Disconnected', 'disconnected');
       runtime.appendLine(`Failed to connect: ${(error as Error).message}`, 'error');
+      updateConnectAvailability();
     }
   });
 
@@ -762,6 +777,10 @@ const createRuntime = (container: HTMLElement): TerminalRuntime => {
     runtime.captureElement.value = '';
   });
 
+  runtime.usernameInput.addEventListener('input', () => {
+    updateConnectAvailability();
+  });
+
   return runtime;
 };
 
@@ -775,7 +794,7 @@ export const renderTerminal = (store: ChatStore, container: HTMLElement) => {
   runtime.target = resolveTarget();
   runtime.endpointElement.textContent = runtime.target.description;
   if (!runtime.connected) {
-    runtime.connectButton.disabled = !runtime.target.available || !runtime.socketUrl;
+    runtime.updateConnectAvailability?.();
   }
 
   const state = store.snapshot();

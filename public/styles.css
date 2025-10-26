@@ -699,11 +699,23 @@ summary::-webkit-details-marker {
   gap: 1rem;
 }
 
+.terminal__controls-grid {
+  display: grid;
+  gap: 0.75rem;
+}
+
 @media (min-width: 720px) {
   .terminal__controls {
     flex-direction: row;
     justify-content: space-between;
     align-items: center;
+  }
+
+  .terminal__controls-grid {
+    flex: 1 1 auto;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 220px);
+    align-items: end;
+    gap: 1rem;
   }
 }
 
@@ -723,6 +735,14 @@ summary::-webkit-details-marker {
 .terminal__endpoint-value {
   font-family: 'IBM Plex Mono', 'SFMono-Regular', Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New', monospace;
   font-size: 0.95rem;
+}
+
+.terminal__field--inline {
+  max-width: 100%;
+}
+
+.terminal__field--inline input {
+  width: 100%;
 }
 
 .terminal__controls-buttons {
