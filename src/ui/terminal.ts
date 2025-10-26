@@ -1060,11 +1060,43 @@ const createRuntime = (container: HTMLElement): TerminalRuntime => {
       return;
     }
 
-    if (socket.readyState === WebSocket.OPEN) {
+    const sendDisconnectSequence = (value: string): boolean => {
+      if (!socket || socket.readyState !== WebSocket.OPEN) {
+        return false;
+      }
+
       try {
-        socket.send(textEncoder.encode('\u0003'));
+        socket.send(textEncoder.encode(value));
+        return true;
       } catch (error) {
-        console.warn('Failed to send interrupt sequence', error);
+        console.warn('Failed to send disconnect sequence', error);
+        return false;
+      }
+    };
+
+    if (socket.readyState === WebSocket.OPEN) {
+      runtime.updateStatus('Disconnecting…', 'connecting');
+      runtime.disconnectButton.disabled = true;
+      runtime.connected = false;
+      runtime.connecting = true;
+      runtime.updateConnectAvailability?.();
+
+      const modeSent = sendDisconnectSequence('/mode command\r');
+      const exitSent = modeSent && sendDisconnectSequence('exit\r');
+
+      if (modeSent && exitSent) {
+        if (typeof window !== 'undefined') {
+          window.setTimeout(() => {
+            if (socket.readyState === WebSocket.OPEN) {
+              try {
+                socket.close(1000, 'Client closed');
+              } catch (error) {
+                console.warn('Failed to close terminal socket after graceful disconnect attempt', error);
+              }
+            }
+          }, 1500);
+        }
+        return;
       }
     }
 
