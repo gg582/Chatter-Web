@@ -225,6 +225,8 @@ type TerminalRuntime = {
   connecting: boolean;
   socketUrl: string | null;
   target: TerminalTarget;
+  incomingBuffer: string;
+  incomingLineElement: HTMLPreElement | null;
   appendLine: (text: string, kind?: TerminalLineKind) => void;
   updateStatus: (label: string, state: 'disconnected' | 'connecting' | 'connected') => void;
   updateConnectAvailability?: () => void;
@@ -381,7 +383,7 @@ const describeKey = (event: KeyboardEvent): string => {
 };
 
 const normaliseLineBreaks = (value: string): string =>
-  value.replace(/\r\n?|\n/g, '\r');
+  value.replace(/\r\n?|\n/g, '\r\n');
 
 const createRuntime = (container: HTMLElement): TerminalRuntime => {
   const target = resolveTarget();
@@ -564,8 +566,15 @@ const createRuntime = (container: HTMLElement): TerminalRuntime => {
     target,
     connected: false,
     connecting: false,
+    incomingBuffer: '',
+    incomingLineElement: null,
     appendLine: (text: string, kind: TerminalLineKind = 'info') => {
-      const lines = text.replace(/\r/g, '').split('\n');
+      if (kind === 'incoming') {
+        processIncomingChunk(text);
+        return;
+      }
+
+      const lines = text.replace(/\r\n/g, '\n').split('\n');
       for (const line of lines) {
         const entry = document.createElement('pre');
         entry.className = `terminal__line terminal__line--${kind}`;
@@ -573,6 +582,10 @@ const createRuntime = (container: HTMLElement): TerminalRuntime => {
         runtime.outputElement.append(entry);
       }
       limitOutputLines(runtime.outputElement);
+      if (runtime.incomingLineElement && !runtime.incomingLineElement.isConnected) {
+        runtime.incomingLineElement = null;
+        runtime.incomingBuffer = '';
+      }
       runtime.outputElement.scrollTop = runtime.outputElement.scrollHeight;
     },
     updateStatus: (label, state) => {
@@ -580,6 +593,80 @@ const createRuntime = (container: HTMLElement): TerminalRuntime => {
       runtime.indicatorElement.setAttribute('data-state', state);
     }
   };
+
+  function ensureIncomingLine(): HTMLPreElement {
+    if (runtime.incomingLineElement && runtime.incomingLineElement.isConnected) {
+      return runtime.incomingLineElement;
+    }
+
+    const entry = document.createElement('pre');
+    entry.className = 'terminal__line terminal__line--incoming';
+    runtime.outputElement.append(entry);
+    runtime.incomingLineElement = entry;
+    limitOutputLines(runtime.outputElement);
+    if (runtime.incomingLineElement && !runtime.incomingLineElement.isConnected) {
+      runtime.incomingLineElement = null;
+      runtime.incomingBuffer = '';
+    }
+    return entry;
+  }
+
+  function processIncomingChunk(chunk: string) {
+    if (!chunk) {
+      return;
+    }
+
+    let buffer = runtime.incomingBuffer;
+    let lineElement = runtime.incomingLineElement;
+    let needsRender = false;
+
+    for (const char of chunk) {
+      if (char === '\r') {
+        const target = ensureIncomingLine();
+        target.replaceChildren();
+        buffer = '';
+        lineElement = runtime.incomingLineElement;
+        needsRender = false;
+        continue;
+      }
+
+      if (char === '\n') {
+        const target = ensureIncomingLine();
+        if (buffer) {
+          target.replaceChildren(createAnsiFragment(buffer));
+        } else {
+          target.replaceChildren();
+        }
+        buffer = '';
+        lineElement = null;
+        runtime.incomingBuffer = '';
+        runtime.incomingLineElement = null;
+        needsRender = false;
+        continue;
+      }
+
+      if (char === '\u0008') {
+        if (buffer) {
+          buffer = buffer.slice(0, -1);
+          needsRender = true;
+        }
+        continue;
+      }
+
+      buffer += char;
+      needsRender = true;
+    }
+
+    if (needsRender) {
+      const target = ensureIncomingLine();
+      target.replaceChildren(createAnsiFragment(buffer));
+      lineElement = target;
+    }
+
+    runtime.incomingBuffer = buffer;
+    runtime.incomingLineElement = lineElement;
+    runtime.outputElement.scrollTop = runtime.outputElement.scrollHeight;
+  }
 
   const collectOverridesFromInputs = (): { overrides: TargetOverrides; errors: string[] } => {
     const protocolValue = protocolSelect.value.trim().toLowerCase();
@@ -795,6 +882,10 @@ const createRuntime = (container: HTMLElement): TerminalRuntime => {
       });
       socket.addEventListener('message', (event) => {
         if (typeof event.data === 'string') {
+          const pending = runtime.binaryDecoder.decode();
+          if (pending) {
+            runtime.appendLine(pending, 'incoming');
+          }
           runtime.appendLine(event.data, 'incoming');
         } else if (event.data instanceof ArrayBuffer) {
           const decoded = runtime.binaryDecoder.decode(event.data, { stream: true });
@@ -889,6 +980,56 @@ const createRuntime = (container: HTMLElement): TerminalRuntime => {
   });
 
   let isComposing = false;
+  let pendingCompositionCommit: string | null = null;
+  let compositionFlushTimer: ReturnType<typeof setTimeout> | null = null;
+
+  const cancelPendingCompositionFlush = () => {
+    if (compositionFlushTimer !== null) {
+      clearTimeout(compositionFlushTimer);
+      compositionFlushTimer = null;
+    }
+  };
+
+  const flushPendingComposition = (): boolean => {
+    if (pendingCompositionCommit === null) {
+      cancelPendingCompositionFlush();
+      return false;
+    }
+
+    const value = pendingCompositionCommit;
+    pendingCompositionCommit = null;
+    cancelPendingCompositionFlush();
+
+    if (value) {
+      sendTextPayload(value);
+    }
+
+    clearCaptureValue();
+    return Boolean(value);
+  };
+
+  if (typeof window !== 'undefined') {
+    let unloadHandled = false;
+    const handleUnload = () => {
+      if (unloadHandled) {
+        return;
+      }
+      unloadHandled = true;
+      if (!runtime.socket) {
+        return;
+      }
+      const state = runtime.socket.readyState;
+      if (state === WebSocket.OPEN || state === WebSocket.CONNECTING) {
+        try {
+          runtime.socket.close(1001, 'Page closed');
+        } catch (error) {
+          console.warn('Failed to close terminal socket on unload', error);
+        }
+      }
+    };
+    window.addEventListener('pagehide', handleUnload);
+    window.addEventListener('beforeunload', handleUnload);
+  }
 
   const clearCaptureValue = () => {
     runtime.captureElement.value = '';
@@ -909,12 +1050,6 @@ const createRuntime = (container: HTMLElement): TerminalRuntime => {
     }
 
     runtime.socket.send(textEncoder.encode(payload));
-  };
-
-  const commitCaptureValue = () => {
-    const value = runtime.captureElement.value;
-    clearCaptureValue();
-    sendTextPayload(value);
   };
 
   runtime.captureElement.addEventListener('keydown', (event) => {
@@ -942,42 +1077,69 @@ const createRuntime = (container: HTMLElement): TerminalRuntime => {
 
   runtime.captureElement.addEventListener('compositionstart', () => {
     isComposing = true;
+    pendingCompositionCommit = null;
+    cancelPendingCompositionFlush();
   });
 
-  runtime.captureElement.addEventListener('compositionend', () => {
+  runtime.captureElement.addEventListener('compositionend', (event) => {
     isComposing = false;
-    commitCaptureValue();
+    const compositionEvent = event as CompositionEvent;
+    const committedValue =
+      typeof compositionEvent.data === 'string' && compositionEvent.data.length > 0
+        ? compositionEvent.data
+        : runtime.captureElement.value;
+
+    if (committedValue) {
+      pendingCompositionCommit = committedValue;
+      cancelPendingCompositionFlush();
+      compositionFlushTimer = setTimeout(() => {
+        flushPendingComposition();
+      }, 0);
+    } else {
+      pendingCompositionCommit = null;
+      cancelPendingCompositionFlush();
+      clearCaptureValue();
+    }
   });
 
   runtime.captureElement.addEventListener('input', (event) => {
-    if (isComposing) {
+    const inputEvent = event as InputEvent;
+
+    if (inputEvent.isComposing || isComposing) {
       return;
     }
 
-    const inputEvent = event as InputEvent;
-    if (inputEvent.isComposing) {
+    if (flushPendingComposition()) {
       return;
     }
 
     if (inputEvent.inputType === 'insertLineBreak') {
-      sendTextPayload('\r');
+      sendTextPayload('\u000d');
       clearCaptureValue();
       return;
     }
 
     if (inputEvent.inputType && inputEvent.inputType.startsWith('delete')) {
-      sendTextPayload('\u0008'); // Send a backspace character
+      sendTextPayload('\u0008');
       clearCaptureValue();
       return;
     }
 
-    if (typeof inputEvent.data === 'string' && inputEvent.data.length > 0) {
-      sendTextPayload(inputEvent.data);
-      clearCaptureValue();
-      return;
+    let valueToSend = '';
+
+    if (inputEvent.inputType === 'insertFromPaste' || inputEvent.inputType === 'insertFromDrop') {
+      valueToSend = runtime.captureElement.value;
+    } else if (typeof inputEvent.data === 'string') {
+      valueToSend = inputEvent.data;
+    } else {
+      valueToSend = runtime.captureElement.value;
     }
 
-    commitCaptureValue();
+    if (valueToSend) {
+      sendTextPayload(valueToSend);
+    }
+
+    clearCaptureValue();
   });
 
   runtime.usernameInput.addEventListener('input', () => {
