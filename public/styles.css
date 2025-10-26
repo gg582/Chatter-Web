@@ -896,9 +896,11 @@ summary::-webkit-details-marker {
 @media (max-width: 720px) {
   .shell-menu {
     flex-direction: column;
+    align-items: stretch;
   }
 
   .menu-item {
     width: 100%;
+    justify-content: center;
   }
 }

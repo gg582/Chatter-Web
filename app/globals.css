@@ -177,7 +177,7 @@ summary::-webkit-details-marker {
 .chatter-layout {
   display: flex;
   flex-direction: column;
-  gap: 1.5rem;
+  gap: 1rem;
 }
 
 .terminal-section,
@@ -215,6 +215,51 @@ summary::-webkit-details-marker {
   min-height: 420px;
   display: flex;
   flex-direction: column;
+  gap: 1.25rem;
+}
+
+.terminal-section,
+.chat-section {
+  display: flex;
+  flex-direction: column;
+}
+
+@media (min-width: 1080px) {
+  .chatter-layout {
+    display: grid;
+    grid-template-columns: minmax(0, 1.25fr) minmax(0, 1fr);
+    gap: 1.75rem;
+  }
+
+  .terminal-section {
+    grid-column: 1 / 2;
+  }
+
+  .chat-section {
+    grid-column: 2 / 3;
+  }
+}
+
+.panel {
+  background: var(--surface);
+  border-radius: 28px;
+  border: 1px solid var(--border);
+  box-shadow: var(--shadow-soft);
+  padding: 1.65rem;
+  backdrop-filter: blur(8px);
+}
+
+.panel--chat {
+  min-height: 420px;
+  display: flex;
+  flex-direction: column;
+}
+
+.panel--terminal {
+  padding: 0;
+  background: transparent;
+  border: none;
+  box-shadow: none;
 }
 
 .panel--terminal {
@@ -367,13 +412,27 @@ summary::-webkit-details-marker {
   box-shadow: inset 0 1px 2px rgba(15, 23, 42, 0.05);
 }
 
-.chat-feed {
+.card__subtitle {
+  font-size: 0.9rem;
+  color: var(--text-faint);
+}
+
+.card__body {
   display: flex;
   flex-direction: column;
   gap: 1.1rem;
   max-height: 420px;
   overflow-y: auto;
   padding-right: 0.5rem;
+}
+
+.chat-feed::-webkit-scrollbar {
+  width: 6px;
+}
+
+.chat-feed::-webkit-scrollbar-thumb {
+  background: rgba(159, 215, 255, 0.75);
+  border-radius: 999px;
 }
 
 .chat-message {
@@ -386,7 +445,7 @@ summary::-webkit-details-marker {
   gap: 0.6rem;
 }
 
-.chat-message__meta {
+.session-panel__grid {
   display: flex;
   flex-wrap: wrap;
   gap: 0.6rem;
@@ -411,7 +470,7 @@ summary::-webkit-details-marker {
   color: var(--text-soft);
 }
 
-.chat-message__reactions {
+.session-panel__actions {
   display: flex;
   flex-wrap: wrap;
   gap: 0.4rem;
@@ -517,7 +576,7 @@ summary::-webkit-details-marker {
   gap: 0.75rem;
 }
 
-.utility-sections {
+.session-panel__actions {
   display: flex;
   flex-direction: column;
   gap: 1.35rem;
@@ -560,7 +619,7 @@ summary::-webkit-details-marker {
 .cheatsheet__section {
   display: flex;
   flex-direction: column;
-  gap: 0.8rem;
+  gap: 1.2rem;
 }
 
 .cheatsheet__header h3 {
@@ -710,7 +769,23 @@ summary::-webkit-details-marker {
 .terminal__endpoint {
   display: flex;
   flex-direction: column;
-  gap: 0.25rem;
+  gap: 1rem;
+}
+
+@media (min-width: 720px) {
+  .terminal__controls {
+    flex-direction: row;
+    justify-content: space-between;
+    align-items: center;
+  }
+}
+
+.terminal__endpoint {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  font-family: 'IBM Plex Mono', ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-size: 0.8rem;
 }
 
 .terminal__endpoint-label {
@@ -896,9 +971,11 @@ summary::-webkit-details-marker {
 @media (max-width: 720px) {
   .shell-menu {
     flex-direction: column;
+    align-items: stretch;
   }
 
   .menu-item {
     width: 100%;
+    justify-content: center;
   }
 }
