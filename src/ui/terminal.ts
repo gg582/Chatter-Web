@@ -380,6 +380,9 @@ const describeKey = (event: KeyboardEvent): string => {
   return event.key;
 };
 
+const normaliseLineBreaks = (value: string): string =>
+  value.replace(/\r\n/g, '\n').replace(/\r/g, '\n').replace(/\n/g, '\r');
+
 const createRuntime = (container: HTMLElement): TerminalRuntime => {
   const target = resolveTarget();
   const socketUrl = resolveSocketUrl(container);
@@ -795,7 +798,7 @@ const createRuntime = (container: HTMLElement): TerminalRuntime => {
         runtime.updateStatus('Connected', 'connected');
         runtime.appendLine('Connection established. Enjoy your TUI session!', 'info');
         runtime.disconnectButton.disabled = false;
-        runtime.captureElement.focus();
+        focusCapture();
         updateConnectAvailability();
       });
       socket.addEventListener('message', (event) => {
@@ -867,12 +870,20 @@ const createRuntime = (container: HTMLElement): TerminalRuntime => {
     runtime.socket.close(1000, 'Client closed');
   });
 
+  const focusCapture = () => {
+    try {
+      runtime.captureElement.focus({ preventScroll: true });
+    } catch (error) {
+      runtime.captureElement.focus();
+    }
+  };
+
   focusButton.addEventListener('click', () => {
-    runtime.captureElement.focus();
+    focusCapture();
   });
 
   viewport.addEventListener('click', () => {
-    runtime.captureElement.focus();
+    focusCapture();
   });
 
   runtime.captureElement.addEventListener('focus', () => {
@@ -883,12 +894,43 @@ const createRuntime = (container: HTMLElement): TerminalRuntime => {
     runtime.viewport.classList.remove('terminal__viewport--focused');
   });
 
+  let isComposing = false;
+
+  const clearCaptureValue = () => {
+    runtime.captureElement.value = '';
+  };
+
+  const sendTextPayload = (rawValue: string) => {
+    if (!rawValue) {
+      return;
+    }
+
+    if (!runtime.socket || runtime.socket.readyState !== WebSocket.OPEN) {
+      runtime.appendLine('Text input dropped — not connected.', 'error');
+      return;
+    }
+
+    const payload = normaliseLineBreaks(rawValue);
+    if (!payload) {
+      return;
+    }
+
+    runtime.socket.send(textEncoder.encode(payload));
+  };
+
+  const commitCaptureValue = () => {
+    const value = runtime.captureElement.value;
+    clearCaptureValue();
+    sendTextPayload(value);
+  };
+
   runtime.captureElement.addEventListener('keydown', (event) => {
     if (!runtime.socket || runtime.socket.readyState !== WebSocket.OPEN) {
       runtime.appendLine(`Keystroke ${describeKey(event)} dropped — not connected.`, 'error');
       event.preventDefault();
       return;
     }
+
     let payload = '';
     if (event.ctrlKey && event.key.length === 1) {
       const upper = event.key.toUpperCase();
@@ -898,17 +940,51 @@ const createRuntime = (container: HTMLElement): TerminalRuntime => {
       }
     } else if (keySequences[event.key]) {
       payload = keySequences[event.key];
-    } else if (event.key.length === 1 && !event.metaKey) {
-      payload = event.key;
     }
+
     if (payload) {
       runtime.socket.send(textEncoder.encode(payload));
       event.preventDefault();
     }
   });
 
-  runtime.captureElement.addEventListener('input', () => {
-    runtime.captureElement.value = '';
+  runtime.captureElement.addEventListener('compositionstart', () => {
+    isComposing = true;
+  });
+
+  runtime.captureElement.addEventListener('compositionend', () => {
+    isComposing = false;
+    commitCaptureValue();
+  });
+
+  runtime.captureElement.addEventListener('input', (event) => {
+    if (isComposing) {
+      return;
+    }
+
+    const inputEvent = event as InputEvent;
+    if (inputEvent.isComposing) {
+      return;
+    }
+
+    if (inputEvent.inputType === 'insertLineBreak') {
+      sendTextPayload('\r');
+      clearCaptureValue();
+      return;
+    }
+
+    if (inputEvent.inputType && inputEvent.inputType.startsWith('delete')) {
+      clearCaptureValue();
+      return;
+    }
+
+    if (typeof inputEvent.data === 'string' && inputEvent.data.length > 0) {
+      sendTextPayload(inputEvent.data);
+      clearCaptureValue();
+      return;
+    }
+
+    commitCaptureValue();
   });
 
   runtime.usernameInput.addEventListener('input', () => {
