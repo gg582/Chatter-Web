@@ -178,7 +178,7 @@ summary::-webkit-details-marker {
 .chatter-layout {
   display: flex;
   flex-direction: column;
-  gap: 1.5rem;
+  gap: 1.75rem;
 }
 
 .terminal-section,
@@ -189,17 +189,7 @@ summary::-webkit-details-marker {
 
 @media (min-width: 1080px) {
   .chatter-layout {
-    display: grid;
-    grid-template-columns: minmax(0, 1.25fr) minmax(0, 1fr);
     gap: 1.75rem;
-  }
-
-  .terminal-section {
-    grid-column: 1 / 2;
-  }
-
-  .chat-section {
-    grid-column: 2 / 3;
   }
 }
 
