@@ -236,8 +236,14 @@ type TerminalRuntime = {
 
 type AnsiState = {
   color: string | null;
+  colorCode: number | null;
   background: string | null;
   bold: boolean;
+};
+
+type ParsedAnsiLine = {
+  fragment: DocumentFragment;
+  trailingBackground: string | null;
 };
 
 const ANSI_FOREGROUND_COLOR_MAP: Record<number, string> = {
@@ -280,9 +286,25 @@ const ANSI_BACKGROUND_COLOR_MAP: Record<number, string> = {
 
 const ANSI_PATTERN = /\u001b\[([0-9;]*)([A-Za-z])/g;
 
-const createAnsiFragment = (line: string): DocumentFragment => {
+const ANSI_BOLD_FOREGROUND_ALIASES: Record<number, number> = {
+  30: 90,
+  31: 91,
+  32: 92,
+  33: 93,
+  34: 94,
+  35: 95,
+  36: 96,
+  37: 97
+};
+
+const resolveForegroundColor = (code: number, bold: boolean): string | null => {
+  const effectiveCode = bold ? ANSI_BOLD_FOREGROUND_ALIASES[code] ?? code : code;
+  return ANSI_FOREGROUND_COLOR_MAP[effectiveCode] ?? null;
+};
+
+const createAnsiFragment = (line: string): ParsedAnsiLine => {
   const fragment = document.createDocumentFragment();
-  const state: AnsiState = { color: null, background: null, bold: false };
+  const state: AnsiState = { color: null, colorCode: null, background: null, bold: false };
   let lastIndex = 0;
   let match: RegExpExecArray | null;
 
@@ -330,29 +352,45 @@ const createAnsiFragment = (line: string): DocumentFragment => {
       }
       if (code === 0) {
         state.color = null;
+        state.colorCode = null;
         state.background = null;
         state.bold = false;
         continue;
       }
       if (code === 1) {
         state.bold = true;
+        if (state.colorCode !== null) {
+          const resolved = resolveForegroundColor(state.colorCode, state.bold);
+          state.color = resolved;
+        }
         continue;
       }
       if (code === 22) {
         state.bold = false;
+        if (state.colorCode !== null) {
+          const resolved = resolveForegroundColor(state.colorCode, state.bold);
+          state.color = resolved;
+        }
         continue;
       }
       if (code === 39) {
         state.color = null;
+        state.colorCode = null;
         continue;
       }
       if (code === 49) {
         state.background = null;
         continue;
       }
-      const foreground = ANSI_FOREGROUND_COLOR_MAP[code];
+      const foreground = resolveForegroundColor(code, state.bold);
+      if ((code >= 30 && code <= 37) || (code >= 90 && code <= 97)) {
+        state.colorCode = code;
+        state.color = foreground;
+        continue;
+      }
       if (foreground) {
         state.color = foreground;
+        state.colorCode = code;
         continue;
       }
       const background = ANSI_BACKGROUND_COLOR_MAP[code];
@@ -367,7 +405,30 @@ const createAnsiFragment = (line: string): DocumentFragment => {
     pushSegment(line.slice(lastIndex));
   }
 
-  return fragment;
+  return { fragment, trailingBackground: state.background };
+};
+
+const applyTrailingBackground = (element: HTMLElement, trailingBackground: string | null) => {
+  if (trailingBackground) {
+    element.style.setProperty('--terminal-trailing-bg', trailingBackground);
+    element.classList.add('terminal__line--trailing-background');
+    return;
+  }
+
+  element.style.removeProperty('--terminal-trailing-bg');
+  element.classList.remove('terminal__line--trailing-background');
+};
+
+const renderAnsiLine = (target: HTMLElement, content: string) => {
+  if (!content) {
+    target.replaceChildren();
+    applyTrailingBackground(target, null);
+    return;
+  }
+
+  const { fragment, trailingBackground } = createAnsiFragment(content);
+  target.replaceChildren(fragment);
+  applyTrailingBackground(target, trailingBackground);
 };
 
 const limitOutputLines = (output: HTMLElement, maxLines = 600) => {
@@ -592,7 +653,9 @@ const createRuntime = (container: HTMLElement): TerminalRuntime => {
       for (const line of lines) {
         const entry = document.createElement('pre');
         entry.className = `terminal__line terminal__line--${kind}`;
-        entry.append(createAnsiFragment(line));
+        const { fragment, trailingBackground } = createAnsiFragment(line);
+        entry.append(fragment);
+        applyTrailingBackground(entry, trailingBackground);
         runtime.outputElement.append(entry);
       }
       limitOutputLines(runtime.outputElement, runtime.maxOutputLines);
@@ -668,11 +731,7 @@ const createRuntime = (container: HTMLElement): TerminalRuntime => {
     for (const char of chunk) {
       if (char === '\r') {
         const target = ensureIncomingLine();
-        if (buffer) {
-          target.replaceChildren(createAnsiFragment(buffer));
-        } else {
-          target.replaceChildren();
-        }
+        renderAnsiLine(target, buffer);
         buffer = '';
         lineElement = runtime.incomingLineElement;
         needsRender = false;
@@ -682,11 +741,7 @@ const createRuntime = (container: HTMLElement): TerminalRuntime => {
       if (char === '\n') {
         if (buffer || !lineElement) {
           const target = ensureIncomingLine();
-          if (buffer) {
-            target.replaceChildren(createAnsiFragment(buffer));
-          } else {
-            target.replaceChildren();
-          }
+          renderAnsiLine(target, buffer);
         }
         buffer = '';
         lineElement = null;
@@ -710,7 +765,7 @@ const createRuntime = (container: HTMLElement): TerminalRuntime => {
 
     if (needsRender) {
       const target = ensureIncomingLine();
-      target.replaceChildren(createAnsiFragment(buffer));
+      renderAnsiLine(target, buffer);
       lineElement = target;
     }
 
@@ -1000,10 +1055,56 @@ const createRuntime = (container: HTMLElement): TerminalRuntime => {
   });
 
   disconnectButton.addEventListener('click', () => {
-    if (!runtime.socket) {
+    const socket = runtime.socket;
+    if (!socket) {
       return;
     }
-    runtime.socket.close(1000, 'Client closed');
+
+    const sendDisconnectSequence = (value: string): boolean => {
+      if (!socket || socket.readyState !== WebSocket.OPEN) {
+        return false;
+      }
+
+      try {
+        socket.send(textEncoder.encode(value));
+        return true;
+      } catch (error) {
+        console.warn('Failed to send disconnect sequence', error);
+        return false;
+      }
+    };
+
+    if (socket.readyState === WebSocket.OPEN) {
+      runtime.updateStatus('Disconnecting…', 'connecting');
+      runtime.disconnectButton.disabled = true;
+      runtime.connected = false;
+      runtime.connecting = true;
+      runtime.updateConnectAvailability?.();
+
+      const modeSent = sendDisconnectSequence('/mode command\r');
+      const exitSent = modeSent && sendDisconnectSequence('exit\r');
+
+      if (modeSent && exitSent) {
+        if (typeof window !== 'undefined') {
+          window.setTimeout(() => {
+            if (socket.readyState === WebSocket.OPEN) {
+              try {
+                socket.close(1000, 'Client closed');
+              } catch (error) {
+                console.warn('Failed to close terminal socket after graceful disconnect attempt', error);
+              }
+            }
+          }, 1500);
+        }
+        return;
+      }
+    }
+
+    try {
+      socket.close(1000, 'Client closed');
+    } catch (error) {
+      console.warn('Failed to close terminal socket', error);
+    }
   });
 
   const focusCapture = () => {
