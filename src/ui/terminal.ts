@@ -915,19 +915,12 @@ const createRuntime = (container: HTMLElement): TerminalRuntime => {
         runtime.disconnectButton.disabled = true;
         runtime.updateStatus('Disconnected', 'disconnected');
         const reason = typeof event.reason === 'string' ? event.reason.trim() : '';
-        const hasReason = Boolean(reason);
-        const exitMatch = /exited\s*\((\d+)\)/i.exec(reason);
-        const exitCode = exitMatch ? Number.parseInt(exitMatch[1], 10) : null;
-        const severity =
-          event.code === 1000 || event.code === 1001
-            ? exitCode && Number.isFinite(exitCode) && exitCode !== 0
-              ? 'error'
-              : 'info'
-            : 'error';
-        const message = hasReason
-          ? `Connection closed: ${reason} (code ${event.code}).`
-          : `Connection closed (code ${event.code}).`;
-        runtime.appendLine(message, severity);
+        if (reason) {
+          runtime.appendLine(reason, 'incoming');
+        } else {
+          const severity = event.code === 1000 || event.code === 1001 ? 'info' : 'error';
+          runtime.appendLine(`Connection closed (code ${event.code}).`, severity);
+        }
         refreshTarget(false);
         updateConnectAvailability();
       });
