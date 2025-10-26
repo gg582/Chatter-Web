@@ -886,7 +886,6 @@ const createRuntime = (container: HTMLElement): TerminalRuntime => {
         runtime.connecting = false;
         runtime.connected = true;
         runtime.updateStatus('Connected', 'connected');
-        runtime.appendLine('Connection established. Enjoy your TUI session!', 'info');
         runtime.disconnectButton.disabled = false;
         focusCapture();
         updateConnectAvailability();
@@ -915,7 +914,13 @@ const createRuntime = (container: HTMLElement): TerminalRuntime => {
         runtime.socket = null;
         runtime.disconnectButton.disabled = true;
         runtime.updateStatus('Disconnected', 'disconnected');
-        runtime.appendLine(`Connection closed (code ${event.code}).`, 'info');
+        const reason = typeof event.reason === 'string' ? event.reason.trim() : '';
+        if (reason) {
+          runtime.appendLine(reason, 'incoming');
+        } else {
+          const severity = event.code === 1000 || event.code === 1001 ? 'info' : 'error';
+          runtime.appendLine(`Connection closed (code ${event.code}).`, severity);
+        }
         refreshTarget(false);
         updateConnectAvailability();
       });
