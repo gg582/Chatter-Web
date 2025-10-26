@@ -1,8 +1,9 @@
-import { createReadStream } from 'node:fs';
+import { createReadStream, readFileSync } from 'node:fs';
 import { stat } from 'node:fs/promises';
 import { createHash } from 'node:crypto';
-import { createServer } from 'node:http';
-import type { IncomingMessage } from 'node:http';
+import { createServer as createHttpServer } from 'node:http';
+import type { IncomingMessage, ServerResponse } from 'node:http';
+import { createServer as createHttpsServer } from 'node:https';
 import { connect, Socket as NetSocket } from 'node:net';
 import { spawn, type ChildProcessWithoutNullStreams } from 'node:child_process';
 import { extname, join } from 'node:path';
@@ -919,23 +920,101 @@ const handleUpgrade = (req: IncomingMessage, socket: NetSocket, head: Buffer) =>
   }
 };
 
-const port = Number.parseInt(process.env.PORT ?? '8081', 10);
-const host = process.env.HOST ?? '0.0.0.0';
+const parsePort = (raw: string | undefined, fallback: number, label?: string) => {
+  if (!raw) {
+    return fallback;
+  }
 
-const server = createServer((req, res) => {
-  void handleRequest(req, res);
-});
+  const parsed = Number.parseInt(raw, 10);
+  if (!Number.isFinite(parsed) || parsed <= 0 || parsed > 65_535) {
+    const target = label ? `${label} value` : 'port value';
+    console.warn(`Ignoring invalid ${target}: ${raw}`);
+    return fallback;
+  }
 
-const upgradeableServer = server as unknown as {
-  on(event: 'upgrade', listener: (req: IncomingMessage, socket: NetSocket, head: Buffer) => void): void;
+  return parsed;
 };
 
-upgradeableServer.on('upgrade', (req, socket, head) => {
-  handleUpgrade(req, socket, head);
-});
+const resolvePemMaterial = (value: string, label: string): string | null => {
+  const trimmed = value.trim();
 
-server.listen(port, host, () => {
-  console.log(`Chatter frontend available at http://${host}:${port}`);
-});
+  if (!trimmed) {
+    return null;
+  }
+
+  if (trimmed.includes('-----BEGIN')) {
+    return trimmed;
+  }
+
+  try {
+    return readFileSync(trimmed, 'utf8');
+  } catch (error) {
+    console.error(`Failed to read ${label} from path ${trimmed}`, error);
+    return null;
+  }
+};
+
+const host = process.env.HOST ?? '0.0.0.0';
+const port = parsePort(process.env.PORT, 8081, 'PORT');
+const httpsCertSource = process.env.CHATTER_BBS_HTTPS_CRT;
+const httpsKeySource = process.env.CHATTER_BBS_HTTPS_KEY;
+
+const requestListener = (req: IncomingMessage, res: ServerResponse) => {
+  void handleRequest(req, res);
+};
+
+const attachUpgradeListener = (serverInstance: unknown) => {
+  (serverInstance as unknown as {
+    on(event: 'upgrade', listener: (req: IncomingMessage, socket: NetSocket, head: Buffer) => void): void;
+  }).on('upgrade', (req, socket, head) => {
+    handleUpgrade(req, socket, head);
+  });
+};
+
+let server: ReturnType<typeof createHttpServer> | ReturnType<typeof createHttpsServer>;
+
+const startHttpServer = (httpPort: number) => {
+  const httpServer = createHttpServer(requestListener);
+  attachUpgradeListener(httpServer);
+  httpServer.listen(httpPort, host, () => {
+    console.log(`Chatter frontend available at http://${host}:${httpPort}`);
+  });
+  return httpServer;
+};
+
+if (httpsCertSource && httpsKeySource) {
+  const cert = resolvePemMaterial(httpsCertSource, 'CHATTER_BBS_HTTPS_CRT');
+  const key = resolvePemMaterial(httpsKeySource, 'CHATTER_BBS_HTTPS_KEY');
+
+  if (cert && key) {
+    const httpsServer = createHttpsServer({ cert, key }, requestListener);
+    attachUpgradeListener(httpsServer);
+    httpsServer.listen(port, host, () => {
+      console.log(`Chatter frontend available at https://${host}:${port}`);
+    });
+    server = httpsServer;
+
+    const { value: fallbackPortValue, source: fallbackPortSource } = readEnvValue(
+      'CHATTER_BBS_HTTP_PORT',
+      'HTTP_PORT'
+    );
+    const fallbackHttpPort = parsePort(
+      fallbackPortValue,
+      8082,
+      fallbackPortSource ?? 'CHATTER_BBS_HTTP_PORT'
+    );
+
+    if (fallbackHttpPort === port) {
+      console.warn('HTTP fallback port matches HTTPS port; skipping fallback HTTP listener.');
+    } else {
+      startHttpServer(fallbackHttpPort);
+    }
+  } else {
+    console.warn('HTTPS configuration incomplete. Serving HTTP only.');
+    server = startHttpServer(port);
+  }
+} else {
+  server = startHttpServer(port);
+}
 
 export { server };
