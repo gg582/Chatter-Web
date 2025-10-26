@@ -178,6 +178,12 @@ const resolveSocketUrl = (container: HTMLElement): string | null => {
     return null;
   }
 
+  const config = readRuntimeConfig();
+  const relaySocket = typeof config?.terminalSocketUrl === 'string' ? config.terminalSocketUrl.trim() : '';
+  if (relaySocket) {
+    return relaySocket;
+  }
+
   const path = container.dataset.terminalPath ?? '/terminal';
   const trimmedPath = path.trim() || '/terminal';
   const safePath = trimmedPath.startsWith('/') ? trimmedPath : `/${trimmedPath}`;
@@ -227,12 +233,20 @@ type TerminalRuntime = {
   target: TerminalTarget;
   incomingBuffer: string;
   incomingLineElement: HTMLPreElement | null;
+  incomingCursor: number;
+  pendingControl: ControlSequenceState | null;
+  savedCursor: number | null;
   maxOutputLines: number;
   appendLine: (text: string, kind?: TerminalLineKind) => void;
   updateStatus: (label: string, state: 'disconnected' | 'connecting' | 'connected') => void;
   updateConnectAvailability?: () => void;
   updateViewportSizing?: () => void;
 };
+
+type ControlSequenceState =
+  | { type: 'escape'; buffer: string }
+  | { type: 'csi'; buffer: string }
+  | { type: 'osc'; buffer: string; sawEscape: boolean };
 
 type AnsiState = {
   color: string | null;
@@ -459,6 +473,167 @@ const describeKey = (event: KeyboardEvent): string => {
 const normaliseLineBreaks = (value: string): string =>
   value.replace(/\r\n?|\n/g, '\r\n');
 
+type VisibleSpan = { start: number; end: number };
+
+const isCsiTerminator = (value: string): boolean => {
+  if (!value) {
+    return false;
+  }
+  const code = value.charCodeAt(0);
+  return code >= 0x40 && code <= 0x7e;
+};
+
+const enumerateVisibleSpans = (input: string): VisibleSpan[] => {
+  const spans: VisibleSpan[] = [];
+  let index = 0;
+
+  while (index < input.length) {
+    const codePoint = input.codePointAt(index);
+    if (codePoint === undefined) {
+      break;
+    }
+
+    if (codePoint === 0x1b && index + 1 < input.length && input.charCodeAt(index + 1) === 0x5b) {
+      let seqEnd = index + 2;
+      while (seqEnd < input.length) {
+        const terminator = input.charAt(seqEnd);
+        if (isCsiTerminator(terminator)) {
+          seqEnd += 1;
+          break;
+        }
+        seqEnd += 1;
+      }
+
+      if (seqEnd > input.length) {
+        spans.push({ start: index, end: index + 1 });
+        index += 1;
+        continue;
+      }
+
+      index = seqEnd;
+      continue;
+    }
+
+    const charLength = codePoint > 0xffff ? 2 : 1;
+    spans.push({ start: index, end: index + charLength });
+    index += charLength;
+  }
+
+  return spans;
+};
+
+const getVisibleLength = (input: string): number => enumerateVisibleSpans(input).length;
+
+const clampCursorToContent = (content: string, cursor: number): number => {
+  if (!Number.isFinite(cursor)) {
+    return getVisibleLength(content);
+  }
+  const limit = getVisibleLength(content);
+  if (cursor < 0) {
+    return 0;
+  }
+  if (cursor > limit) {
+    return limit;
+  }
+  return cursor;
+};
+
+const parseCsiParameters = (sequence: string): number[] => {
+  const body = sequence.slice(2, -1).trim();
+  if (!body) {
+    return [];
+  }
+  return body.split(';').map((value) => {
+    if (!value) {
+      return 0;
+    }
+    const parsed = Number.parseInt(value, 10);
+    return Number.isFinite(parsed) ? parsed : 0;
+  });
+};
+
+const insertAnsiSequence = (content: string, cursor: number, sequence: string): string => {
+  if (!sequence) {
+    return content;
+  }
+  const spans = enumerateVisibleSpans(content);
+  const safeCursor = clampCursorToContent(content, cursor);
+  const insertIndex = safeCursor < spans.length ? spans[safeCursor].start : content.length;
+  return content.slice(0, insertIndex) + sequence + content.slice(insertIndex);
+};
+
+const insertPrintable = (content: string, cursor: number, text: string): { content: string; cursor: number } => {
+  if (!text) {
+    return { content, cursor };
+  }
+
+  const spans = enumerateVisibleSpans(content);
+  const safeCursor = clampCursorToContent(content, cursor);
+  const insertIndex = safeCursor < spans.length ? spans[safeCursor].start : content.length;
+  const replaceEnd = safeCursor < spans.length ? spans[safeCursor].end : insertIndex;
+  const updated = content.slice(0, insertIndex) + text + content.slice(replaceEnd);
+  const increment = Array.from(text).length || 1;
+  return { content: updated, cursor: safeCursor + increment };
+};
+
+const applyBackspaceToContent = (content: string, cursor: number): { content: string; cursor: number } => {
+  const spans = enumerateVisibleSpans(content);
+  if (!spans.length) {
+    return { content: '', cursor: 0 };
+  }
+
+  const safeCursor = clampCursorToContent(content, cursor);
+  if (safeCursor <= 0) {
+    return { content, cursor: safeCursor };
+  }
+
+  const target = spans[safeCursor - 1];
+  const updated = content.slice(0, target.start) + content.slice(target.end);
+  return { content: updated, cursor: safeCursor - 1 };
+};
+
+const deleteForwardChars = (content: string, cursor: number, count: number): { content: string; cursor: number } => {
+  if (count <= 0) {
+    return { content, cursor };
+  }
+  const spans = enumerateVisibleSpans(content);
+  if (!spans.length) {
+    return { content: '', cursor: 0 };
+  }
+  const safeCursor = clampCursorToContent(content, cursor);
+  if (safeCursor >= spans.length) {
+    return { content, cursor: safeCursor };
+  }
+  const start = spans[safeCursor].start;
+  const endSpan = spans[Math.min(spans.length - 1, safeCursor + count - 1)];
+  const updated = content.slice(0, start) + content.slice(endSpan.end);
+  return { content: updated, cursor: safeCursor };
+};
+
+const eraseToLineEnd = (content: string, cursor: number): string => {
+  const spans = enumerateVisibleSpans(content);
+  if (!spans.length) {
+    return '';
+  }
+  const safeCursor = clampCursorToContent(content, cursor);
+  if (safeCursor >= spans.length) {
+    return content;
+  }
+  const start = spans[safeCursor].start;
+  return content.slice(0, start);
+};
+
+const eraseFromLineStart = (content: string, cursor: number): { content: string; cursor: number } => {
+  const spans = enumerateVisibleSpans(content);
+  if (!spans.length) {
+    return { content: '', cursor: 0 };
+  }
+  const safeCursor = clampCursorToContent(content, cursor);
+  const endIndex = safeCursor < spans.length ? spans[safeCursor].start : content.length;
+  const updated = content.slice(endIndex);
+  return { content: updated, cursor: 0 };
+};
+
 const createRuntime = (container: HTMLElement): TerminalRuntime => {
   const target = resolveTarget();
   const socketUrl = resolveSocketUrl(container);
@@ -642,6 +817,9 @@ const createRuntime = (container: HTMLElement): TerminalRuntime => {
     connecting: false,
     incomingBuffer: '',
     incomingLineElement: null,
+    incomingCursor: 0,
+    pendingControl: null,
+    savedCursor: null,
     maxOutputLines: 600,
     appendLine: (text: string, kind: TerminalLineKind = 'info') => {
       if (kind === 'incoming') {
@@ -662,6 +840,8 @@ const createRuntime = (container: HTMLElement): TerminalRuntime => {
       if (runtime.incomingLineElement && !runtime.incomingLineElement.isConnected) {
         runtime.incomingLineElement = null;
         runtime.incomingBuffer = '';
+        runtime.incomingCursor = 0;
+        runtime.pendingControl = null;
       }
       runtime.outputElement.scrollTop = runtime.outputElement.scrollHeight;
     },
@@ -673,6 +853,7 @@ const createRuntime = (container: HTMLElement): TerminalRuntime => {
 
   function ensureIncomingLine(): HTMLPreElement {
     if (runtime.incomingLineElement && runtime.incomingLineElement.isConnected) {
+      runtime.incomingCursor = clampCursorToContent(runtime.incomingBuffer, runtime.incomingCursor);
       return runtime.incomingLineElement;
     }
 
@@ -680,10 +861,13 @@ const createRuntime = (container: HTMLElement): TerminalRuntime => {
     entry.className = 'terminal__line terminal__line--incoming';
     runtime.outputElement.append(entry);
     runtime.incomingLineElement = entry;
+    runtime.incomingCursor = clampCursorToContent(runtime.incomingBuffer, runtime.incomingCursor);
     limitOutputLines(runtime.outputElement, runtime.maxOutputLines);
     if (runtime.incomingLineElement && !runtime.incomingLineElement.isConnected) {
       runtime.incomingLineElement = null;
       runtime.incomingBuffer = '';
+      runtime.incomingCursor = 0;
+      runtime.pendingControl = null;
     }
     return entry;
   }
@@ -725,52 +909,293 @@ const createRuntime = (container: HTMLElement): TerminalRuntime => {
     }
 
     let buffer = runtime.incomingBuffer;
+    let cursor = clampCursorToContent(buffer, runtime.incomingCursor ?? 0);
     let lineElement = runtime.incomingLineElement;
     let needsRender = false;
+    let controlState = runtime.pendingControl;
+    let savedCursor = runtime.savedCursor ?? null;
 
-    for (const char of chunk) {
-      if (char === '\r') {
+    const markContentMutated = () => {
+      needsRender = true;
+      if (savedCursor !== null) {
+        savedCursor = clampCursorToContent(buffer, savedCursor);
+      }
+    };
+
+    const renderLine = () => {
+      const target = ensureIncomingLine();
+      renderAnsiLine(target, buffer);
+      lineElement = target;
+      needsRender = false;
+    };
+
+    const applyCarriageReturn = () => {
+      const target = ensureIncomingLine();
+      renderAnsiLine(target, buffer);
+      lineElement = target;
+      cursor = 0;
+      needsRender = false;
+    };
+
+    const applyLineFeed = () => {
+      if (buffer || !lineElement) {
         const target = ensureIncomingLine();
         renderAnsiLine(target, buffer);
-        buffer = '';
-        lineElement = runtime.incomingLineElement;
-        needsRender = false;
+      }
+      buffer = '';
+      cursor = 0;
+      lineElement = null;
+      controlState = null;
+      needsRender = false;
+      runtime.incomingLineElement = null;
+      runtime.incomingBuffer = '';
+      runtime.incomingCursor = 0;
+      runtime.pendingControl = null;
+    };
+
+    const applyCsiSequence = (sequence: string) => {
+      const finalChar = sequence.charAt(sequence.length - 1);
+      if (!finalChar) {
+        return;
+      }
+
+      if (finalChar === 'm') {
+        buffer = insertAnsiSequence(buffer, cursor, sequence);
+        needsRender = true;
+        return;
+      }
+
+      const params = parseCsiParameters(sequence);
+      const firstParam = params[0] ?? 0;
+
+      switch (finalChar) {
+        case 'D': {
+          const distance = firstParam || 1;
+          cursor = clampCursorToContent(buffer, cursor - distance);
+          return;
+        }
+        case 'C': {
+          const distance = firstParam || 1;
+          cursor = clampCursorToContent(buffer, cursor + distance);
+          return;
+        }
+        case 'G': {
+          const column = firstParam > 0 ? firstParam - 1 : 0;
+          cursor = clampCursorToContent(buffer, column);
+          return;
+        }
+        case 'H':
+        case 'f': {
+          const columnParam = params.length >= 2 ? params[1] : params[0] ?? 1;
+          const column = columnParam > 0 ? columnParam - 1 : 0;
+          cursor = clampCursorToContent(buffer, column);
+          return;
+        }
+        case 'F': {
+          cursor = 0;
+          return;
+        }
+        case 'K': {
+          if (params.length === 0 || firstParam === 0) {
+            buffer = eraseToLineEnd(buffer, cursor);
+            markContentMutated();
+            return;
+          }
+          if (firstParam === 1) {
+            const result = eraseFromLineStart(buffer, cursor);
+            buffer = result.content;
+            cursor = clampCursorToContent(buffer, result.cursor);
+            markContentMutated();
+            return;
+          }
+          if (firstParam === 2) {
+            buffer = '';
+            cursor = 0;
+            markContentMutated();
+            return;
+          }
+          return;
+        }
+        case 'J': {
+          if (firstParam === 2 || firstParam === 3) {
+            runtime.outputElement.replaceChildren();
+            buffer = '';
+            cursor = 0;
+            lineElement = null;
+            controlState = null;
+            needsRender = false;
+            runtime.incomingLineElement = null;
+            runtime.incomingBuffer = '';
+            runtime.incomingCursor = 0;
+            runtime.pendingControl = null;
+            return;
+          }
+          if (params.length === 0 || firstParam === 0) {
+            buffer = eraseToLineEnd(buffer, cursor);
+            markContentMutated();
+            return;
+          }
+          if (firstParam === 1) {
+            const result = eraseFromLineStart(buffer, cursor);
+            buffer = result.content;
+            cursor = clampCursorToContent(buffer, result.cursor);
+            markContentMutated();
+            return;
+          }
+          return;
+        }
+        case 'P': {
+          const count = firstParam || 1;
+          const result = deleteForwardChars(buffer, cursor, count);
+          buffer = result.content;
+          cursor = clampCursorToContent(buffer, result.cursor);
+          markContentMutated();
+          return;
+        }
+        case '~': {
+          switch (firstParam) {
+            case 1: {
+              cursor = 0;
+              return;
+            }
+            case 4: {
+              cursor = clampCursorToContent(buffer, getVisibleLength(buffer));
+              return;
+            }
+            case 3: {
+              const result = deleteForwardChars(buffer, cursor, 1);
+              buffer = result.content;
+              cursor = clampCursorToContent(buffer, result.cursor);
+              markContentMutated();
+              return;
+            }
+            default:
+              return;
+          }
+        }
+        default:
+          return;
+      }
+    };
+
+    const handleSingleEscape = (sequence: string) => {
+      const command = sequence.charAt(1);
+      switch (command) {
+        case '7': {
+          savedCursor = clampCursorToContent(buffer, cursor);
+          return;
+        }
+        case '8': {
+          if (savedCursor !== null) {
+            cursor = clampCursorToContent(buffer, savedCursor);
+          }
+          return;
+        }
+        case 'c': {
+          runtime.outputElement.replaceChildren();
+          buffer = '';
+          cursor = 0;
+          lineElement = null;
+          controlState = null;
+          needsRender = false;
+          runtime.incomingLineElement = null;
+          runtime.incomingBuffer = '';
+          runtime.incomingCursor = 0;
+          runtime.pendingControl = null;
+          return;
+        }
+        default:
+          return;
+      }
+    };
+
+    for (const char of chunk) {
+      if (controlState) {
+        if (controlState.type === 'escape') {
+          controlState.buffer += char;
+          if (controlState.buffer.length === 2) {
+            if (char === '[') {
+              controlState = { type: 'csi', buffer: controlState.buffer };
+            } else if (char === ']') {
+              controlState = { type: 'osc', buffer: controlState.buffer, sawEscape: false };
+            } else {
+              handleSingleEscape(controlState.buffer);
+              controlState = null;
+            }
+          }
+          continue;
+        }
+        if (controlState.type === 'csi') {
+          controlState.buffer += char;
+          if (isCsiTerminator(char)) {
+            applyCsiSequence(controlState.buffer);
+            controlState = null;
+          }
+          continue;
+        }
+        if (controlState.type === 'osc') {
+          controlState.buffer += char;
+          if (controlState.sawEscape) {
+            if (char === '\\') {
+              controlState = null;
+            } else {
+              controlState.sawEscape = char === '\u001b';
+            }
+            continue;
+          }
+          if (char === '\u0007') {
+            controlState = null;
+            continue;
+          }
+          if (char === '\u001b') {
+            controlState.sawEscape = true;
+          }
+          continue;
+        }
+      }
+
+      if (char === '\u001b') {
+        controlState = { type: 'escape', buffer: '\u001b' };
+        continue;
+      }
+
+      if (char === '\r') {
+        applyCarriageReturn();
         continue;
       }
 
       if (char === '\n') {
-        if (buffer || !lineElement) {
-          const target = ensureIncomingLine();
-          renderAnsiLine(target, buffer);
-        }
-        buffer = '';
-        lineElement = null;
-        runtime.incomingBuffer = '';
-        runtime.incomingLineElement = null;
-        needsRender = false;
+        applyLineFeed();
         continue;
       }
 
       if (char === '\u0008') {
-        if (buffer) {
-          buffer = buffer.slice(0, -1);
-          needsRender = true;
-        }
+        const result = applyBackspaceToContent(buffer, cursor);
+        buffer = result.content;
+        cursor = clampCursorToContent(buffer, result.cursor);
+        markContentMutated();
         continue;
       }
 
-      buffer += char;
-      needsRender = true;
+      if (char === '\u0007') {
+        continue;
+      }
+
+      const result = insertPrintable(buffer, cursor, char);
+      buffer = result.content;
+      cursor = clampCursorToContent(buffer, result.cursor);
+      markContentMutated();
     }
 
     if (needsRender) {
-      const target = ensureIncomingLine();
-      renderAnsiLine(target, buffer);
-      lineElement = target;
+      renderLine();
     }
 
     runtime.incomingBuffer = buffer;
     runtime.incomingLineElement = lineElement;
+    runtime.incomingCursor = clampCursorToContent(buffer, cursor);
+    runtime.pendingControl = controlState;
+    runtime.savedCursor = savedCursor;
     runtime.outputElement.scrollTop = runtime.outputElement.scrollHeight;
   }
 
