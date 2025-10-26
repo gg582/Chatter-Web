@@ -414,7 +414,7 @@ const createRuntime = (container: HTMLElement): TerminalRuntime => {
             <span class="terminal__endpoint-value" data-terminal-endpoint>${escapeHtml(target.description)}</span>
           </div>
           <label class="terminal__field terminal__field--inline" data-terminal-username-field>
-            <span class="terminal__field-label">Username</span>
+            <span class="terminal__field-label">USERNAME(only ascii)</span>
             <input
               type="text"
               data-terminal-username
@@ -623,7 +623,11 @@ const createRuntime = (container: HTMLElement): TerminalRuntime => {
     for (const char of chunk) {
       if (char === '\r') {
         const target = ensureIncomingLine();
-        target.replaceChildren();
+        if (buffer) {
+          target.replaceChildren(createAnsiFragment(buffer));
+        } else {
+          target.replaceChildren();
+        }
         buffer = '';
         lineElement = runtime.incomingLineElement;
         needsRender = false;
@@ -631,11 +635,13 @@ const createRuntime = (container: HTMLElement): TerminalRuntime => {
       }
 
       if (char === '\n') {
-        const target = ensureIncomingLine();
-        if (buffer) {
-          target.replaceChildren(createAnsiFragment(buffer));
-        } else {
-          target.replaceChildren();
+        if (buffer || !lineElement) {
+          const target = ensureIncomingLine();
+          if (buffer) {
+            target.replaceChildren(createAnsiFragment(buffer));
+          } else {
+            target.replaceChildren();
+          }
         }
         buffer = '';
         lineElement = null;
