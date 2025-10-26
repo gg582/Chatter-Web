@@ -227,9 +227,11 @@ type TerminalRuntime = {
   target: TerminalTarget;
   incomingBuffer: string;
   incomingLineElement: HTMLPreElement | null;
+  maxOutputLines: number;
   appendLine: (text: string, kind?: TerminalLineKind) => void;
   updateStatus: (label: string, state: 'disconnected' | 'connecting' | 'connected') => void;
   updateConnectAvailability?: () => void;
+  updateViewportSizing?: () => void;
 };
 
 type AnsiState = {
@@ -367,9 +369,18 @@ const createAnsiFragment = (line: string): DocumentFragment => {
 };
 
 const limitOutputLines = (output: HTMLElement, maxLines = 600) => {
-  while (output.childElementCount > maxLines) {
+  const safeMaxLines = Number.isFinite(maxLines) && maxLines > 0 ? Math.floor(maxLines) : 600;
+  while (output.childElementCount > safeMaxLines) {
     output.removeChild(output.firstElementChild as ChildNode);
   }
+};
+
+const computeViewportHeight = (windowHeight: number): number => {
+  const minimum = 260;
+  const suggested = Math.max(windowHeight * 0.65, minimum);
+  const available = Math.max(windowHeight - 200, minimum);
+  const capped = Math.min(suggested, available, 720);
+  return Math.max(minimum, Math.round(capped));
 };
 
 const describeKey = (event: KeyboardEvent): string => {
@@ -568,6 +579,7 @@ const createRuntime = (container: HTMLElement): TerminalRuntime => {
     connecting: false,
     incomingBuffer: '',
     incomingLineElement: null,
+    maxOutputLines: 600,
     appendLine: (text: string, kind: TerminalLineKind = 'info') => {
       if (kind === 'incoming') {
         processIncomingChunk(text);
@@ -581,7 +593,7 @@ const createRuntime = (container: HTMLElement): TerminalRuntime => {
         entry.append(createAnsiFragment(line));
         runtime.outputElement.append(entry);
       }
-      limitOutputLines(runtime.outputElement);
+      limitOutputLines(runtime.outputElement, runtime.maxOutputLines);
       if (runtime.incomingLineElement && !runtime.incomingLineElement.isConnected) {
         runtime.incomingLineElement = null;
         runtime.incomingBuffer = '';
@@ -603,12 +615,43 @@ const createRuntime = (container: HTMLElement): TerminalRuntime => {
     entry.className = 'terminal__line terminal__line--incoming';
     runtime.outputElement.append(entry);
     runtime.incomingLineElement = entry;
-    limitOutputLines(runtime.outputElement);
+    limitOutputLines(runtime.outputElement, runtime.maxOutputLines);
     if (runtime.incomingLineElement && !runtime.incomingLineElement.isConnected) {
       runtime.incomingLineElement = null;
       runtime.incomingBuffer = '';
     }
     return entry;
+  }
+
+  const updateViewportSizing = () => {
+    if (typeof window === 'undefined') {
+      runtime.maxOutputLines = 600;
+      return;
+    }
+
+    const desiredHeight = computeViewportHeight(window.innerHeight);
+    runtime.viewport.style.height = `${desiredHeight}px`;
+    runtime.outputElement.style.height = `${desiredHeight}px`;
+    runtime.outputElement.style.overflowY = 'hidden';
+
+    const computed = window.getComputedStyle(runtime.outputElement);
+    const lineHeightValue = Number.parseFloat(computed.lineHeight);
+    const fontSizeValue = Number.parseFloat(computed.fontSize);
+    const fallbackLineHeight = Number.isFinite(fontSizeValue) ? fontSizeValue * 1.45 : 18;
+    const lineHeight = Number.isFinite(lineHeightValue) && lineHeightValue > 0 ? lineHeightValue : fallbackLineHeight;
+    const paddingTop = Number.parseFloat(computed.paddingTop) || 0;
+    const paddingBottom = Number.parseFloat(computed.paddingBottom) || 0;
+    const availableForLines = Math.max(desiredHeight - paddingTop - paddingBottom, lineHeight);
+    runtime.maxOutputLines = Math.max(1, Math.floor(availableForLines / lineHeight));
+    limitOutputLines(runtime.outputElement, runtime.maxOutputLines);
+  };
+
+  runtime.updateViewportSizing = updateViewportSizing;
+
+  if (typeof window !== 'undefined') {
+    updateViewportSizing();
+    const handleResize = () => updateViewportSizing();
+    window.addEventListener('resize', handleResize);
   }
 
   function processIncomingChunk(chunk: string) {
@@ -1167,6 +1210,8 @@ export const renderTerminal = (store: ChatStore, container: HTMLElement) => {
   if (!runtime.connected) {
     runtime.updateConnectAvailability?.();
   }
+
+  runtime.updateViewportSizing?.();
 
   const state = store.snapshot();
   if (state.activeGame === 'alpha') {
