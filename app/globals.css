@@ -76,7 +76,8 @@ summary::-webkit-details-marker {
 }
 
 .chatter-app {
-  max-width: 1120px;
+  width: 100%;
+  max-width: none;
   margin: 0 auto;
   padding: 2.75rem 1.5rem 3.5rem;
   display: flex;
@@ -177,6 +178,7 @@ summary::-webkit-details-marker {
 .chatter-layout {
   display: flex;
   flex-direction: column;
+  gap: 1.75rem;
 }
 
 .terminal-section,
@@ -187,17 +189,7 @@ summary::-webkit-details-marker {
 
 @media (min-width: 1080px) {
   .chatter-layout {
-    display: grid;
-    grid-template-columns: minmax(0, 1.25fr) minmax(0, 1fr);
     gap: 1.75rem;
-  }
-
-  .terminal-section {
-    grid-column: 1 / 2;
-  }
-
-  .chat-section {
-    grid-column: 2 / 3;
   }
 }
 
