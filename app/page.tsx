@@ -51,6 +51,9 @@ export default function Home() {
           <div className="panel panel--chat" data-component="chat-feed" />
         </section>
       </main>
+      <section className="chatter-app__terminal">
+        <div className="panel panel--terminal" data-component="terminal" />
+      </section>
     </div>
   );
 }
