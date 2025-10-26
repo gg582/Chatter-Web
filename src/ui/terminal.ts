@@ -381,7 +381,7 @@ const describeKey = (event: KeyboardEvent): string => {
 };
 
 const normaliseLineBreaks = (value: string): string =>
-  value.replace(/\r\n/g, '\n').replace(/\r/g, '\n').replace(/\n/g, '\r');
+  value.replace(/\r\n?|\n/g, '\r');
 
 const createRuntime = (container: HTMLElement): TerminalRuntime => {
   const target = resolveTarget();
