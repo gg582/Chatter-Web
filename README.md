@@ -39,6 +39,9 @@ Run `npm run build` whenever the TypeScript sources change so the server can ser
 The in-browser terminal pulls its defaults from environment variables. Define them before running `npm start`, or bake them
 into the generated systemd unit via `deploy/install.sh`:
 
+- Copy `deploy/example.env` to `.env` (or source it in your shell) for a quick starting point. It ships with SSH-centric
+  defaults and comments for each variable so you can adapt the template to telnet targets or custom SSH commands.
+
 - `CHATTER_BBS_HOST`, `CHATTER_BBS_PORT`, `CHATTER_BBS_PROTOCOL` – direct the bridge to the SSH (default) or telnet endpoint
   you want to expose in the UI.
 - `CHATTER_BBS_HOST_DEFAULT`, `CHATTER_BBS_PORT_DEFAULT` – pre-fill the Connection options form when the server itself does
