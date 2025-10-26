@@ -974,6 +974,7 @@ const createRuntime = (container: HTMLElement): TerminalRuntime => {
     }
 
     if (inputEvent.inputType && inputEvent.inputType.startsWith('delete')) {
+      sendTextPayload('\u0008'); // Send a backspace character
       clearCaptureValue();
       return;
     }
