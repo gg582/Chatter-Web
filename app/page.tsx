@@ -17,26 +17,27 @@ export default function Home() {
   }, []);
 
   return (
-    <div className="page" data-chatter-root ref={rootRef}>
-      <header className="page__header">
-        <div className="page__title">
-          <h1>Chatter BBS Control Deck</h1>
-          <p>
-            This dashboard mirrors the SSH help output of Chatter. Every command listed in the CLI has a matching control,
-            so you can browse, moderate, and customise the BBS without typing a slash command.
-          </p>
-        </div>
-        <div className="page__status" data-component="session" />
+    <div className="chatter-app" data-chatter-root ref={rootRef}>
+      <header className="chatter-app__header">
+        <p className="chatter-app__ribbon">Chatter BBS</p>
+        <h1>Welcome to the lounge</h1>
+        <p>
+          Catch up with the community, share quick updates, and keep a terminal bridge handy for hopping into the live
+          TUI room.
+        </p>
       </header>
-      <div data-component="terminal" />
-      <main className="layout">
-        <section className="column column--chat">
-          <div className="card card--motd" data-component="motd" />
-          <div className="card card--chat" data-component="chat-feed" />
-        </section>
-        <section className="column column--utility" data-component="utility" />
-        <aside className="column column--cheatsheet" data-component="cheatsheet" />
+      <main className="chatter-app__main">
+        <section className="panel panel--chat" data-component="chat-feed" />
+        <aside className="chatter-app__sidebar">
+          <section className="panel" data-component="motd" />
+          <section className="panel" data-component="session" />
+          <section className="panel" data-component="utility" />
+          <section className="panel" data-component="cheatsheet" />
+        </aside>
       </main>
+      <section className="chatter-app__terminal">
+        <div className="panel panel--terminal" data-component="terminal" />
+      </section>
     </div>
   );
 }

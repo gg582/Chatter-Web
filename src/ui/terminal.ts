@@ -257,9 +257,10 @@ const createRuntime = (container: HTMLElement): TerminalRuntime => {
     <section class="card card--terminal">
       <header class="terminal__header">
         <div>
-          <h2>Web terminal</h2>
+          <h2>Terminal bridge</h2>
           <p class="card__description">
-            Launch TUI helpers directly from the browser. Focus the terminal below to send real keystrokes.
+            Keep a dark-paneled TUI close by while the lounge stays bright. The bridge honours the server defaults unless
+            you save an override.
           </p>
         </div>
         <div class="terminal__status">
@@ -269,7 +270,7 @@ const createRuntime = (container: HTMLElement): TerminalRuntime => {
       </header>
       <div class="terminal__controls">
         <div class="terminal__endpoint">
-          <span class="terminal__endpoint-label">Target:</span>
+          <span class="terminal__endpoint-label">Current target</span>
           <span class="terminal__endpoint-value" data-terminal-endpoint>${escapeHtml(target.description)}</span>
         </div>
         <div class="terminal__controls-buttons">
@@ -280,8 +281,7 @@ const createRuntime = (container: HTMLElement): TerminalRuntime => {
       </div>
       <details class="terminal__options" data-terminal-options>
         <summary class="terminal__options-summary">
-          <span>Optional connection settings</span>
-          <span class="terminal__options-summary-icon" aria-hidden="true"></span>
+          <span>Connection settings</span>
         </summary>
         <div class="terminal__options-body">
           <form class="terminal__target-form" data-terminal-target-form>
@@ -295,7 +295,7 @@ const createRuntime = (container: HTMLElement): TerminalRuntime => {
                 </select>
               </label>
               <label class="terminal__field">
-                <span class="terminal__field-label">Host override</span>
+                <span class="terminal__field-label">Host</span>
                 <input
                   type="text"
                   data-terminal-host
@@ -307,7 +307,7 @@ const createRuntime = (container: HTMLElement): TerminalRuntime => {
                 />
               </label>
               <label class="terminal__field">
-                <span class="terminal__field-label">Port override</span>
+                <span class="terminal__field-label">Port</span>
                 <input
                   type="text"
                   data-terminal-port
@@ -321,7 +321,7 @@ const createRuntime = (container: HTMLElement): TerminalRuntime => {
             </div>
             <div class="terminal__target-actions">
               <button type="submit">Save target</button>
-              <button type="button" data-terminal-target-reset>Reset overrides</button>
+              <button type="button" data-terminal-target-reset>Reset to server</button>
             </div>
           </form>
           <label class="terminal__field" data-terminal-username-field>
@@ -339,11 +339,10 @@ const createRuntime = (container: HTMLElement): TerminalRuntime => {
         </div>
       </details>
       <p class="terminal__note">
-        Tip: Arrow keys, Tab, and Ctrl shortcuts are forwarded to the session. Use the focus button if the terminal stops
-        receiving input.
+        Arrow keys, Tab, and Ctrl shortcuts reach the bridge. Tap Focus if the terminal stops listening.
       </p>
       <p class="terminal__note terminal__note--alpha">
-        Fly me to Alpha Centauri needs the BBS navigation charts—review them before starting <code>/game alpha</code>.
+        Need a refresher? The cheatsheet lists colourful ANSI cues for classic commands.
       </p>
       <div class="terminal__viewport" data-terminal-viewport>
         <div class="terminal__output" data-terminal-output></div>
@@ -440,6 +439,44 @@ const createRuntime = (container: HTMLElement): TerminalRuntime => {
     }
   };
 
+  const collectOverridesFromInputs = (): { overrides: TargetOverrides; errors: string[] } => {
+    const protocolValue = protocolSelect.value.trim().toLowerCase();
+    const hostValue = hostInput.value.trim();
+    const portValue = portInput.value.trim();
+    const errors: string[] = [];
+
+    if (hostValue && (hostValue.length > 255 || /\s/.test(hostValue))) {
+      errors.push('Host overrides cannot contain spaces and must be under 255 characters.');
+    }
+
+    if (portValue) {
+      const parsedPort = Number.parseInt(portValue, 10);
+      if (!Number.isFinite(parsedPort) || parsedPort <= 0 || parsedPort > 65_535) {
+        errors.push('Port overrides must be a number between 1 and 65535.');
+      }
+    }
+
+    const overrides: TargetOverrides = {};
+
+    if ((protocolValue === 'ssh' || protocolValue === 'telnet') && protocolValue !== runtime.target.defaults.protocol) {
+      overrides.protocol = protocolValue;
+    }
+
+    if (hostValue) {
+      if (!runtime.target.defaults.host || hostValue !== runtime.target.defaults.host) {
+        overrides.host = hostValue;
+      }
+    }
+
+    if (portValue) {
+      if (!runtime.target.defaults.port || portValue !== runtime.target.defaults.port) {
+        overrides.port = portValue;
+      }
+    }
+
+    return { overrides, errors };
+  };
+
   const syncUsernameField = () => {
     if (runtime.target.protocol === 'ssh') {
       runtime.usernameField.style.display = '';
@@ -461,7 +498,7 @@ const createRuntime = (container: HTMLElement): TerminalRuntime => {
 
     if (runtime.target.overridesApplied.host || runtime.target.overridesApplied.port || runtime.target.overridesApplied.protocol) {
       targetStatus.textContent =
-        'Using custom overrides saved in this browser. Leave fields blank to fall back to the server configuration.';
+        'Manual overrides are active in this browser. Clear the fields to enjoy the server defaults again.';
       return;
     }
 
@@ -470,12 +507,12 @@ const createRuntime = (container: HTMLElement): TerminalRuntime => {
         runtime.target.defaults.port ||
         (runtime.target.defaults.protocol === 'ssh' ? '22' : runtime.target.defaults.protocol === 'telnet' ? '23' : '');
       const hostLabel = portLabel ? `${runtime.target.defaults.host}:${portLabel}` : runtime.target.defaults.host;
-      targetStatus.textContent = `Using server-provided target ${hostLabel}.`;
+      targetStatus.textContent = `Server target ${hostLabel} is ready to dial.`;
       return;
     }
 
     targetStatus.textContent =
-      'No server target configured. Expand Connection options to save a host override and connect directly.';
+      'No server target configured yet. Enter a host to connect straight from the lounge.';
   };
 
   const updateFormPlaceholders = () => {
@@ -483,7 +520,7 @@ const createRuntime = (container: HTMLElement): TerminalRuntime => {
       (protocolSelect.value === 'ssh' || protocolSelect.value === 'telnet'
         ? protocolSelect.value
         : runtime.target.defaults.protocol) ?? 'telnet';
-    hostInput.placeholder = runtime.target.placeholders.host || 'bbs.example.com';
+    hostInput.placeholder = runtime.target.defaults.host || runtime.target.placeholders.host || 'bbs.example.com';
     const fallbackPort =
       runtime.target.defaults.port || (protocolValue === 'ssh' ? '22' : protocolValue === 'telnet' ? '23' : '');
     portInput.placeholder = fallbackPort || runtime.target.placeholders.port || '23';
@@ -518,9 +555,9 @@ const createRuntime = (container: HTMLElement): TerminalRuntime => {
     lastAvailability = runtime.target.available;
 
     const overrides = loadTargetOverrides();
-    protocolSelect.value = overrides.protocol ?? runtime.target.defaults.protocol;
-    hostInput.value = overrides.host ?? '';
-    portInput.value = overrides.port ?? '';
+    protocolSelect.value = overrides.protocol ?? runtime.target.protocol ?? runtime.target.defaults.protocol;
+    hostInput.value = overrides.host ?? runtime.target.host ?? runtime.target.defaults.host ?? '';
+    portInput.value = overrides.port ?? runtime.target.port ?? runtime.target.defaults.port ?? '';
 
     updateFormPlaceholders();
     updateTargetStatus();
@@ -535,13 +572,10 @@ const createRuntime = (container: HTMLElement): TerminalRuntime => {
   };
 
   runtime.updateStatus('Disconnected', 'disconnected');
-  runtime.appendLine('Web terminal ready. Press Connect to reach the configured BBS target.');
+  runtime.appendLine('Terminal bridge ready. Press Connect to reach the configured BBS target.');
   refreshTarget(false);
   if (!runtime.target.available) {
-    runtime.appendLine(
-      'No BBS host is configured. Expand Connection options to provide a host override or contact the operator.',
-      'error'
-    );
+    runtime.appendLine('No BBS host is configured. Use Connection settings to dial a telnet or SSH host directly.', 'error');
   }
   if (!runtime.socketUrl) {
     runtime.appendLine('Unable to resolve terminal bridge URL from the current origin.', 'error');
@@ -549,11 +583,22 @@ const createRuntime = (container: HTMLElement): TerminalRuntime => {
   }
 
   connectButton.addEventListener('click', () => {
-    refreshTarget(false);
     if (runtime.connected) {
       runtime.appendLine('Already connected.', 'info');
       return;
     }
+
+    const { overrides, errors } = collectOverridesFromInputs();
+    if (errors.length > 0) {
+      for (const message of errors) {
+        runtime.appendLine(message, 'error');
+      }
+      return;
+    }
+
+    saveTargetOverrides(overrides);
+    refreshTarget(false);
+
     if (!runtime.target.available) {
       runtime.appendLine(
         'Cannot connect without a target host. Expand Connection options to save overrides or configure the server.',
@@ -638,35 +683,12 @@ const createRuntime = (container: HTMLElement): TerminalRuntime => {
   targetForm.addEventListener('submit', (event) => {
     event.preventDefault();
 
-    const protocolValue = protocolSelect.value.trim().toLowerCase();
-    const hostValue = hostInput.value.trim();
-    const portValue = portInput.value.trim();
-
-    if (hostValue && (hostValue.length > 255 || /\s/.test(hostValue))) {
-      runtime.appendLine('Host overrides cannot contain spaces and must be under 255 characters.', 'error');
-      return;
-    }
-
-    if (portValue) {
-      const parsedPort = Number.parseInt(portValue, 10);
-      if (!Number.isFinite(parsedPort) || parsedPort <= 0 || parsedPort > 65_535) {
-        runtime.appendLine('Port overrides must be a number between 1 and 65535.', 'error');
-        return;
+    const { overrides, errors } = collectOverridesFromInputs();
+    if (errors.length > 0) {
+      for (const message of errors) {
+        runtime.appendLine(message, 'error');
       }
-    }
-
-    const overrides: TargetOverrides = {};
-
-    if ((protocolValue === 'ssh' || protocolValue === 'telnet') && protocolValue !== runtime.target.defaults.protocol) {
-      overrides.protocol = protocolValue;
-    }
-
-    if (hostValue && hostValue !== runtime.target.defaults.host) {
-      overrides.host = hostValue;
-    }
-
-    if (portValue && portValue !== runtime.target.defaults.port) {
-      overrides.port = portValue;
+      return;
     }
 
     const previousSignature = JSON.stringify(runtime.target.overridesApplied);
