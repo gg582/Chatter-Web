@@ -528,7 +528,7 @@ const createRuntime = (container: HTMLElement): TerminalRuntime => {
             <span class="terminal__endpoint-value" data-terminal-endpoint>${escapeHtml(target.description)}</span>
           </div>
           <label class="terminal__field terminal__field--inline" data-terminal-username-field>
-            <span class="terminal__field-label">USERNAME(only ascii)</span>
+            <span class="terminal__field-label">USERNAME</span>
             <input
               type="text"
               data-terminal-username
