@@ -677,6 +677,7 @@ textarea {
 
 .cheatsheet__list {
   list-style: none;
+  margin: 0.9rem 0 0;
   padding: 0;
   margin: 0;
   display: flex;
@@ -754,7 +755,7 @@ textarea {
 .cheatsheet-terminal__block {
   display: flex;
   flex-direction: column;
-  gap: 0.45rem;
+  gap: 0.35rem;
 }
 
 .cheatsheet-terminal__comment {
