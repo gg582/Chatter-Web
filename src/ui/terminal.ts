@@ -225,6 +225,8 @@ type TerminalRuntime = {
   connecting: boolean;
   socketUrl: string | null;
   target: TerminalTarget;
+  incomingBuffer: string;
+  incomingLineElement: HTMLPreElement | null;
   appendLine: (text: string, kind?: TerminalLineKind) => void;
   updateStatus: (label: string, state: 'disconnected' | 'connecting' | 'connected') => void;
   updateConnectAvailability?: () => void;
@@ -563,8 +565,15 @@ const createRuntime = (container: HTMLElement): TerminalRuntime => {
     target,
     connected: false,
     connecting: false,
+    incomingBuffer: '',
+    incomingLineElement: null,
     appendLine: (text: string, kind: TerminalLineKind = 'info') => {
-      const lines = text.replace(/\r/g, '').split('\n');
+      if (kind === 'incoming') {
+        processIncomingChunk(text);
+        return;
+      }
+
+      const lines = text.replace(/\r\n/g, '\n').split('\n');
       for (const line of lines) {
         const entry = document.createElement('pre');
         entry.className = `terminal__line terminal__line--${kind}`;
@@ -572,6 +581,10 @@ const createRuntime = (container: HTMLElement): TerminalRuntime => {
         runtime.outputElement.append(entry);
       }
       limitOutputLines(runtime.outputElement);
+      if (runtime.incomingLineElement && !runtime.incomingLineElement.isConnected) {
+        runtime.incomingLineElement = null;
+        runtime.incomingBuffer = '';
+      }
       runtime.outputElement.scrollTop = runtime.outputElement.scrollHeight;
     },
     updateStatus: (label, state) => {
@@ -579,6 +592,80 @@ const createRuntime = (container: HTMLElement): TerminalRuntime => {
       runtime.indicatorElement.setAttribute('data-state', state);
     }
   };
+
+  function ensureIncomingLine(): HTMLPreElement {
+    if (runtime.incomingLineElement && runtime.incomingLineElement.isConnected) {
+      return runtime.incomingLineElement;
+    }
+
+    const entry = document.createElement('pre');
+    entry.className = 'terminal__line terminal__line--incoming';
+    runtime.outputElement.append(entry);
+    runtime.incomingLineElement = entry;
+    limitOutputLines(runtime.outputElement);
+    if (runtime.incomingLineElement && !runtime.incomingLineElement.isConnected) {
+      runtime.incomingLineElement = null;
+      runtime.incomingBuffer = '';
+    }
+    return entry;
+  }
+
+  function processIncomingChunk(chunk: string) {
+    if (!chunk) {
+      return;
+    }
+
+    let buffer = runtime.incomingBuffer;
+    let lineElement = runtime.incomingLineElement;
+    let needsRender = false;
+
+    for (const char of chunk) {
+      if (char === '\r') {
+        const target = ensureIncomingLine();
+        target.replaceChildren();
+        buffer = '';
+        lineElement = runtime.incomingLineElement;
+        needsRender = false;
+        continue;
+      }
+
+      if (char === '\n') {
+        const target = ensureIncomingLine();
+        if (buffer) {
+          target.replaceChildren(createAnsiFragment(buffer));
+        } else {
+          target.replaceChildren();
+        }
+        buffer = '';
+        lineElement = null;
+        runtime.incomingBuffer = '';
+        runtime.incomingLineElement = null;
+        needsRender = false;
+        continue;
+      }
+
+      if (char === '\u0008') {
+        if (buffer) {
+          buffer = buffer.slice(0, -1);
+          needsRender = true;
+        }
+        continue;
+      }
+
+      buffer += char;
+      needsRender = true;
+    }
+
+    if (needsRender) {
+      const target = ensureIncomingLine();
+      target.replaceChildren(createAnsiFragment(buffer));
+      lineElement = target;
+    }
+
+    runtime.incomingBuffer = buffer;
+    runtime.incomingLineElement = lineElement;
+    runtime.outputElement.scrollTop = runtime.outputElement.scrollHeight;
+  }
 
   const collectOverridesFromInputs = (): { overrides: TargetOverrides; errors: string[] } => {
     const protocolValue = protocolSelect.value.trim().toLowerCase();

@@ -11,6 +11,7 @@ import { fileURLToPath } from 'node:url';
 const serverDirectory = fileURLToPath(new URL('.', import.meta.url));
 const staticRoots = [serverDirectory];
 const TERMINAL_PATH = '/terminal';
+const MAX_USERNAME_BYTES = 64;
 
 type EnvLookupResult = { value: string | undefined; source: string | undefined };
 
@@ -107,11 +108,17 @@ const normaliseUsername = (value: string | null): { valid: boolean; username: st
     return { valid: true, username: null };
   }
 
-  if (!/^[A-Za-z0-9._-]{1,32}$/.test(trimmed)) {
+  const normalised = trimmed.normalize('NFC');
+  if (/[\u0000-\u001f\u007f]/u.test(normalised)) {
     return { valid: false, username: null };
   }
 
-  return { valid: true, username: trimmed };
+  const utf8Buffer = Buffer.from(normalised, 'utf8');
+  if (utf8Buffer.length === 0 || utf8Buffer.length > MAX_USERNAME_BYTES) {
+    return { valid: false, username: null };
+  }
+
+  return { valid: true, username: utf8Buffer.toString('utf8') };
 };
 
 const normaliseProtocolOverride = (
