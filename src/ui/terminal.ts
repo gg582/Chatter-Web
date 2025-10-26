@@ -959,6 +959,29 @@ const createRuntime = (container: HTMLElement): TerminalRuntime => {
     window.addEventListener('beforeunload', handleUnload);
   }
 
+  if (typeof window !== 'undefined') {
+    let unloadHandled = false;
+    const handleUnload = () => {
+      if (unloadHandled) {
+        return;
+      }
+      unloadHandled = true;
+      if (!runtime.socket) {
+        return;
+      }
+      const state = runtime.socket.readyState;
+      if (state === WebSocket.OPEN || state === WebSocket.CONNECTING) {
+        try {
+          runtime.socket.close(1001, 'Page closed');
+        } catch (error) {
+          console.warn('Failed to close terminal socket on unload', error);
+        }
+      }
+    };
+    window.addEventListener('pagehide', handleUnload);
+    window.addEventListener('beforeunload', handleUnload);
+  }
+
   const clearCaptureValue = () => {
     runtime.captureElement.value = '';
   };
