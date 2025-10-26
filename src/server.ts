@@ -11,8 +11,6 @@ import { fileURLToPath } from 'node:url';
 const serverDirectory = fileURLToPath(new URL('.', import.meta.url));
 const staticRoots = [serverDirectory];
 const TERMINAL_PATH = '/terminal';
-const MAX_USERNAME_BYTES = 64;
-
 type EnvLookupResult = { value: string | undefined; source: string | undefined };
 
 const readEnvValue = (...keys: string[]): EnvLookupResult => {
