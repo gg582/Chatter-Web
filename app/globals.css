@@ -975,6 +975,9 @@ summary::-webkit-details-marker {
   line-height: var(--terminal-line-height);
   white-space: pre-wrap;
   overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
 }
 
 .terminal__line {
@@ -984,6 +987,11 @@ summary::-webkit-details-marker {
   color: var(--terminal-text);
   background-color: var(--terminal-bg);
   line-height: var(--terminal-line-height, 1.32);
+  position: relative;
+  z-index: 0;
+  display: block;
+  width: 100%;
+  min-height: calc(var(--terminal-line-height, 1.32) * 1em);
 }
 
 .terminal__segment {
@@ -1006,6 +1014,14 @@ summary::-webkit-details-marker {
   bottom: calc((var(--terminal-line-height, 1.32) - 1) * -0.5em);
   background: var(--segment-bg, transparent);
   z-index: -1;
+}
+
+.terminal__line--trailing-background::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: var(--terminal-trailing-bg, transparent);
+  z-index: -2;
 }
 
 .terminal__line--incoming {
