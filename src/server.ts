@@ -223,6 +223,11 @@ const resolveRuntimeConfig = () => {
     'CHATTER_BBS_PORT_DEFAULT',
     'CHATTER_TERMINAL_PORT_DEFAULT'
   );
+  const { value: serviceUrl } = readEnvValue('CHATTER_WEB_SERVICE_URL');
+  const { value: serviceDomain } = readEnvValue('CHATTER_WEB_SERVICE_DOMAIN');
+  const { value: serviceProtocol } = readEnvValue('CHATTER_WEB_SERVICE_PROTOCOL');
+  const { value: servicePort } = readEnvValue('CHATTER_WEB_SERVICE_PORT');
+  const { value: servicePath } = readEnvValue('CHATTER_WEB_SERVICE_PATH');
   if (hostPlaceholder) {
     config.bbsHostPlaceholder = hostPlaceholder;
   }
@@ -233,6 +238,26 @@ const resolveRuntimeConfig = () => {
 
   if (portDefault) {
     config.bbsPortDefault = portDefault;
+  }
+
+  if (serviceUrl) {
+    config.webServiceUrl = serviceUrl;
+  }
+
+  if (serviceDomain) {
+    config.webServiceDomain = serviceDomain;
+  }
+
+  if (serviceProtocol) {
+    config.webServiceProtocol = serviceProtocol;
+  }
+
+  if (servicePort) {
+    config.webServicePort = servicePort;
+  }
+
+  if (servicePath) {
+    config.webServicePath = servicePath;
   }
 
   return config;
