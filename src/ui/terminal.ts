@@ -440,6 +440,44 @@ const createRuntime = (container: HTMLElement): TerminalRuntime => {
     }
   };
 
+  const collectOverridesFromInputs = (): { overrides: TargetOverrides; errors: string[] } => {
+    const protocolValue = protocolSelect.value.trim().toLowerCase();
+    const hostValue = hostInput.value.trim();
+    const portValue = portInput.value.trim();
+    const errors: string[] = [];
+
+    if (hostValue && (hostValue.length > 255 || /\s/.test(hostValue))) {
+      errors.push('Host overrides cannot contain spaces and must be under 255 characters.');
+    }
+
+    if (portValue) {
+      const parsedPort = Number.parseInt(portValue, 10);
+      if (!Number.isFinite(parsedPort) || parsedPort <= 0 || parsedPort > 65_535) {
+        errors.push('Port overrides must be a number between 1 and 65535.');
+      }
+    }
+
+    const overrides: TargetOverrides = {};
+
+    if ((protocolValue === 'ssh' || protocolValue === 'telnet') && protocolValue !== runtime.target.defaults.protocol) {
+      overrides.protocol = protocolValue;
+    }
+
+    if (hostValue) {
+      if (!runtime.target.defaults.host || hostValue !== runtime.target.defaults.host) {
+        overrides.host = hostValue;
+      }
+    }
+
+    if (portValue) {
+      if (!runtime.target.defaults.port || portValue !== runtime.target.defaults.port) {
+        overrides.port = portValue;
+      }
+    }
+
+    return { overrides, errors };
+  };
+
   const syncUsernameField = () => {
     if (runtime.target.protocol === 'ssh') {
       runtime.usernameField.style.display = '';
@@ -539,7 +577,7 @@ const createRuntime = (container: HTMLElement): TerminalRuntime => {
   refreshTarget(false);
   if (!runtime.target.available) {
     runtime.appendLine(
-      'No BBS host is configured. Expand Connection options to provide a host override or contact the operator.',
+      'No BBS host is configured. Expand Connection options to dial a telnet or SSH host directly.',
       'error'
     );
   }
@@ -549,11 +587,22 @@ const createRuntime = (container: HTMLElement): TerminalRuntime => {
   }
 
   connectButton.addEventListener('click', () => {
-    refreshTarget(false);
     if (runtime.connected) {
       runtime.appendLine('Already connected.', 'info');
       return;
     }
+
+    const { overrides, errors } = collectOverridesFromInputs();
+    if (errors.length > 0) {
+      for (const message of errors) {
+        runtime.appendLine(message, 'error');
+      }
+      return;
+    }
+
+    saveTargetOverrides(overrides);
+    refreshTarget(false);
+
     if (!runtime.target.available) {
       runtime.appendLine(
         'Cannot connect without a target host. Expand Connection options to save overrides or configure the server.',
@@ -638,35 +687,12 @@ const createRuntime = (container: HTMLElement): TerminalRuntime => {
   targetForm.addEventListener('submit', (event) => {
     event.preventDefault();
 
-    const protocolValue = protocolSelect.value.trim().toLowerCase();
-    const hostValue = hostInput.value.trim();
-    const portValue = portInput.value.trim();
-
-    if (hostValue && (hostValue.length > 255 || /\s/.test(hostValue))) {
-      runtime.appendLine('Host overrides cannot contain spaces and must be under 255 characters.', 'error');
-      return;
-    }
-
-    if (portValue) {
-      const parsedPort = Number.parseInt(portValue, 10);
-      if (!Number.isFinite(parsedPort) || parsedPort <= 0 || parsedPort > 65_535) {
-        runtime.appendLine('Port overrides must be a number between 1 and 65535.', 'error');
-        return;
+    const { overrides, errors } = collectOverridesFromInputs();
+    if (errors.length > 0) {
+      for (const message of errors) {
+        runtime.appendLine(message, 'error');
       }
-    }
-
-    const overrides: TargetOverrides = {};
-
-    if ((protocolValue === 'ssh' || protocolValue === 'telnet') && protocolValue !== runtime.target.defaults.protocol) {
-      overrides.protocol = protocolValue;
-    }
-
-    if (hostValue && hostValue !== runtime.target.defaults.host) {
-      overrides.host = hostValue;
-    }
-
-    if (portValue && portValue !== runtime.target.defaults.port) {
-      overrides.port = portValue;
+      return;
     }
 
     const previousSignature = JSON.stringify(runtime.target.overridesApplied);
