@@ -181,8 +181,7 @@ summary::-webkit-details-marker {
   gap: 1.75rem;
 }
 
-.terminal-section,
-.chat-section {
+.terminal-section {
   display: flex;
   flex-direction: column;
 }
@@ -200,12 +199,6 @@ summary::-webkit-details-marker {
   box-shadow: var(--shadow-soft);
   padding: 1.65rem;
   backdrop-filter: blur(8px);
-}
-
-.panel--chat {
-  min-height: 420px;
-  display: flex;
-  flex-direction: column;
 }
 
 .panel--terminal {
@@ -854,13 +847,13 @@ summary::-webkit-details-marker {
   border-radius: 18px;
   border: 1px solid rgba(226, 232, 240, 0.18);
   background: rgba(6, 12, 24, 0.85);
-  min-height: 280px;
+  min-height: 420px;
   overflow: hidden;
   position: relative;
 }
 
 .terminal__output {
-  min-height: 280px;
+  min-height: 420px;
   padding: 1.1rem 1.2rem;
   font-family: 'IBM Plex Mono', 'SFMono-Regular', Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New', monospace;
   font-size: 0.9rem;
