@@ -5,6 +5,23 @@ const runtimeMap = new WeakMap<HTMLElement, TerminalRuntime>();
 const textEncoder = new TextEncoder();
 const TARGET_STORAGE_KEY = 'chatter-terminal-target';
 
+const parseServiceDomain = (
+  value: string
+): { host: string; pathPrefix: string } | null => {
+  try {
+    const url = value.includes('://') ? new URL(value) : new URL(`https://${value}`);
+    const host = url.host.trim();
+    if (!host) {
+      return null;
+    }
+    const trimmedPath = url.pathname.replace(/\/+$/, '');
+    const pathPrefix = trimmedPath === '/' ? '' : trimmedPath;
+    return { host, pathPrefix };
+  } catch {
+    return null;
+  }
+};
+
 type TargetOverrides = {
   protocol?: 'telnet' | 'ssh';
   host?: string;
@@ -178,12 +195,35 @@ const resolveSocketUrl = (container: HTMLElement): string | null => {
     return null;
   }
 
-  const path = container.dataset.terminalPath ?? '/terminal';
-  const trimmedPath = path.trim() || '/terminal';
-  const safePath = trimmedPath.startsWith('/') ? trimmedPath : `/${trimmedPath}`;
-  const scheme = window.location.protocol === 'https:' ? 'wss' : 'ws';
-  const host = window.location.host;
-  return `${scheme}://${host}${safePath}`;
+  const config = readRuntimeConfig();
+  const datasetPath = container.dataset.terminalPath;
+  const rawPath = (datasetPath && datasetPath.trim()) || '/terminal';
+  const safePath = rawPath.startsWith('/') ? rawPath : `/${rawPath}`;
+
+  const defaultScheme = window.location.protocol === 'https:' ? 'wss' : 'ws';
+  const base = new URL(window.location.href);
+  base.protocol = `${defaultScheme}:`;
+  base.username = '';
+  base.password = '';
+  base.search = '';
+  base.hash = '';
+  let pathPrefix = '';
+
+  const domainOverride =
+    typeof config?.webServiceDomain === 'string' ? config.webServiceDomain.trim() : '';
+  if (domainOverride) {
+    const parsedDomain = parseServiceDomain(domainOverride);
+    if (!parsedDomain) {
+      console.warn('Ignoring invalid CHATTER_WEB_SERVICE_DOMAIN value:', domainOverride);
+    } else {
+      base.host = parsedDomain.host;
+      pathPrefix = parsedDomain.pathPrefix;
+    }
+  }
+
+  base.pathname = pathPrefix ? `${pathPrefix}${safePath}` : safePath;
+
+  return base.toString();
 };
 
 const keySequences: Record<string, string> = {

@@ -6,6 +6,7 @@ interface ChatterRuntimeConfig {
   bbsSshUser?: string;
   bbsHostPlaceholder?: string;
   bbsHostDefault?: string;
+  webServiceDomain?: string;
 }
 
 declare global {

@@ -223,6 +223,7 @@ const resolveRuntimeConfig = () => {
     'CHATTER_BBS_PORT_DEFAULT',
     'CHATTER_TERMINAL_PORT_DEFAULT'
   );
+  const { value: serviceDomain } = readEnvValue('CHATTER_WEB_SERVICE_DOMAIN');
   if (hostPlaceholder) {
     config.bbsHostPlaceholder = hostPlaceholder;
   }
@@ -233,6 +234,10 @@ const resolveRuntimeConfig = () => {
 
   if (portDefault) {
     config.bbsPortDefault = portDefault;
+  }
+
+  if (serviceDomain) {
+    config.webServiceDomain = serviceDomain;
   }
 
   return config;
