@@ -623,7 +623,11 @@ const createRuntime = (container: HTMLElement): TerminalRuntime => {
     for (const char of chunk) {
       if (char === '\r') {
         const target = ensureIncomingLine();
-        target.replaceChildren();
+        if (buffer) {
+          target.replaceChildren(createAnsiFragment(buffer));
+        } else {
+          target.replaceChildren();
+        }
         buffer = '';
         lineElement = runtime.incomingLineElement;
         needsRender = false;
