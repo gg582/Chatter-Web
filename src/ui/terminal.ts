@@ -3,7 +3,6 @@ import { escapeHtml } from './helpers.js';
 
 const runtimeMap = new WeakMap<HTMLElement, TerminalRuntime>();
 const textEncoder = new TextEncoder();
-const textDecoder = new TextDecoder();
 const TARGET_STORAGE_KEY = 'chatter-terminal-target';
 
 type TargetOverrides = {
@@ -221,6 +220,7 @@ type TerminalRuntime = {
   usernameInput: HTMLInputElement;
   usernameField: HTMLElement;
   optionsElement: HTMLDetailsElement;
+  binaryDecoder: TextDecoder;
   connected: boolean;
   connecting: boolean;
   socketUrl: string | null;
@@ -558,6 +558,7 @@ const createRuntime = (container: HTMLElement): TerminalRuntime => {
     usernameInput,
     usernameField,
     optionsElement,
+    binaryDecoder: new TextDecoder(),
     socketUrl: typeof socketUrl === 'string' && socketUrl.trim() ? socketUrl.trim() : null,
     target,
     connected: false,
@@ -792,6 +793,7 @@ const createRuntime = (container: HTMLElement): TerminalRuntime => {
       const socket = new WebSocket(socketUrl.toString());
       socket.binaryType = 'arraybuffer';
       runtime.socket = socket;
+      runtime.binaryDecoder = new TextDecoder();
       socket.addEventListener('open', () => {
         runtime.connecting = false;
         runtime.connected = true;
@@ -803,12 +805,23 @@ const createRuntime = (container: HTMLElement): TerminalRuntime => {
       });
       socket.addEventListener('message', (event) => {
         if (typeof event.data === 'string') {
+          const pending = runtime.binaryDecoder.decode();
+          if (pending) {
+            runtime.appendLine(pending, 'incoming');
+          }
           runtime.appendLine(event.data, 'incoming');
         } else if (event.data instanceof ArrayBuffer) {
-          runtime.appendLine(textDecoder.decode(event.data), 'incoming');
+          const decoded = runtime.binaryDecoder.decode(new Uint8Array(event.data), { stream: true });
+          if (decoded) {
+            runtime.appendLine(decoded, 'incoming');
+          }
         }
       });
       socket.addEventListener('close', (event) => {
+        const pending = runtime.binaryDecoder.decode();
+        if (pending) {
+          runtime.appendLine(pending, 'incoming');
+        }
         runtime.connecting = false;
         runtime.connected = false;
         runtime.socket = null;
@@ -895,6 +908,56 @@ const createRuntime = (container: HTMLElement): TerminalRuntime => {
   });
 
   let isComposing = false;
+  let pendingCompositionCommit: string | null = null;
+  let compositionFlushTimer: ReturnType<typeof setTimeout> | null = null;
+
+  const cancelPendingCompositionFlush = () => {
+    if (compositionFlushTimer !== null) {
+      clearTimeout(compositionFlushTimer);
+      compositionFlushTimer = null;
+    }
+  };
+
+  const flushPendingComposition = (): boolean => {
+    if (pendingCompositionCommit === null) {
+      cancelPendingCompositionFlush();
+      return false;
+    }
+
+    const value = pendingCompositionCommit;
+    pendingCompositionCommit = null;
+    cancelPendingCompositionFlush();
+
+    if (value) {
+      sendTextPayload(value);
+    }
+
+    clearCaptureValue();
+    return Boolean(value);
+  };
+
+  if (typeof window !== 'undefined') {
+    let unloadHandled = false;
+    const handleUnload = () => {
+      if (unloadHandled) {
+        return;
+      }
+      unloadHandled = true;
+      if (!runtime.socket) {
+        return;
+      }
+      const state = runtime.socket.readyState;
+      if (state === WebSocket.OPEN || state === WebSocket.CONNECTING) {
+        try {
+          runtime.socket.close(1001, 'Page closed');
+        } catch (error) {
+          console.warn('Failed to close terminal socket on unload', error);
+        }
+      }
+    };
+    window.addEventListener('pagehide', handleUnload);
+    window.addEventListener('beforeunload', handleUnload);
+  }
 
   if (typeof window !== 'undefined') {
     let unloadHandled = false;
@@ -941,12 +1004,6 @@ const createRuntime = (container: HTMLElement): TerminalRuntime => {
     runtime.socket.send(textEncoder.encode(payload));
   };
 
-  const commitCaptureValue = () => {
-    const value = runtime.captureElement.value;
-    clearCaptureValue();
-    sendTextPayload(value);
-  };
-
   runtime.captureElement.addEventListener('keydown', (event) => {
     if (!runtime.socket || runtime.socket.readyState !== WebSocket.OPEN) {
       runtime.appendLine(`Keystroke ${describeKey(event)} dropped — not connected.`, 'error');
@@ -973,38 +1030,69 @@ const createRuntime = (container: HTMLElement): TerminalRuntime => {
 
   runtime.captureElement.addEventListener('compositionstart', () => {
     isComposing = true;
+    pendingCompositionCommit = null;
+    cancelPendingCompositionFlush();
   });
 
-  runtime.captureElement.addEventListener('compositionend', () => {
+  runtime.captureElement.addEventListener('compositionend', (event) => {
     isComposing = false;
-    commitCaptureValue();
+    const compositionEvent = event as CompositionEvent;
+    const committedValue =
+      typeof compositionEvent.data === 'string' && compositionEvent.data.length > 0
+        ? compositionEvent.data
+        : runtime.captureElement.value;
+
+    if (committedValue) {
+      pendingCompositionCommit = committedValue;
+      cancelPendingCompositionFlush();
+      compositionFlushTimer = setTimeout(() => {
+        flushPendingComposition();
+      }, 0);
+    } else {
+      pendingCompositionCommit = null;
+      cancelPendingCompositionFlush();
+      clearCaptureValue();
+    }
   });
 
   runtime.captureElement.addEventListener('input', (event) => {
-    if (isComposing) {
+    const inputEvent = event as InputEvent;
+
+    if (inputEvent.isComposing || isComposing) {
       return;
     }
 
-    const inputEvent = event as InputEvent;
-    if (inputEvent.isComposing) {
+    if (flushPendingComposition()) {
       return;
     }
 
     if (inputEvent.inputType === 'insertLineBreak') {
-      sendTextPayload('\r');
+      sendTextPayload('\u000d');
       clearCaptureValue();
       return;
     }
 
     if (inputEvent.inputType && inputEvent.inputType.startsWith('delete')) {
-      sendTextPayload('\u0008'); // Send a backspace character
+      sendTextPayload('\u0008');
       clearCaptureValue();
       return;
     }
 
-    if (runtime.captureElement.value.length > 0) {
-      commitCaptureValue();
+    let valueToSend = '';
+
+    if (inputEvent.inputType === 'insertFromPaste' || inputEvent.inputType === 'insertFromDrop') {
+      valueToSend = runtime.captureElement.value;
+    } else if (typeof inputEvent.data === 'string') {
+      valueToSend = inputEvent.data;
+    } else {
+      valueToSend = runtime.captureElement.value;
     }
+
+    if (valueToSend) {
+      sendTextPayload(valueToSend);
+    }
+
+    clearCaptureValue();
   });
 
   runtime.usernameInput.addEventListener('input', () => {
