@@ -987,27 +987,33 @@ if (httpsCertSource && httpsKeySource) {
   const key = resolvePemMaterial(httpsKeySource, 'CHATTER_BBS_HTTPS_KEY');
 
   if (cert && key) {
-    const httpsServer = createHttpsServer({ cert, key }, requestListener);
-    attachUpgradeListener(httpsServer);
-    httpsServer.listen(port, host, () => {
-      console.log(`Chatter frontend available at https://${host}:${port}`);
-    });
-    server = httpsServer;
-
-    const { value: fallbackPortValue, source: fallbackPortSource } = readEnvValue(
-      'CHATTER_BBS_HTTP_PORT',
-      'HTTP_PORT'
+    const { value: httpsPortValue, source: httpsPortSource } = readEnvValue(
+      'CHATTER_BBS_HTTPS_PORT',
+      'HTTPS_PORT'
     );
-    const fallbackHttpPort = parsePort(
-      fallbackPortValue,
+    const httpsPort = parsePort(
+      httpsPortValue,
       8082,
-      fallbackPortSource ?? 'CHATTER_BBS_HTTP_PORT'
+      httpsPortSource ?? 'CHATTER_BBS_HTTPS_PORT'
     );
 
-    if (fallbackHttpPort === port) {
-      console.warn('HTTP fallback port matches HTTPS port; skipping fallback HTTP listener.');
+    if (httpsPort === port) {
+      console.warn('HTTPS port matches HTTP port; serving HTTPS only.');
+      const httpsServer = createHttpsServer({ cert, key }, requestListener);
+      attachUpgradeListener(httpsServer);
+      httpsServer.listen(httpsPort, host, () => {
+        console.log(`Chatter frontend available at https://${host}:${httpsPort}`);
+      });
+      server = httpsServer;
     } else {
-      startHttpServer(fallbackHttpPort);
+      startHttpServer(port);
+
+      const httpsServer = createHttpsServer({ cert, key }, requestListener);
+      attachUpgradeListener(httpsServer);
+      httpsServer.listen(httpsPort, host, () => {
+        console.log(`Chatter frontend available at https://${host}:${httpsPort}`);
+      });
+      server = httpsServer;
     }
   } else {
     console.warn('HTTPS configuration incomplete. Serving HTTP only.');
