@@ -230,6 +230,140 @@ type TerminalRuntime = {
   updateConnectAvailability?: () => void;
 };
 
+type AnsiState = {
+  color: string | null;
+  background: string | null;
+  bold: boolean;
+};
+
+const ANSI_FOREGROUND_COLOR_MAP: Record<number, string> = {
+  30: '#1f2937',
+  31: '#f87171',
+  32: '#34d399',
+  33: '#facc15',
+  34: '#60a5fa',
+  35: '#c084fc',
+  36: '#22d3ee',
+  37: '#f8fafc',
+  90: '#94a3b8',
+  91: '#fda4af',
+  92: '#86efac',
+  93: '#fde68a',
+  94: '#93c5fd',
+  95: '#f9a8d4',
+  96: '#67e8f9',
+  97: '#ffffff'
+};
+
+const ANSI_BACKGROUND_COLOR_MAP: Record<number, string> = {
+  40: 'rgba(15, 23, 42, 0.85)',
+  41: 'rgba(248, 113, 113, 0.35)',
+  42: 'rgba(74, 222, 128, 0.35)',
+  43: 'rgba(250, 204, 21, 0.35)',
+  44: 'rgba(96, 165, 250, 0.35)',
+  45: 'rgba(192, 132, 252, 0.35)',
+  46: 'rgba(34, 211, 238, 0.35)',
+  47: 'rgba(248, 250, 252, 0.18)',
+  100: 'rgba(148, 163, 184, 0.35)',
+  101: 'rgba(248, 180, 198, 0.35)',
+  102: 'rgba(187, 247, 208, 0.35)',
+  103: 'rgba(254, 243, 199, 0.35)',
+  104: 'rgba(191, 219, 254, 0.35)',
+  105: 'rgba(252, 207, 229, 0.35)',
+  106: 'rgba(165, 243, 252, 0.35)',
+  107: 'rgba(248, 250, 252, 0.28)'
+};
+
+const ANSI_PATTERN = /\u001b\[([0-9;]*)([A-Za-z])/g;
+
+const createAnsiFragment = (line: string): DocumentFragment => {
+  const fragment = document.createDocumentFragment();
+  const state: AnsiState = { color: null, background: null, bold: false };
+  let lastIndex = 0;
+  let match: RegExpExecArray | null;
+
+  const pushSegment = (segment: string) => {
+    if (!segment) {
+      return;
+    }
+    if (!state.color && !state.background && !state.bold) {
+      fragment.append(document.createTextNode(segment));
+      return;
+    }
+    const span = document.createElement('span');
+    span.textContent = segment;
+    if (state.color) {
+      span.style.color = state.color;
+    }
+    if (state.background) {
+      span.style.backgroundColor = state.background;
+    }
+    if (state.bold) {
+      span.style.fontWeight = '700';
+    }
+    fragment.append(span);
+  };
+
+  while ((match = ANSI_PATTERN.exec(line)) !== null) {
+    const index = match.index;
+    if (index > lastIndex) {
+      pushSegment(line.slice(lastIndex, index));
+    }
+    lastIndex = ANSI_PATTERN.lastIndex;
+
+    if (match[2] !== 'm') {
+      continue;
+    }
+
+    const codes = match[1] ? match[1].split(';') : ['0'];
+
+    for (const codeText of codes) {
+      const code = Number.parseInt(codeText, 10);
+      if (!Number.isFinite(code)) {
+        continue;
+      }
+      if (code === 0) {
+        state.color = null;
+        state.background = null;
+        state.bold = false;
+        continue;
+      }
+      if (code === 1) {
+        state.bold = true;
+        continue;
+      }
+      if (code === 22) {
+        state.bold = false;
+        continue;
+      }
+      if (code === 39) {
+        state.color = null;
+        continue;
+      }
+      if (code === 49) {
+        state.background = null;
+        continue;
+      }
+      const foreground = ANSI_FOREGROUND_COLOR_MAP[code];
+      if (foreground) {
+        state.color = foreground;
+        continue;
+      }
+      const background = ANSI_BACKGROUND_COLOR_MAP[code];
+      if (background) {
+        state.background = background;
+        continue;
+      }
+    }
+  }
+
+  if (lastIndex < line.length) {
+    pushSegment(line.slice(lastIndex));
+  }
+
+  return fragment;
+};
+
 const limitOutputLines = (output: HTMLElement, maxLines = 600) => {
   while (output.childElementCount > maxLines) {
     output.removeChild(output.firstElementChild as ChildNode);
@@ -430,7 +564,7 @@ const createRuntime = (container: HTMLElement): TerminalRuntime => {
       for (const line of lines) {
         const entry = document.createElement('pre');
         entry.className = `terminal__line terminal__line--${kind}`;
-        entry.textContent = line;
+        entry.append(createAnsiFragment(line));
         runtime.outputElement.append(entry);
       }
       limitOutputLines(runtime.outputElement);
