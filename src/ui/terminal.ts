@@ -178,12 +178,6 @@ const resolveSocketUrl = (container: HTMLElement): string | null => {
     return null;
   }
 
-  const config = readRuntimeConfig();
-  const relaySocket = typeof config?.terminalSocketUrl === 'string' ? config.terminalSocketUrl.trim() : '';
-  if (relaySocket) {
-    return relaySocket;
-  }
-
   const path = container.dataset.terminalPath ?? '/terminal';
   const trimmedPath = path.trim() || '/terminal';
   const safePath = trimmedPath.startsWith('/') ? trimmedPath : `/${trimmedPath}`;

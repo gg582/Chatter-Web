@@ -1,9 +1,8 @@
-import { createReadStream, readFileSync } from 'node:fs';
+import { createReadStream } from 'node:fs';
 import { stat } from 'node:fs/promises';
 import { createHash } from 'node:crypto';
-import { createServer as createHttpServer } from 'node:http';
-import type { IncomingMessage, ServerResponse } from 'node:http';
-import { createServer as createHttpsServer } from 'node:https';
+import { createServer } from 'node:http';
+import type { IncomingMessage } from 'node:http';
 import { connect, Socket as NetSocket } from 'node:net';
 import { spawn, type ChildProcessWithoutNullStreams } from 'node:child_process';
 import { extname, join } from 'node:path';
@@ -234,43 +233,6 @@ const resolveRuntimeConfig = () => {
 
   if (portDefault) {
     config.bbsPortDefault = portDefault;
-  }
-
-  const { value: relayDnsPeer } = readEnvValue('CHATTER_BBS_RELAYDNS_PEER');
-
-  const ensureUrlScheme = (value: string) => {
-    if (/^[a-zA-Z][a-zA-Z0-9+.-]*:/.test(value)) {
-      return value;
-    }
-    return `http://${value}`;
-  };
-
-  if (relayDnsPeer) {
-    config.terminalBridgeMode = 'relaydns';
-    config.terminalRelayDnsPeer = relayDnsPeer;
-    const { value: relayBaseOverride } = readEnvValue('CHATTER_BBS_RELAYDNS_BASE_URL');
-    const baseCandidate = (relayBaseOverride && relayBaseOverride.trim()) || 'http://173.249.203.13:8080';
-    try {
-      const baseUrl = new URL(ensureUrlScheme(baseCandidate));
-      const basePath = baseUrl.pathname.replace(/\/+$/, '');
-      baseUrl.pathname = `${basePath}/peer/${encodeURIComponent(relayDnsPeer)}/ws`;
-      baseUrl.search = '';
-      baseUrl.hash = '';
-      const protocol = baseUrl.protocol.toLowerCase();
-      baseUrl.protocol = protocol === 'https:' || protocol === 'wss:' ? 'wss:' : 'ws:';
-      config.terminalSocketUrl = baseUrl.toString();
-    } catch (error) {
-      console.warn('Invalid RelayDNS base URL provided. Falling back to default.', error);
-      try {
-        const fallbackUrl = new URL('ws://173.249.203.13:8080/');
-        fallbackUrl.pathname = `/peer/${encodeURIComponent(relayDnsPeer)}/ws`;
-        config.terminalSocketUrl = fallbackUrl.toString();
-      } catch (fallbackError) {
-        console.warn('Failed to construct RelayDNS socket URL', fallbackError);
-      }
-    }
-  } else {
-    config.terminalBridgeMode = 'local';
   }
 
   return config;
@@ -920,107 +882,23 @@ const handleUpgrade = (req: IncomingMessage, socket: NetSocket, head: Buffer) =>
   }
 };
 
-const parsePort = (raw: string | undefined, fallback: number, label?: string) => {
-  if (!raw) {
-    return fallback;
-  }
-
-  const parsed = Number.parseInt(raw, 10);
-  if (!Number.isFinite(parsed) || parsed <= 0 || parsed > 65_535) {
-    const target = label ? `${label} value` : 'port value';
-    console.warn(`Ignoring invalid ${target}: ${raw}`);
-    return fallback;
-  }
-
-  return parsed;
-};
-
-const resolvePemMaterial = (value: string, label: string): string | null => {
-  const trimmed = value.trim();
-
-  if (!trimmed) {
-    return null;
-  }
-
-  if (trimmed.includes('-----BEGIN')) {
-    return trimmed;
-  }
-
-  try {
-    return readFileSync(trimmed, 'utf8');
-  } catch (error) {
-    console.error(`Failed to read ${label} from path ${trimmed}`, error);
-    return null;
-  }
-};
-
+const port = Number.parseInt(process.env.PORT ?? '8081', 10);
 const host = process.env.HOST ?? '0.0.0.0';
-const port = parsePort(process.env.PORT, 8081, 'PORT');
-const httpsCertSource = process.env.CHATTER_BBS_HTTPS_CRT;
-const httpsKeySource = process.env.CHATTER_BBS_HTTPS_KEY;
 
-const requestListener = (req: IncomingMessage, res: ServerResponse) => {
+const server = createServer((req, res) => {
   void handleRequest(req, res);
+});
+
+const upgradeableServer = server as unknown as {
+  on(event: 'upgrade', listener: (req: IncomingMessage, socket: NetSocket, head: Buffer) => void): void;
 };
 
-const attachUpgradeListener = (serverInstance: unknown) => {
-  (serverInstance as unknown as {
-    on(event: 'upgrade', listener: (req: IncomingMessage, socket: NetSocket, head: Buffer) => void): void;
-  }).on('upgrade', (req, socket, head) => {
-    handleUpgrade(req, socket, head);
-  });
-};
+upgradeableServer.on('upgrade', (req, socket, head) => {
+  handleUpgrade(req, socket, head);
+});
 
-let server: ReturnType<typeof createHttpServer> | ReturnType<typeof createHttpsServer>;
-
-const startHttpServer = (httpPort: number) => {
-  const httpServer = createHttpServer(requestListener);
-  attachUpgradeListener(httpServer);
-  httpServer.listen(httpPort, host, () => {
-    console.log(`Chatter frontend available at http://${host}:${httpPort}`);
-  });
-  return httpServer;
-};
-
-if (httpsCertSource && httpsKeySource) {
-  const cert = resolvePemMaterial(httpsCertSource, 'CHATTER_BBS_HTTPS_CRT');
-  const key = resolvePemMaterial(httpsKeySource, 'CHATTER_BBS_HTTPS_KEY');
-
-  if (cert && key) {
-    const { value: httpsPortValue, source: httpsPortSource } = readEnvValue(
-      'CHATTER_BBS_HTTPS_PORT',
-      'HTTPS_PORT'
-    );
-    const httpsPort = parsePort(
-      httpsPortValue,
-      8082,
-      httpsPortSource ?? 'CHATTER_BBS_HTTPS_PORT'
-    );
-
-    if (httpsPort === port) {
-      console.warn('HTTPS port matches HTTP port; serving HTTPS only.');
-      const httpsServer = createHttpsServer({ cert, key }, requestListener);
-      attachUpgradeListener(httpsServer);
-      httpsServer.listen(httpsPort, host, () => {
-        console.log(`Chatter frontend available at https://${host}:${httpsPort}`);
-      });
-      server = httpsServer;
-    } else {
-      startHttpServer(port);
-
-      const httpsServer = createHttpsServer({ cert, key }, requestListener);
-      attachUpgradeListener(httpsServer);
-      httpsServer.listen(httpsPort, host, () => {
-        console.log(`Chatter frontend available at https://${host}:${httpsPort}`);
-      });
-      server = httpsServer;
-    }
-  } else {
-    console.warn('HTTPS configuration incomplete. Serving HTTP only.');
-    server = startHttpServer(port);
-  }
-} else {
-  server = startHttpServer(port);
-}
+server.listen(port, host, () => {
+  console.log(`Chatter frontend available at http://${host}:${port}`);
+});
 
 export { server };
