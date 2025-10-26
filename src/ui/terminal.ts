@@ -730,14 +730,26 @@ const createRuntime = (container: HTMLElement): TerminalRuntime => {
   };
   runtime.updateConnectAvailability = updateConnectAvailability;
 
+  const setTargetStatusMessage = (message: string, variant: 'default' | 'muted' | 'error' = 'default') => {
+    targetStatus.textContent = message;
+    targetStatus.classList.remove('terminal__note--muted', 'terminal__note--error');
+    if (variant === 'muted') {
+      targetStatus.classList.add('terminal__note--muted');
+    } else if (variant === 'error') {
+      targetStatus.classList.add('terminal__note--error');
+    }
+  };
+
   const updateTargetStatus = () => {
     if (!targetStatus) {
       return;
     }
 
     if (runtime.target.overridesApplied.host || runtime.target.overridesApplied.port || runtime.target.overridesApplied.protocol) {
-      targetStatus.textContent =
-        'Manual overrides are active in this browser. Clear the fields to enjoy the server defaults again.';
+      setTargetStatusMessage(
+        'Manual overrides are active in this browser. Clear the fields to enjoy the server defaults again.',
+        'muted'
+      );
       return;
     }
 
@@ -746,12 +758,11 @@ const createRuntime = (container: HTMLElement): TerminalRuntime => {
         runtime.target.defaults.port ||
         (runtime.target.defaults.protocol === 'ssh' ? '22' : runtime.target.defaults.protocol === 'telnet' ? '23' : '');
       const hostLabel = portLabel ? `${runtime.target.defaults.host}:${portLabel}` : runtime.target.defaults.host;
-      targetStatus.textContent = `Server target ${hostLabel} is ready to dial.`;
+      setTargetStatusMessage(`Server target ${hostLabel} is ready to dial.`, 'muted');
       return;
     }
 
-    targetStatus.textContent =
-      'No server target configured yet. Enter a host to connect straight from the lounge.';
+    setTargetStatusMessage('No server target configured yet. Enter a host to connect straight from the lounge.', 'muted');
   };
 
   const updateFormPlaceholders = () => {
@@ -765,31 +776,21 @@ const createRuntime = (container: HTMLElement): TerminalRuntime => {
     portInput.placeholder = fallbackPort || runtime.target.placeholders.port || '23';
   };
 
-  let lastOverrideSignature = JSON.stringify(runtime.target.overridesApplied);
   let lastAvailability = runtime.target.available;
 
   const refreshTarget = (announce = false) => {
-    const previousOverrides = lastOverrideSignature;
     const previousAvailability = lastAvailability;
 
     runtime.target = resolveTarget();
     runtime.endpointElement.textContent = runtime.target.description;
     syncUsernameField();
 
-    const overridesSignature = JSON.stringify(runtime.target.overridesApplied);
-    if (announce && overridesSignature !== previousOverrides) {
-      if (runtime.target.overridesApplied.host || runtime.target.overridesApplied.port || runtime.target.overridesApplied.protocol) {
-        runtime.appendLine('Custom terminal target overrides active — connections will use your manual settings.', 'info');
-      } else {
-        runtime.appendLine('Reverted to the server-provided terminal target.', 'info');
-      }
-    }
-    lastOverrideSignature = overridesSignature;
-
     if (announce && runtime.target.available && !previousAvailability) {
-      runtime.appendLine('Terminal target available. You can connect now.', 'info');
+      runtime.updateStatus('Disconnected', 'disconnected');
+      updateTargetStatus();
     } else if (announce && !runtime.target.available && previousAvailability) {
-      runtime.appendLine('Terminal target cleared. Provide a host override to reconnect.', 'error');
+      runtime.updateStatus('Target cleared', 'disconnected');
+      setTargetStatusMessage('Terminal target cleared. Provide a host override to reconnect.', 'error');
     }
     lastAvailability = runtime.target.available;
 
@@ -809,27 +810,20 @@ const createRuntime = (container: HTMLElement): TerminalRuntime => {
   };
 
   runtime.updateStatus('Disconnected', 'disconnected');
-  runtime.appendLine('Terminal bridge ready. Press Connect to reach the configured BBS target.');
   refreshTarget(false);
-  if (!runtime.target.available) {
-    runtime.appendLine('No BBS host is configured. Use Connection settings to dial a telnet or SSH host directly.', 'error');
-  }
   if (!runtime.socketUrl) {
-    runtime.appendLine('Unable to resolve terminal bridge URL from the current origin.', 'error');
+    runtime.updateStatus('Bridge unavailable', 'disconnected');
     updateConnectAvailability();
   }
 
   connectButton.addEventListener('click', () => {
     if (runtime.connected) {
-      runtime.appendLine('Already connected.', 'info');
       return;
     }
 
     const { overrides, errors } = collectOverridesFromInputs();
     if (errors.length > 0) {
-      for (const message of errors) {
-        runtime.appendLine(message, 'error');
-      }
+      setTargetStatusMessage(errors.join(' '), 'error');
       return;
     }
 
@@ -837,7 +831,7 @@ const createRuntime = (container: HTMLElement): TerminalRuntime => {
     refreshTarget(false);
 
     if (!runtime.target.available) {
-      runtime.appendLine(
+      setTargetStatusMessage(
         'Cannot connect without a target host. Expand Connection options to save overrides or configure the server.',
         'error'
       );
@@ -845,19 +839,15 @@ const createRuntime = (container: HTMLElement): TerminalRuntime => {
     }
     const socketUrlText = runtime.socketUrl;
     if (!socketUrlText) {
-      runtime.appendLine('Cannot connect without a resolved terminal bridge.', 'error');
+      runtime.updateStatus('Bridge unavailable', 'disconnected');
       return;
     }
     const username = runtime.usernameInput.value.trim();
     if (!username) {
-      runtime.appendLine('Enter a username before connecting.', 'error');
+      runtime.updateStatus('Username required', 'disconnected');
       return;
     }
-    const protocolLabel = runtime.target.protocol ? runtime.target.protocol.toUpperCase() : 'TELNET';
-    const hostPortLabel = runtime.target.port ? `${runtime.target.host}:${runtime.target.port}` : runtime.target.host;
-    const displayTarget = username ? `${username}@${hostPortLabel}` : hostPortLabel;
     runtime.updateStatus('Connecting…', 'connecting');
-    runtime.appendLine(`Connecting to ${protocolLabel} ${displayTarget} …`, 'info');
     runtime.connecting = true;
     runtime.connectButton.disabled = true;
     try {
@@ -898,42 +888,35 @@ const createRuntime = (container: HTMLElement): TerminalRuntime => {
           }
           runtime.appendLine(event.data, 'incoming');
         } else if (event.data instanceof ArrayBuffer) {
-          const decoded = runtime.binaryDecoder.decode(new Uint8Array(event.data), { stream: true });
+          const decoded = runtime.binaryDecoder.decode(event.data, { stream: true });
           if (decoded) {
             runtime.appendLine(decoded, 'incoming');
           }
         }
       });
       socket.addEventListener('close', (event) => {
-        const pending = runtime.binaryDecoder.decode();
-        if (pending) {
-          runtime.appendLine(pending, 'incoming');
+        const remainder = runtime.binaryDecoder.decode();
+        if (remainder) {
+          runtime.appendLine(remainder, 'incoming');
         }
         runtime.connecting = false;
         runtime.connected = false;
         runtime.socket = null;
         runtime.disconnectButton.disabled = true;
         runtime.updateStatus('Disconnected', 'disconnected');
-        const reason = typeof event.reason === 'string' ? event.reason.trim() : '';
-        if (reason) {
-          runtime.appendLine(reason, 'incoming');
-        } else {
-          const severity = event.code === 1000 || event.code === 1001 ? 'info' : 'error';
-          runtime.appendLine(`Connection closed (code ${event.code}).`, severity);
-        }
         refreshTarget(false);
         updateConnectAvailability();
       });
       socket.addEventListener('error', () => {
-        runtime.appendLine('Terminal connection error.', 'error');
+        runtime.updateStatus('Connection error', 'disconnected');
       });
     } catch (error) {
       runtime.connecting = false;
       runtime.connected = false;
       runtime.socket = null;
       runtime.disconnectButton.disabled = true;
-      runtime.updateStatus('Disconnected', 'disconnected');
-      runtime.appendLine(`Failed to connect: ${(error as Error).message}`, 'error');
+      runtime.updateStatus('Connection failed', 'disconnected');
+      console.error('Terminal connection failed', error);
       updateConnectAvailability();
     }
   });
@@ -943,9 +926,7 @@ const createRuntime = (container: HTMLElement): TerminalRuntime => {
 
     const { overrides, errors } = collectOverridesFromInputs();
     if (errors.length > 0) {
-      for (const message of errors) {
-        runtime.appendLine(message, 'error');
-      }
+      setTargetStatusMessage(errors.join(' '), 'error');
       return;
     }
 
@@ -954,7 +935,7 @@ const createRuntime = (container: HTMLElement): TerminalRuntime => {
     refreshTarget(true);
     const currentSignature = JSON.stringify(runtime.target.overridesApplied);
     if (previousSignature === currentSignature) {
-      runtime.appendLine('Terminal target overrides unchanged.', 'info');
+      setTargetStatusMessage('Terminal target overrides unchanged.', 'muted');
     }
   });
 
@@ -969,10 +950,8 @@ const createRuntime = (container: HTMLElement): TerminalRuntime => {
 
   disconnectButton.addEventListener('click', () => {
     if (!runtime.socket) {
-      runtime.appendLine('No active connection to close.', 'info');
       return;
     }
-    runtime.appendLine('Closing connection …', 'info');
     runtime.socket.close(1000, 'Client closed');
   });
 
@@ -1062,7 +1041,6 @@ const createRuntime = (container: HTMLElement): TerminalRuntime => {
     }
 
     if (!runtime.socket || runtime.socket.readyState !== WebSocket.OPEN) {
-      runtime.appendLine('Text input dropped — not connected.', 'error');
       return;
     }
 
@@ -1076,7 +1054,6 @@ const createRuntime = (container: HTMLElement): TerminalRuntime => {
 
   runtime.captureElement.addEventListener('keydown', (event) => {
     if (!runtime.socket || runtime.socket.readyState !== WebSocket.OPEN) {
-      runtime.appendLine(`Keystroke ${describeKey(event)} dropped — not connected.`, 'error');
       event.preventDefault();
       return;
     }
