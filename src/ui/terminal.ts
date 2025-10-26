@@ -5,43 +5,21 @@ const runtimeMap = new WeakMap<HTMLElement, TerminalRuntime>();
 const textEncoder = new TextEncoder();
 const TARGET_STORAGE_KEY = 'chatter-terminal-target';
 
-const parseServiceDomain = (value: string): URL | null => {
+const parseServiceDomain = (
+  value: string
+): { host: string; pathPrefix: string } | null => {
   try {
-    if (value.includes('://')) {
-      return new URL(value);
+    const url = value.includes('://') ? new URL(value) : new URL(`https://${value}`);
+    const host = url.host.trim();
+    if (!host) {
+      return null;
     }
-    return new URL(`http://${value}`);
+    const trimmedPath = url.pathname.replace(/\/+$/, '');
+    const pathPrefix = trimmedPath === '/' ? '' : trimmedPath;
+    return { host, pathPrefix };
   } catch {
     return null;
   }
-};
-
-const parseServiceUrl = (value: string): URL | null => {
-  try {
-    if (value.includes('://')) {
-      return new URL(value);
-    }
-    return new URL(`https://${value}`);
-  } catch {
-    return null;
-  }
-};
-
-const normaliseSocketProtocol = (value: string | null | undefined): 'ws' | 'wss' | null => {
-  if (!value) {
-    return null;
-  }
-  const lower = value.toLowerCase();
-  if (lower === 'ws' || lower === 'wss') {
-    return lower;
-  }
-  if (lower === 'http') {
-    return 'ws';
-  }
-  if (lower === 'https') {
-    return 'wss';
-  }
-  return null;
 };
 
 type TargetOverrides = {
@@ -219,32 +197,8 @@ const resolveSocketUrl = (container: HTMLElement): string | null => {
 
   const config = readRuntimeConfig();
   const datasetPath = container.dataset.terminalPath;
-  const configuredPath =
-    typeof config?.webServicePath === 'string' ? config.webServicePath.trim() : '';
-  const rawPath = (datasetPath && datasetPath.trim()) || configuredPath || '/terminal';
+  const rawPath = (datasetPath && datasetPath.trim()) || '/terminal';
   const safePath = rawPath.startsWith('/') ? rawPath : `/${rawPath}`;
-
-  const urlOverride = typeof config?.webServiceUrl === 'string' ? config.webServiceUrl.trim() : '';
-  if (urlOverride) {
-    const parsedUrl = parseServiceUrl(urlOverride);
-    if (!parsedUrl) {
-      console.warn('Ignoring invalid CHATTER_WEB_SERVICE_URL value:', urlOverride);
-    } else {
-      const overrideScheme = normaliseSocketProtocol(parsedUrl.protocol.replace(/:$/, ''));
-      if (!overrideScheme) {
-        console.warn('Ignoring unsupported CHATTER_WEB_SERVICE_URL protocol:', parsedUrl.protocol);
-      } else {
-        parsedUrl.protocol = `${overrideScheme}:`;
-        const currentPath = parsedUrl.pathname || '/';
-        if (!currentPath || currentPath === '/') {
-          parsedUrl.pathname = safePath;
-        } else if (currentPath.endsWith('/')) {
-          parsedUrl.pathname = `${currentPath.replace(/\/+$/, '')}${safePath}`;
-        }
-        return parsedUrl.toString();
-      }
-    }
-  }
 
   const defaultScheme = window.location.protocol === 'https:' ? 'wss' : 'ws';
   const base = new URL(window.location.href);
@@ -257,51 +211,17 @@ const resolveSocketUrl = (container: HTMLElement): string | null => {
 
   const domainOverride =
     typeof config?.webServiceDomain === 'string' ? config.webServiceDomain.trim() : '';
-  const portOverride =
-    typeof config?.webServicePort === 'string' ? config.webServicePort.trim() : '';
-  const protocolOverride =
-    typeof config?.webServiceProtocol === 'string' ? config.webServiceProtocol.trim() : '';
-
-  const domainUrl = domainOverride ? parseServiceDomain(domainOverride) : null;
-  if (domainOverride && !domainUrl) {
-    console.warn('Ignoring invalid CHATTER_WEB_SERVICE_DOMAIN value:', domainOverride);
-  }
-
-  if (domainUrl) {
-    pathPrefix = domainUrl.pathname ?? '';
-    if (domainUrl.username) {
-      base.username = domainUrl.username;
-    }
-    if (domainUrl.password) {
-      base.password = domainUrl.password;
-    }
-    base.hostname = domainUrl.hostname;
-    base.port = domainUrl.port;
-    const derivedScheme = normaliseSocketProtocol(domainUrl.protocol.replace(/:$/, ''));
-    if (derivedScheme) {
-      base.protocol = `${derivedScheme}:`;
-    }
-  }
-
-  const explicitScheme = normaliseSocketProtocol(protocolOverride);
-  if (explicitScheme) {
-    base.protocol = `${explicitScheme}:`;
-  }
-
-  if (portOverride) {
-    if (/^[0-9]+$/.test(portOverride)) {
-      try {
-        base.port = portOverride;
-      } catch {
-        console.warn('Ignoring invalid CHATTER_WEB_SERVICE_PORT value:', portOverride);
-      }
+  if (domainOverride) {
+    const parsedDomain = parseServiceDomain(domainOverride);
+    if (!parsedDomain) {
+      console.warn('Ignoring invalid CHATTER_WEB_SERVICE_DOMAIN value:', domainOverride);
     } else {
-      console.warn('Ignoring invalid CHATTER_WEB_SERVICE_PORT value:', portOverride);
+      base.host = parsedDomain.host;
+      pathPrefix = parsedDomain.pathPrefix;
     }
   }
 
-  const trimmedPrefix = pathPrefix.replace(/\/+$/, '');
-  base.pathname = trimmedPrefix ? `${trimmedPrefix}${safePath}` : safePath;
+  base.pathname = pathPrefix ? `${pathPrefix}${safePath}` : safePath;
 
   return base.toString();
 };
