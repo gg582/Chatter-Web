@@ -139,7 +139,8 @@ summary::-webkit-details-marker {
 .menu-item summary {
   padding: 0.85rem 1.2rem;
   display: flex;
-  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
   gap: 0.75rem;
   font-weight: 600;
   color: var(--text);
@@ -366,7 +367,7 @@ summary::-webkit-details-marker {
   box-shadow: inset 0 1px 2px rgba(15, 23, 42, 0.05);
 }
 
-.terminal {
+.chat-feed {
   display: flex;
   flex-direction: column;
   gap: 1.1rem;
@@ -516,7 +517,7 @@ summary::-webkit-details-marker {
   gap: 0.75rem;
 }
 
-.terminal__options-body {
+.utility-sections {
   display: flex;
   flex-direction: column;
   gap: 1.35rem;
@@ -550,7 +551,7 @@ summary::-webkit-details-marker {
   font-size: 0.8rem;
 }
 
-.terminal__target-actions {
+.cheatsheet {
   display: flex;
   flex-direction: column;
   gap: 1.2rem;
@@ -593,7 +594,6 @@ summary::-webkit-details-marker {
 
 .cheatsheet__list {
   list-style: none;
-  margin: 0.9rem 0 0;
   padding: 0;
   margin: 0;
   display: flex;
@@ -879,8 +879,12 @@ summary::-webkit-details-marker {
 
 .terminal__capture {
   position: absolute;
-  inset: 0;
+  top: 0;
+  left: 0;
+  width: 1px;
+  height: 1px;
   opacity: 0;
+  pointer-events: none;
 }
 
 .terminal__game {
