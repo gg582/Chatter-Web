@@ -1,5 +1,6 @@
 import { ChatStore } from '../state/chatStore.js';
-import { escapeHtml } from './helpers.js';
+import { describeMobilePlatform, detectMobilePlatform, escapeHtml, isMobilePlatform } from './helpers.js';
+import type { MobilePlatform } from './helpers.js';
 
 const runtimeMap = new WeakMap<HTMLElement, TerminalRuntime>();
 const textEncoder = new TextEncoder();
@@ -506,6 +507,61 @@ const createRuntime = (container: HTMLElement): TerminalRuntime => {
   const portPlaceholderText =
     target.placeholders.port || (target.defaults.protocol === 'ssh' ? '22' : '23');
 
+  const root = container.closest<HTMLElement>('[data-chatter-root]');
+  const containerDatasetPlatform = container.dataset.mobilePlatform;
+  const containerDatasetLabel = container.dataset.mobilePlatformLabel;
+  const rootDatasetPlatform = root?.dataset.mobilePlatform;
+  const rootDatasetLabel = root?.dataset.mobilePlatformLabel;
+
+  let detectedPlatform: MobilePlatform | null = null;
+  let detectedLabel = '';
+
+  if (containerDatasetPlatform && isMobilePlatform(containerDatasetPlatform)) {
+    detectedPlatform = containerDatasetPlatform;
+    if (containerDatasetLabel && containerDatasetLabel.trim()) {
+      detectedLabel = containerDatasetLabel.trim();
+    }
+  } else if (rootDatasetPlatform && isMobilePlatform(rootDatasetPlatform)) {
+    detectedPlatform = rootDatasetPlatform;
+    if (rootDatasetLabel && rootDatasetLabel.trim()) {
+      detectedLabel = rootDatasetLabel.trim();
+    }
+  }
+
+  if (!detectedPlatform) {
+    const fallbackPlatform = detectMobilePlatform();
+    if (fallbackPlatform) {
+      detectedPlatform = fallbackPlatform;
+    }
+  }
+
+  if (detectedPlatform && !detectedLabel) {
+    detectedLabel = describeMobilePlatform(detectedPlatform);
+  }
+
+  if (detectedPlatform) {
+    container.dataset.mobilePlatform = detectedPlatform;
+    if (detectedLabel) {
+      container.dataset.mobilePlatformLabel = detectedLabel;
+    }
+    if (root) {
+      root.classList.add('chatter-app--mobile');
+      if (!root.dataset.mobilePlatform) {
+        root.dataset.mobilePlatform = detectedPlatform;
+      }
+      if (detectedLabel && !root.dataset.mobilePlatformLabel) {
+        root.dataset.mobilePlatformLabel = detectedLabel;
+      }
+    }
+  } else {
+    delete container.dataset.mobilePlatform;
+    delete container.dataset.mobilePlatformLabel;
+  }
+
+  const entryIntro = detectedLabel
+    ? `Detected ${escapeHtml(detectedLabel)}. The dedicated command entry captures arrows, Ctrl shortcuts, and text for the bridge.`
+    : 'Use the dedicated command entry to keep arrows, Ctrl shortcuts, and text flowing straight to the bridge.';
+
   container.innerHTML = `
     <section class="card card--terminal">
       <header class="terminal__header">
@@ -544,7 +600,7 @@ const createRuntime = (container: HTMLElement): TerminalRuntime => {
         <div class="terminal__controls-buttons">
           <button type="button" data-terminal-connect>Connect</button>
           <button type="button" data-terminal-disconnect disabled>Disconnect</button>
-          <button type="button" data-terminal-focus>Focus terminal</button>
+          <button type="button" data-terminal-focus>Focus command entry</button>
         </div>
       </div>
       <details class="terminal__options" data-terminal-options>
@@ -595,7 +651,7 @@ const createRuntime = (container: HTMLElement): TerminalRuntime => {
         </div>
       </details>
       <p class="terminal__note">
-        Arrow keys, Tab, and Ctrl shortcuts reach the bridge. Tap Focus if the terminal stops listening.
+        Arrow keys, Tab, and Ctrl shortcuts flow through the command entry. Tap Focus if the bridge stops listening.
       </p>
       <p class="terminal__note terminal__note--alpha">
         Need a refresher? The cheatsheet lists colourful ANSI cues for classic commands.
@@ -603,15 +659,25 @@ const createRuntime = (container: HTMLElement): TerminalRuntime => {
       <div class="terminal__viewport" data-terminal-viewport>
         <div class="terminal__output" data-terminal-output></div>
       </div>
-      <textarea
-        class="terminal__capture"
-        data-terminal-capture
-        aria-label="Web terminal input"
-        autocomplete="off"
-        autocorrect="off"
-        autocapitalize="off"
-        spellcheck="false"
-      ></textarea>
+      <section class="terminal__entry" data-terminal-entry>
+        <header class="terminal__entry-header">
+          <h3 class="terminal__entry-title">Command entry</h3>
+          <p class="terminal__entry-subtitle">${entryIntro}</p>
+        </header>
+        <label class="terminal__entry-field">
+          <span class="terminal__entry-label">Live terminal input</span>
+          <textarea
+            class="terminal__capture"
+            data-terminal-capture
+            rows="3"
+            placeholder="Focus here and type. Enter sends a newline to the bridge."
+            autocomplete="off"
+            autocorrect="off"
+            autocapitalize="off"
+            spellcheck="false"
+          ></textarea>
+        </label>
+      </section>
       <p class="terminal__game" data-terminal-game></p>
     </section>
   `;
@@ -635,6 +701,7 @@ const createRuntime = (container: HTMLElement): TerminalRuntime => {
   const targetResetButton = container.querySelector<HTMLButtonElement>('[data-terminal-target-reset]');
   const targetStatus = container.querySelector<HTMLElement>('[data-terminal-target-status]');
   const optionsElement = container.querySelector<HTMLDetailsElement>('[data-terminal-options]');
+  const entryElement = container.querySelector<HTMLElement>('[data-terminal-entry]');
 
   if (
     !statusElement ||
@@ -655,7 +722,8 @@ const createRuntime = (container: HTMLElement): TerminalRuntime => {
     !portInput ||
     !targetResetButton ||
     !targetStatus ||
-    !optionsElement
+    !optionsElement ||
+    !entryElement
   ) {
     throw new Error('Failed to mount the web terminal.');
   }
@@ -1165,10 +1233,12 @@ const createRuntime = (container: HTMLElement): TerminalRuntime => {
 
   runtime.captureElement.addEventListener('focus', () => {
     runtime.viewport.classList.add('terminal__viewport--focused');
+    entryElement.classList.add('terminal__entry--focused');
   });
 
   runtime.captureElement.addEventListener('blur', () => {
     runtime.viewport.classList.remove('terminal__viewport--focused');
+    entryElement.classList.remove('terminal__entry--focused');
   });
 
   let isComposing = false;

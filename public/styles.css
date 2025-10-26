@@ -85,6 +85,16 @@ summary::-webkit-details-marker {
   gap: 2.5rem;
 }
 
+.chatter-app--mobile {
+  padding: 2rem 1.25rem 2.75rem;
+  gap: 2rem;
+}
+
+.chatter-app--mobile .chatter-shell {
+  padding: 2rem 2.25rem;
+  gap: 1.5rem;
+}
+
 .chatter-shell {
   background: linear-gradient(135deg, rgba(180, 243, 155, 0.5), rgba(158, 216, 255, 0.45));
   border-radius: 30px;
@@ -101,6 +111,30 @@ summary::-webkit-details-marker {
   flex-direction: column;
   gap: 0.85rem;
   max-width: 640px;
+}
+
+.shell-mobile-banner {
+  display: none;
+}
+
+.chatter-app--mobile .shell-mobile-banner {
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+  padding: 1.1rem 1.4rem;
+  border-radius: 20px;
+  border: 1px dashed var(--border);
+  background: rgba(255, 255, 255, 0.85);
+  box-shadow: 0 8px 18px rgba(31, 42, 63, 0.08);
+}
+
+.chatter-app--mobile .shell-mobile-banner h2 {
+  font-size: 1.25rem;
+}
+
+.chatter-app--mobile .shell-mobile-banner p {
+  font-size: 0.95rem;
+  color: var(--text-soft);
 }
 
 .shell-brand__badge {
@@ -127,6 +161,11 @@ summary::-webkit-details-marker {
   align-items: flex-start;
 }
 
+.chatter-app--mobile .shell-menu {
+  flex-direction: column;
+  align-items: stretch;
+}
+
 .menu-item {
   background: var(--surface);
   border-radius: 20px;
@@ -135,6 +174,11 @@ summary::-webkit-details-marker {
   min-width: 220px;
   flex: 1 1 240px;
   overflow: hidden;
+}
+
+.chatter-app--mobile .menu-item {
+  min-width: 0;
+  flex: 1 1 auto;
 }
 
 .menu-item summary {
@@ -180,6 +224,10 @@ summary::-webkit-details-marker {
   flex-direction: column;
   gap: 1.75rem;
   order: -1;
+}
+
+.chatter-app--mobile .chatter-layout {
+  order: 0;
 }
 
 .terminal-section {
@@ -766,6 +814,14 @@ summary::-webkit-details-marker {
   gap: 0.75rem;
 }
 
+.chatter-app--mobile .terminal__controls-buttons {
+  flex-direction: column;
+}
+
+.chatter-app--mobile .terminal__controls-buttons button {
+  width: 100%;
+}
+
 .terminal__controls-buttons button,
 .terminal__target-actions button {
   background: linear-gradient(90deg, rgba(180, 243, 155, 0.95), rgba(255, 183, 213, 0.95));
@@ -816,6 +872,89 @@ summary::-webkit-details-marker {
   gap: 1rem;
   background: rgba(255, 255, 255, 0.95);
   border-top: 1px solid var(--border);
+}
+
+.terminal__entry {
+  margin-top: 1.25rem;
+  background: rgba(255, 255, 255, 0.95);
+  border: 1px solid var(--border-strong);
+  border-radius: 22px;
+  padding: 1.25rem 1.5rem 1.5rem;
+  box-shadow: var(--shadow-soft);
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  transition: box-shadow 0.2s ease, border-color 0.2s ease;
+}
+
+.terminal__entry--focused {
+  border-color: rgba(158, 216, 255, 0.85);
+  box-shadow: 0 18px 36px rgba(158, 216, 255, 0.3);
+}
+
+.chatter-app--mobile .terminal__entry {
+  border-color: rgba(158, 216, 255, 0.6);
+  box-shadow: 0 16px 32px rgba(158, 216, 255, 0.25);
+}
+
+.terminal__entry-header {
+  display: flex;
+  flex-direction: column;
+  gap: 0.45rem;
+}
+
+.terminal__entry-title {
+  margin: 0;
+  font-size: 1.1rem;
+}
+
+.terminal__entry-subtitle {
+  margin: 0;
+  font-size: 0.92rem;
+  color: var(--text-soft);
+}
+
+.terminal__entry-field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.terminal__entry-label {
+  font-size: 0.78rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--text-faint);
+  font-weight: 600;
+}
+
+.terminal__capture {
+  width: 100%;
+  min-height: 3.5rem;
+  padding: 0.85rem 1rem;
+  border-radius: 16px;
+  border: 1px solid var(--border-strong);
+  background: rgba(8, 14, 31, 0.92);
+  color: #f8fafc;
+  font-family: 'IBM Plex Mono', 'SFMono-Regular', Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New', monospace;
+  font-size: 0.95rem;
+  line-height: 1.5;
+  resize: vertical;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.terminal__capture::placeholder {
+  color: rgba(248, 250, 252, 0.55);
+}
+
+.terminal__capture:focus-visible {
+  outline: none;
+  border-color: rgba(158, 216, 255, 0.85);
+  box-shadow: 0 0 0 3px rgba(158, 216, 255, 0.3);
+}
+
+.chatter-app--mobile [data-terminal-focus] {
+  display: none;
 }
 
 .terminal__target-form {
@@ -969,17 +1108,6 @@ summary::-webkit-details-marker {
 
 .terminal__line--error {
   color: #fb7185;
-}
-
-.terminal__capture {
-  position: absolute;
-  top: 50%;
-  left: 50%;
-  width: 1px;
-  height: 1px;
-  opacity: 0;
-  pointer-events: none;
-  transform: translate(-50%, -50%);
 }
 
 .terminal__game {
