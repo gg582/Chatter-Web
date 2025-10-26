@@ -27,8 +27,8 @@ export default function Home() {
         <section className="shell-mobile-banner" data-mobile-banner>
           <h2>Mobile lounge ready</h2>
           <p>
-            When we detect iOS, Android, postmarketOS, UBports, or BlackBerry devices, the terminal switches to a buffered
-            composer so you can dispatch commands a line at a time without input lag.
+            When we detect iOS, Android, postmarketOS, UBports, or BlackBerry devices, we highlight the dedicated command entry
+            beneath the terminal so keystrokes, arrows, and Ctrl shortcuts land reliably over telnet or SSH.
           </p>
         </section>
         <nav className="shell-menu" aria-label="Lounge menu">

@@ -516,77 +516,59 @@ const createRuntime = (container: HTMLElement): TerminalRuntime => {
     target.placeholders.port || (target.defaults.protocol === 'ssh' ? '22' : '23');
 
   const root = container.closest<HTMLElement>('[data-chatter-root]');
-  const rootDatasetPlatform = root?.dataset.mobilePlatform;
   const containerDatasetPlatform = container.dataset.mobilePlatform;
-  const resolvedDatasetPlatform =
-    (containerDatasetPlatform && isMobilePlatform(containerDatasetPlatform)
-      ? containerDatasetPlatform
-      : undefined) ??
-    (rootDatasetPlatform && isMobilePlatform(rootDatasetPlatform) ? rootDatasetPlatform : undefined);
-  const mobilePlatform: MobilePlatform | null = resolvedDatasetPlatform ?? detectMobilePlatform();
-
-  const rootDatasetLabel = root?.dataset.mobilePlatformLabel;
   const containerDatasetLabel = container.dataset.mobilePlatformLabel;
-  const resolvedLabel =
-    containerDatasetLabel && containerDatasetLabel.trim()
-      ? containerDatasetLabel
-      : rootDatasetLabel && rootDatasetLabel.trim()
-        ? rootDatasetLabel
-        : mobilePlatform
-          ? describeMobilePlatform(mobilePlatform)
-          : '';
+  const rootDatasetPlatform = root?.dataset.mobilePlatform;
+  const rootDatasetLabel = root?.dataset.mobilePlatformLabel;
 
-  if (mobilePlatform) {
-    container.dataset.mobilePlatform = mobilePlatform;
-    if (resolvedLabel) {
-      container.dataset.mobilePlatformLabel = resolvedLabel;
+  let detectedPlatform: MobilePlatform | null = null;
+  let detectedLabel = '';
+
+  if (containerDatasetPlatform && isMobilePlatform(containerDatasetPlatform)) {
+    detectedPlatform = containerDatasetPlatform;
+    if (containerDatasetLabel && containerDatasetLabel.trim()) {
+      detectedLabel = containerDatasetLabel.trim();
     }
-    if (root && !root.classList.contains('chatter-app--mobile')) {
+  } else if (rootDatasetPlatform && isMobilePlatform(rootDatasetPlatform)) {
+    detectedPlatform = rootDatasetPlatform;
+    if (rootDatasetLabel && rootDatasetLabel.trim()) {
+      detectedLabel = rootDatasetLabel.trim();
+    }
+  }
+
+  if (!detectedPlatform) {
+    const fallbackPlatform = detectMobilePlatform();
+    if (fallbackPlatform) {
+      detectedPlatform = fallbackPlatform;
+    }
+  }
+
+  if (detectedPlatform && !detectedLabel) {
+    detectedLabel = describeMobilePlatform(detectedPlatform);
+  }
+
+  if (detectedPlatform) {
+    container.dataset.mobilePlatform = detectedPlatform;
+    if (detectedLabel) {
+      container.dataset.mobilePlatformLabel = detectedLabel;
+    }
+    if (root) {
       root.classList.add('chatter-app--mobile');
-    }
-    if (root && !root.dataset.mobilePlatform) {
-      root.dataset.mobilePlatform = mobilePlatform;
-    }
-    if (root && resolvedLabel && !root.dataset.mobilePlatformLabel) {
-      root.dataset.mobilePlatformLabel = resolvedLabel;
+      if (!root.dataset.mobilePlatform) {
+        root.dataset.mobilePlatform = detectedPlatform;
+      }
+      if (detectedLabel && !root.dataset.mobilePlatformLabel) {
+        root.dataset.mobilePlatformLabel = detectedLabel;
+      }
     }
   } else {
     delete container.dataset.mobilePlatform;
     delete container.dataset.mobilePlatformLabel;
   }
 
-  const mobileSection = mobilePlatform
-    ? `
-      <section class="terminal__mobile" data-terminal-mobile>
-        <div class="terminal__mobile-header">
-          <h3 class="terminal__mobile-title">Mobile command buffer</h3>
-          <p class="terminal__mobile-subtitle">
-            Detected ${escapeHtml(resolvedLabel || describeMobilePlatform(mobilePlatform))}. Queue your commands below and send them one
-            line at a time to avoid per-keystroke delays on telnet or SSH.
-          </p>
-          <p class="terminal__mobile-status" data-terminal-mobile-status aria-live="polite"></p>
-        </div>
-        <form class="terminal__mobile-form" data-terminal-mobile-form>
-          <label class="terminal__mobile-field">
-            <span class="terminal__mobile-label">Buffered input</span>
-            <textarea
-              rows="4"
-              data-terminal-mobile-buffer
-              placeholder="Type commands here. Use Send line to dispatch the first line."
-              autocomplete="off"
-              autocorrect="off"
-              autocapitalize="off"
-              spellcheck="false"
-            ></textarea>
-          </label>
-          <div class="terminal__mobile-actions">
-            <button type="submit" data-terminal-mobile-send>Send line</button>
-            <button type="button" data-terminal-mobile-clear>Clear</button>
-          </div>
-        </form>
-      </section>
-    `
-    : '';
+  const entryIntro = detectedLabel
+    ? `Detected ${escapeHtml(detectedLabel)}. The dedicated command entry captures arrows, Ctrl shortcuts, and text for the bridge.`
+    : 'Use the dedicated command entry to keep arrows, Ctrl shortcuts, and text flowing straight to the bridge.';
 
   container.innerHTML = `
     <section class="card card--terminal">
@@ -626,7 +608,7 @@ const createRuntime = (container: HTMLElement): TerminalRuntime => {
         <div class="terminal__controls-buttons">
           <button type="button" data-terminal-connect>Connect</button>
           <button type="button" data-terminal-disconnect disabled>Disconnect</button>
-          <button type="button" data-terminal-focus>Focus terminal</button>
+          <button type="button" data-terminal-focus>Focus command entry</button>
         </div>
       </div>
       <details class="terminal__options" data-terminal-options>
@@ -677,7 +659,7 @@ const createRuntime = (container: HTMLElement): TerminalRuntime => {
         </div>
       </details>
       <p class="terminal__note">
-        Arrow keys, Tab, and Ctrl shortcuts reach the bridge. Tap Focus if the terminal stops listening.
+        Arrow keys, Tab, and Ctrl shortcuts flow through the command entry. Tap Focus if the bridge stops listening.
       </p>
       <p class="terminal__note terminal__note--alpha">
         Need a refresher? The cheatsheet lists colourful ANSI cues for classic commands.
@@ -685,16 +667,25 @@ const createRuntime = (container: HTMLElement): TerminalRuntime => {
       <div class="terminal__viewport" data-terminal-viewport>
         <div class="terminal__output" data-terminal-output></div>
       </div>
-      ${mobileSection}
-      <textarea
-        class="terminal__capture"
-        data-terminal-capture
-        aria-label="Web terminal input"
-        autocomplete="off"
-        autocorrect="off"
-        autocapitalize="off"
-        spellcheck="false"
-      ></textarea>
+      <section class="terminal__entry" data-terminal-entry>
+        <header class="terminal__entry-header">
+          <h3 class="terminal__entry-title">Command entry</h3>
+          <p class="terminal__entry-subtitle">${entryIntro}</p>
+        </header>
+        <label class="terminal__entry-field">
+          <span class="terminal__entry-label">Live terminal input</span>
+          <textarea
+            class="terminal__capture"
+            data-terminal-capture
+            rows="3"
+            placeholder="Focus here and type. Enter sends a newline to the bridge."
+            autocomplete="off"
+            autocorrect="off"
+            autocapitalize="off"
+            spellcheck="false"
+          ></textarea>
+        </label>
+      </section>
       <p class="terminal__game" data-terminal-game></p>
     </section>
   `;
@@ -718,11 +709,7 @@ const createRuntime = (container: HTMLElement): TerminalRuntime => {
   const targetResetButton = container.querySelector<HTMLButtonElement>('[data-terminal-target-reset]');
   const targetStatus = container.querySelector<HTMLElement>('[data-terminal-target-status]');
   const optionsElement = container.querySelector<HTMLDetailsElement>('[data-terminal-options]');
-  const mobileForm = container.querySelector<HTMLFormElement>('[data-terminal-mobile-form]');
-  const mobileBuffer = container.querySelector<HTMLTextAreaElement>('[data-terminal-mobile-buffer]');
-  const mobileSendButton = container.querySelector<HTMLButtonElement>('[data-terminal-mobile-send]');
-  const mobileClearButton = container.querySelector<HTMLButtonElement>('[data-terminal-mobile-clear]');
-  const mobileStatus = container.querySelector<HTMLElement>('[data-terminal-mobile-status]');
+  const entryElement = container.querySelector<HTMLElement>('[data-terminal-entry]');
 
   if (
     !statusElement ||
@@ -743,7 +730,8 @@ const createRuntime = (container: HTMLElement): TerminalRuntime => {
     !portInput ||
     !targetResetButton ||
     !targetStatus ||
-    !optionsElement
+    !optionsElement ||
+    !entryElement
   ) {
     throw new Error('Failed to mount the web terminal.');
   }
@@ -1371,10 +1359,12 @@ const createRuntime = (container: HTMLElement): TerminalRuntime => {
 
   runtime.captureElement.addEventListener('focus', () => {
     runtime.viewport.classList.add('terminal__viewport--focused');
+    entryElement.classList.add('terminal__entry--focused');
   });
 
   runtime.captureElement.addEventListener('blur', () => {
     runtime.viewport.classList.remove('terminal__viewport--focused');
+    entryElement.classList.remove('terminal__entry--focused');
   });
 
   let isComposing = false;
