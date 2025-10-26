@@ -236,6 +236,7 @@ type TerminalRuntime = {
 
 type AnsiState = {
   color: string | null;
+  colorCode: number | null;
   background: string | null;
   bold: boolean;
 };
@@ -285,9 +286,25 @@ const ANSI_BACKGROUND_COLOR_MAP: Record<number, string> = {
 
 const ANSI_PATTERN = /\u001b\[([0-9;]*)([A-Za-z])/g;
 
+const ANSI_BOLD_FOREGROUND_ALIASES: Record<number, number> = {
+  30: 90,
+  31: 91,
+  32: 92,
+  33: 93,
+  34: 94,
+  35: 95,
+  36: 96,
+  37: 97
+};
+
+const resolveForegroundColor = (code: number, bold: boolean): string | null => {
+  const effectiveCode = bold ? ANSI_BOLD_FOREGROUND_ALIASES[code] ?? code : code;
+  return ANSI_FOREGROUND_COLOR_MAP[effectiveCode] ?? null;
+};
+
 const createAnsiFragment = (line: string): ParsedAnsiLine => {
   const fragment = document.createDocumentFragment();
-  const state: AnsiState = { color: null, background: null, bold: false };
+  const state: AnsiState = { color: null, colorCode: null, background: null, bold: false };
   let lastIndex = 0;
   let match: RegExpExecArray | null;
 
@@ -335,29 +352,45 @@ const createAnsiFragment = (line: string): ParsedAnsiLine => {
       }
       if (code === 0) {
         state.color = null;
+        state.colorCode = null;
         state.background = null;
         state.bold = false;
         continue;
       }
       if (code === 1) {
         state.bold = true;
+        if (state.colorCode !== null) {
+          const resolved = resolveForegroundColor(state.colorCode, state.bold);
+          state.color = resolved;
+        }
         continue;
       }
       if (code === 22) {
         state.bold = false;
+        if (state.colorCode !== null) {
+          const resolved = resolveForegroundColor(state.colorCode, state.bold);
+          state.color = resolved;
+        }
         continue;
       }
       if (code === 39) {
         state.color = null;
+        state.colorCode = null;
         continue;
       }
       if (code === 49) {
         state.background = null;
         continue;
       }
-      const foreground = ANSI_FOREGROUND_COLOR_MAP[code];
+      const foreground = resolveForegroundColor(code, state.bold);
+      if ((code >= 30 && code <= 37) || (code >= 90 && code <= 97)) {
+        state.colorCode = code;
+        state.color = foreground;
+        continue;
+      }
       if (foreground) {
         state.color = foreground;
+        state.colorCode = code;
         continue;
       }
       const background = ANSI_BACKGROUND_COLOR_MAP[code];
@@ -1022,10 +1055,24 @@ const createRuntime = (container: HTMLElement): TerminalRuntime => {
   });
 
   disconnectButton.addEventListener('click', () => {
-    if (!runtime.socket) {
+    const socket = runtime.socket;
+    if (!socket) {
       return;
     }
-    runtime.socket.close(1000, 'Client closed');
+
+    if (socket.readyState === WebSocket.OPEN) {
+      try {
+        socket.send(textEncoder.encode('\u0003'));
+      } catch (error) {
+        console.warn('Failed to send interrupt sequence', error);
+      }
+    }
+
+    try {
+      socket.close(1000, 'Client closed');
+    } catch (error) {
+      console.warn('Failed to close terminal socket', error);
+    }
   });
 
   const focusCapture = () => {
