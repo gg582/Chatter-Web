@@ -555,9 +555,9 @@ const createRuntime = (container: HTMLElement): TerminalRuntime => {
     lastAvailability = runtime.target.available;
 
     const overrides = loadTargetOverrides();
-    protocolSelect.value = overrides.protocol ?? runtime.target.protocol ?? runtime.target.defaults.protocol;
-    hostInput.value = overrides.host ?? runtime.target.host ?? runtime.target.defaults.host ?? '';
-    portInput.value = overrides.port ?? runtime.target.port ?? runtime.target.defaults.port ?? '';
+    protocolSelect.value = runtime.target.protocol;
+    hostInput.value = runtime.target.host;
+    portInput.value = runtime.target.port;
 
     updateFormPlaceholders();
     updateTargetStatus();
