@@ -259,8 +259,8 @@ const createRuntime = (container: HTMLElement): TerminalRuntime => {
         <div>
           <h2>Terminal bridge</h2>
           <p class="card__description">
-            Keep a dark-paneled TUI close by while the lounge stays bright. The bridge honours the server defaults unless
-            you save an override.
+            Connect with the live board in a couple of taps. Protocol, host, and port come straight from the server
+            defaults unless you store your own target.
           </p>
         </div>
         <div class="terminal__status">
@@ -555,9 +555,9 @@ const createRuntime = (container: HTMLElement): TerminalRuntime => {
     lastAvailability = runtime.target.available;
 
     const overrides = loadTargetOverrides();
-    protocolSelect.value = runtime.target.protocol;
-    hostInput.value = runtime.target.host;
-    portInput.value = runtime.target.port;
+    protocolSelect.value = overrides.protocol ?? runtime.target.protocol ?? runtime.target.defaults.protocol;
+    hostInput.value = overrides.host ?? runtime.target.host ?? runtime.target.defaults.host ?? '';
+    portInput.value = overrides.port ?? runtime.target.port ?? runtime.target.defaults.port ?? '';
 
     updateFormPlaceholders();
     updateTargetStatus();

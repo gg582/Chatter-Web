@@ -49,7 +49,7 @@ export const renderChatFeed = (store: ChatStore, container: HTMLElement) => {
       <span class="card__glyph" aria-hidden="true">chat</span>
       <div class="card__titles">
         <h2>Room chat</h2>
-        <p class="card__subtitle">Share lounge updates with friends on telnet and the web alike.</p>
+        <p class="card__subtitle">Trade short notes with everyone tuning in from terminals or the web.</p>
       </div>
     </header>
     <div class="card__body card__body--stacked">

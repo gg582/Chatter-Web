@@ -3,10 +3,10 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>Chatter BBS Lounge</title>
+    <title>Chatter BBS Bridge</title>
     <meta
       name="description"
-      content="A pastel lounge for Chatter BBS with room chat, quick utilities, and a built-in terminal bridge."
+      content="A light lounge for Chatter BBS with a prominent terminal bridge and quick menus."
     />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
@@ -18,22 +18,38 @@
   </head>
   <body>
     <div class="chatter-app" data-chatter-root>
-      <header class="chatter-app__header">
-        <p class="chatter-app__ribbon">Chatter BBS</p>
-        <h1>Welcome to the lounge</h1>
-        <p>
-          Catch up with the community, share quick updates, and keep a terminal bridge handy for hopping into the live TUI
-          room.
-        </p>
+      <header class="chatter-shell">
+        <div class="shell-brand">
+          <span class="shell-brand__badge">Chatter BBS</span>
+          <h1>Link your console</h1>
+          <p>Hop straight into the telnet or SSH board and keep the lightweight lounge nearby.</p>
+        </div>
+        <nav class="shell-menu" aria-label="Lounge menu">
+          <details class="menu-item" data-menu="motd">
+            <summary>Message of the day</summary>
+            <section class="menu-panel" data-component="motd"></section>
+          </details>
+          <details class="menu-item" data-menu="session" open>
+            <summary>Your session</summary>
+            <section class="menu-panel" data-component="session"></section>
+          </details>
+          <details class="menu-item" data-menu="utility">
+            <summary>Utilities</summary>
+            <section class="menu-panel" data-component="utility"></section>
+          </details>
+          <details class="menu-item" data-menu="cheatsheet">
+            <summary>Command cheatsheet</summary>
+            <section class="menu-panel" data-component="cheatsheet"></section>
+          </details>
+        </nav>
       </header>
-      <main class="chatter-app__main">
-        <section class="panel panel--chat" data-component="chat-feed"></section>
-        <aside class="chatter-app__sidebar">
-          <section class="panel" data-component="motd"></section>
-          <section class="panel" data-component="session"></section>
-          <section class="panel" data-component="utility"></section>
-          <section class="panel" data-component="cheatsheet"></section>
-        </aside>
+      <main class="chatter-layout">
+        <section class="terminal-section">
+          <div class="panel panel--terminal" data-component="terminal"></div>
+        </section>
+        <section class="chat-section">
+          <div class="panel panel--chat" data-component="chat-feed"></div>
+        </section>
       </main>
       <section class="chatter-app__terminal">
         <div class="panel panel--terminal" data-component="terminal"></div>

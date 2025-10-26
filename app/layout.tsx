@@ -18,8 +18,8 @@ const ibmPlexMono = IBM_Plex_Mono({
 });
 
 export const metadata: Metadata = {
-  title: 'Chatter BBS Control Deck',
-  description: 'A Vercel-ready control deck that mirrors the full Chatter CLI.'
+  title: 'Chatter BBS Bridge',
+  description: 'A pastel lounge with a focused terminal bridge for Chatter BBS.'
 };
 
 export default function RootLayout({ children }: { children: ReactNode }) {

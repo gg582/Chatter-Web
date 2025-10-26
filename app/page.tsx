@@ -18,22 +18,38 @@ export default function Home() {
 
   return (
     <div className="chatter-app" data-chatter-root ref={rootRef}>
-      <header className="chatter-app__header">
-        <p className="chatter-app__ribbon">Chatter BBS</p>
-        <h1>Welcome to the lounge</h1>
-        <p>
-          Catch up with the community, share quick updates, and keep a terminal bridge handy for hopping into the live
-          TUI room.
-        </p>
+      <header className="chatter-shell">
+        <div className="shell-brand">
+          <span className="shell-brand__badge">Chatter BBS</span>
+          <h1>Link your console</h1>
+          <p>Hop straight into the telnet or SSH board and keep the lightweight lounge nearby.</p>
+        </div>
+        <nav className="shell-menu" aria-label="Lounge menu">
+          <details className="menu-item" data-menu="motd">
+            <summary>Message of the day</summary>
+            <section className="menu-panel" data-component="motd" />
+          </details>
+          <details className="menu-item" data-menu="session" open>
+            <summary>Your session</summary>
+            <section className="menu-panel" data-component="session" />
+          </details>
+          <details className="menu-item" data-menu="utility">
+            <summary>Utilities</summary>
+            <section className="menu-panel" data-component="utility" />
+          </details>
+          <details className="menu-item" data-menu="cheatsheet">
+            <summary>Command cheatsheet</summary>
+            <section className="menu-panel" data-component="cheatsheet" />
+          </details>
+        </nav>
       </header>
-      <main className="chatter-app__main">
-        <section className="panel panel--chat" data-component="chat-feed" />
-        <aside className="chatter-app__sidebar">
-          <section className="panel" data-component="motd" />
-          <section className="panel" data-component="session" />
-          <section className="panel" data-component="utility" />
-          <section className="panel" data-component="cheatsheet" />
-        </aside>
+      <main className="chatter-layout">
+        <section className="terminal-section">
+          <div className="panel panel--terminal" data-component="terminal" />
+        </section>
+        <section className="chat-section">
+          <div className="panel panel--chat" data-component="chat-feed" />
+        </section>
       </main>
       <section className="chatter-app__terminal">
         <div className="panel panel--terminal" data-component="terminal" />
