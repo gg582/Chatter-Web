@@ -45,8 +45,8 @@ export const renderSession = (store: ChatStore, container: HTMLElement, root?: H
       <header class="session-panel__header">
         <span class="session-panel__glyph" aria-hidden="true">sys</span>
         <div class="session-panel__titles">
-          <h2>Session link</h2>
-          <p>${state.sessionActive ? 'Bridge ready for commands' : 'Reconnect to resume the bridge'}</p>
+          <h2>Your status</h2>
+          <p>${state.sessionActive ? 'Bridge open and listening.' : 'Reconnect to reopen your bridge.'}</p>
         </div>
         <span class="session-panel__status session-panel__status--${state.sessionActive ? 'online' : 'offline'}">
           ${state.sessionActive ? 'online' : 'offline'}

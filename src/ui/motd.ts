@@ -11,7 +11,7 @@ export const renderMotd = (store: ChatStore, container: HTMLElement) => {
       <span class="card__glyph" aria-hidden="true">motd</span>
       <div class="card__titles">
         <h2>Message of the day</h2>
-        <p class="card__subtitle">Synced from /motd broadcast</p>
+        <p class="card__subtitle">Straight from the BBS welcome board.</p>
       </div>
     </header>
     <article class="motd">

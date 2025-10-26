@@ -17,34 +17,27 @@ export default function Home() {
   }, []);
 
   return (
-    <div className="terminal-shell" data-chatter-root ref={rootRef}>
-      <div className="terminal-shell__scanlines" aria-hidden="true" />
-      <div className="terminal-shell__frame">
-        <header className="terminal-shell__header">
-          <div className="terminal-shell__brand">
-            <span className="terminal-shell__brand-code">:: chatter bbs ::</span>
-            <h1>Hypertext Bridge Console</h1>
-            <p>
-              Operate the telnet and SSH matrix through a web-native viewport. Every slash command is mapped to controls,
-              toggles, and keyboards that feel like a classic terminal brought online.
-            </p>
-          </div>
-          <div className="terminal-shell__session card card--session" data-component="session" />
-        </header>
-        <main className="terminal-shell__grid">
-          <section className="terminal-shell__column terminal-shell__column--left">
-            <div className="card card--terminal" data-component="terminal" />
-            <div className="card card--motd" data-component="motd" />
-          </section>
-          <section className="terminal-shell__column terminal-shell__column--center">
-            <div className="card card--chat" data-component="chat-feed" />
-          </section>
-          <section className="terminal-shell__column terminal-shell__column--right">
-            <div className="card card--utility" data-component="utility" />
-            <div className="card card--cheatsheet" data-component="cheatsheet" />
-          </section>
-        </main>
-      </div>
+    <div className="chatter-app" data-chatter-root ref={rootRef}>
+      <header className="chatter-app__header">
+        <p className="chatter-app__ribbon">Chatter BBS</p>
+        <h1>Welcome to the lounge</h1>
+        <p>
+          Catch up with the community, share quick updates, and keep a terminal bridge handy for hopping into the live
+          TUI room.
+        </p>
+      </header>
+      <main className="chatter-app__main">
+        <section className="panel panel--chat" data-component="chat-feed" />
+        <aside className="chatter-app__sidebar">
+          <section className="panel" data-component="motd" />
+          <section className="panel" data-component="session" />
+          <section className="panel" data-component="utility" />
+          <section className="panel" data-component="cheatsheet" />
+        </aside>
+      </main>
+      <section className="chatter-app__terminal">
+        <div className="panel panel--terminal" data-component="terminal" />
+      </section>
     </div>
   );
 }

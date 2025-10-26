@@ -48,8 +48,8 @@ export const renderChatFeed = (store: ChatStore, container: HTMLElement) => {
     <header class="card__header">
       <span class="card__glyph" aria-hidden="true">chat</span>
       <div class="card__titles">
-        <h2>Chat feed</h2>
-        <p class="card__subtitle">Regular messages appear here just like the live SSH room.</p>
+        <h2>Room chat</h2>
+        <p class="card__subtitle">Share lounge updates with friends on telnet and the web alike.</p>
       </div>
     </header>
     <div class="card__body card__body--stacked">
