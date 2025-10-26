@@ -17,26 +17,34 @@ export default function Home() {
   }, []);
 
   return (
-    <div className="page" data-chatter-root ref={rootRef}>
-      <header className="page__header">
-        <div className="page__title">
-          <h1>Chatter BBS Control Deck</h1>
-          <p>
-            This dashboard mirrors the SSH help output of Chatter. Every command listed in the CLI has a matching control,
-            so you can browse, moderate, and customise the BBS without typing a slash command.
-          </p>
-        </div>
-        <div className="page__status" data-component="session" />
-      </header>
-      <div data-component="terminal" />
-      <main className="layout">
-        <section className="column column--chat">
-          <div className="card card--motd" data-component="motd" />
-          <div className="card card--chat" data-component="chat-feed" />
-        </section>
-        <section className="column column--utility" data-component="utility" />
-        <aside className="column column--cheatsheet" data-component="cheatsheet" />
-      </main>
+    <div className="terminal-shell" data-chatter-root ref={rootRef}>
+      <div className="terminal-shell__scanlines" aria-hidden="true" />
+      <div className="terminal-shell__frame">
+        <header className="terminal-shell__header">
+          <div className="terminal-shell__brand">
+            <span className="terminal-shell__brand-code">:: chatter bbs ::</span>
+            <h1>Hypertext Bridge Console</h1>
+            <p>
+              Operate the telnet and SSH matrix through a web-native viewport. Every slash command is mapped to controls,
+              toggles, and keyboards that feel like a classic terminal brought online.
+            </p>
+          </div>
+          <div className="terminal-shell__session card card--session" data-component="session" />
+        </header>
+        <main className="terminal-shell__grid">
+          <section className="terminal-shell__column terminal-shell__column--left">
+            <div className="card card--terminal" data-component="terminal" />
+            <div className="card card--motd" data-component="motd" />
+          </section>
+          <section className="terminal-shell__column terminal-shell__column--center">
+            <div className="card card--chat" data-component="chat-feed" />
+          </section>
+          <section className="terminal-shell__column terminal-shell__column--right">
+            <div className="card card--utility" data-component="utility" />
+            <div className="card card--cheatsheet" data-component="cheatsheet" />
+          </section>
+        </main>
+      </div>
     </div>
   );
 }
