@@ -188,7 +188,7 @@ summary::-webkit-details-marker {
 @media (min-width: 1080px) {
   .chatter-layout {
     display: grid;
-    grid-template-columns: minmax(0, 1.25fr) minmax(0, 1fr);
+    grid-template-columns: minmax(0, 3.25fr) minmax(0, 1fr);
     gap: 1.75rem;
   }
 
