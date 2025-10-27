@@ -107,6 +107,86 @@ const clearTargetOverrides = () => {
   window.localStorage.removeItem(TARGET_STORAGE_KEY);
 };
 
+const stripIpv6Brackets = (value: string) =>
+  value.startsWith('[') && value.endsWith(']') ? value.slice(1, -1) : value;
+
+const stripZoneId = (value: string) => (value.includes('%') ? value.split('%', 1)[0] : value);
+
+const isPrivateIpv4 = (segments: number[]) => {
+  if (segments.length !== 4 || segments.some((part) => Number.isNaN(part) || part < 0 || part > 255)) {
+    return false;
+  }
+
+  const [a, b] = segments;
+
+  if (a === 10 || a === 127 || a === 0) {
+    return true;
+  }
+
+  if (a === 192 && b === 168) {
+    return true;
+  }
+
+  if (a === 172 && b >= 16 && b <= 31) {
+    return true;
+  }
+
+  if (a === 169 && b === 254) {
+    return true;
+  }
+
+  if (a === 100 && b >= 64 && b <= 127) {
+    return true;
+  }
+
+  return false;
+};
+
+const isPrivateIpv6 = (value: string) => {
+  const normalised = value.toLowerCase();
+
+  if (normalised === '::1' || normalised === '::') {
+    return true;
+  }
+
+  if (normalised.startsWith('fc') || normalised.startsWith('fd')) {
+    return true;
+  }
+
+  if (normalised.startsWith('fe8') || normalised.startsWith('fe9') || normalised.startsWith('fea') || normalised.startsWith('feb')) {
+    return true;
+  }
+
+  return false;
+};
+
+const isBlockedHostOverride = (value: string): boolean => {
+  const withoutBrackets = stripIpv6Brackets(value);
+  const stripped = stripZoneId(withoutBrackets);
+  const lower = stripped.toLowerCase();
+
+  if (!stripped) {
+    return true;
+  }
+
+  if (lower === 'localhost' || lower.endsWith('.localhost')) {
+    return true;
+  }
+
+  const ipv4Parts = stripped.split('.');
+  const isPotentialIpv4 = ipv4Parts.length === 4 && ipv4Parts.every((segment) => /^\d+$/.test(segment));
+  if (isPotentialIpv4) {
+    return isPrivateIpv4(ipv4Parts.map((segment) => Number.parseInt(segment, 10)));
+  }
+
+  const ipv6Candidate = stripped.replace(/[^0-9a-f:]/gi, '');
+  if (ipv6Candidate.includes(':') && /^[0-9a-f:]+$/i.test(ipv6Candidate)) {
+    return isPrivateIpv6(stripped);
+  }
+
+  return false;
+};
+
 const readRuntimeConfig = () => {
   if (typeof window === 'undefined') {
     return undefined;
@@ -281,6 +361,8 @@ type TerminalRuntime = {
   entryStatusElement: HTMLElement;
   entrySendButton: HTMLButtonElement;
   entryClearButton: HTMLButtonElement;
+  entryPreviewElement: HTMLDivElement;
+  entryPreviewTextElement: HTMLPreElement;
   connectButton: HTMLButtonElement;
   disconnectButton: HTMLButtonElement;
   focusButton: HTMLButtonElement;
@@ -302,6 +384,11 @@ type TerminalRuntime = {
   target: TerminalTarget;
   incomingBuffer: string;
   incomingLineElement: HTMLPreElement | null;
+  asciiArtBlock: {
+    element: HTMLPreElement;
+    lines: string[];
+    currentLine: string;
+  } | null;
   maxOutputLines: number;
   appendLine: (text: string, kind?: TerminalLineKind) => void;
   updateStatus: (label: string, state: 'disconnected' | 'connecting' | 'connected') => void;
@@ -718,6 +805,15 @@ const createRuntime = (container: HTMLElement): TerminalRuntime => {
           </div>
           <div class="terminal-chat__viewport terminal__viewport" data-terminal-viewport>
             <div class="terminal-chat__output terminal__output" data-terminal-output></div>
+            <div
+              class="terminal-chat__entry-preview"
+              data-terminal-entry-preview
+              hidden
+              aria-hidden="true"
+            >
+              <span class="terminal-chat__entry-preview-caret" aria-hidden="true">›</span>
+              <pre class="terminal-chat__entry-preview-text" data-terminal-entry-preview-text></pre>
+            </div>
           </div>
           <p class="terminal__game terminal-chat__game" data-terminal-game></p>
         </div>
@@ -811,6 +907,8 @@ const createRuntime = (container: HTMLElement): TerminalRuntime => {
   const entryStatusElement = entryElement?.querySelector<HTMLElement>('[data-terminal-entry-status]');
   const entrySendButton = entryElement?.querySelector<HTMLButtonElement>('[data-terminal-entry-send]');
   const entryClearButton = entryElement?.querySelector<HTMLButtonElement>('[data-terminal-entry-clear]');
+  const entryPreviewElement = container.querySelector<HTMLDivElement>('[data-terminal-entry-preview]');
+  const entryPreviewTextElement = container.querySelector<HTMLPreElement>('[data-terminal-entry-preview-text]');
   const mobileForm = container.querySelector<HTMLFormElement>('[data-terminal-mobile-form]');
   const mobileBuffer = container.querySelector<HTMLTextAreaElement>('[data-terminal-mobile-buffer]');
   const mobileSendButton = container.querySelector<HTMLButtonElement>('[data-terminal-mobile-send]');
@@ -847,6 +945,8 @@ const createRuntime = (container: HTMLElement): TerminalRuntime => {
     !entryStatusElement ||
     !entrySendButton ||
     !entryClearButton
+    || !entryPreviewElement
+    || !entryPreviewTextElement
     ) {
       throw new Error('Failed to mount the web terminal.');
     }
@@ -872,6 +972,8 @@ const createRuntime = (container: HTMLElement): TerminalRuntime => {
     entryStatusElement,
     entrySendButton,
     entryClearButton,
+    entryPreviewElement,
+    entryPreviewTextElement,
     connectButton,
     disconnectButton,
     focusButton,
@@ -894,6 +996,7 @@ const createRuntime = (container: HTMLElement): TerminalRuntime => {
     connecting: false,
     incomingBuffer: '',
     incomingLineElement: null,
+    asciiArtBlock: null,
     maxOutputLines: 600,
     appendLine: (text: string, kind: TerminalLineKind = 'info') => {
       if (kind === 'incoming') {
@@ -1009,6 +1112,11 @@ const createRuntime = (container: HTMLElement): TerminalRuntime => {
   });
 
   function ensureIncomingLine(): HTMLPreElement {
+    if (runtime.asciiArtBlock) {
+      runtime.incomingLineElement = runtime.asciiArtBlock.element;
+      return runtime.asciiArtBlock.element;
+    }
+
     if (runtime.incomingLineElement && runtime.incomingLineElement.isConnected) {
       return runtime.incomingLineElement;
     }
@@ -1056,6 +1164,98 @@ const createRuntime = (container: HTMLElement): TerminalRuntime => {
     window.addEventListener('resize', handleResize);
   }
 
+  const asciiArtHeaderPattern = /shared ascii art:/i;
+  const asciiArtPromptPattern = /^│\s*>/i;
+  const asciiArtMessagePattern = /^#\d+\]/;
+
+  const shouldStartAsciiArtBlock = (line: string) => asciiArtHeaderPattern.test(line);
+
+  const isAsciiArtTerminator = (line: string) => {
+    const trimmed = line.trimStart();
+    return asciiArtPromptPattern.test(trimmed) || asciiArtMessagePattern.test(trimmed);
+  };
+
+  const updateAsciiArtPreview = (currentLine: string) => {
+    const block = runtime.asciiArtBlock;
+    if (!block) {
+      return;
+    }
+    block.currentLine = currentLine;
+    const visibleLines = currentLine ? [...block.lines, currentLine] : [...block.lines];
+    block.element.textContent = visibleLines.join('\n');
+  };
+
+  const startAsciiArtBlock = (headerLine: string, element: HTMLPreElement) => {
+    runtime.asciiArtBlock = {
+      element,
+      lines: [headerLine],
+      currentLine: ''
+    };
+    element.classList.add('terminal__line--ascii-art');
+    element.dataset.terminalBlock = 'ascii-art';
+    applyTrailingBackground(element, null);
+    element.textContent = headerLine;
+    runtime.incomingLineElement = element;
+    runtime.incomingBuffer = '';
+  };
+
+  const appendAsciiArtLine = (line: string) => {
+    const block = runtime.asciiArtBlock;
+    if (!block) {
+      return;
+    }
+    block.lines.push(line);
+    block.currentLine = '';
+    block.element.textContent = block.lines.join('\n');
+  };
+
+  const finishAsciiArtBlock = () => {
+    const block = runtime.asciiArtBlock;
+    if (!block) {
+      return;
+    }
+    block.currentLine = '';
+    block.element.textContent = block.lines.join('\n');
+    runtime.asciiArtBlock = null;
+    runtime.incomingLineElement = null;
+    runtime.incomingBuffer = '';
+  };
+
+  const appendStandaloneLine = (line: string) => {
+    const entry = document.createElement('pre');
+    entry.className = 'terminal__line terminal__line--incoming';
+    const { fragment, trailingBackground } = createAnsiFragment(line);
+    entry.append(fragment);
+    applyTrailingBackground(entry, trailingBackground);
+    runtime.outputElement.append(entry);
+    limitOutputLines(runtime.outputElement, runtime.maxOutputLines);
+  };
+
+  const handleAsciiLineCommit = (line: string) => {
+    if (!runtime.asciiArtBlock) {
+      return;
+    }
+
+    if (isAsciiArtTerminator(line)) {
+      finishAsciiArtBlock();
+      if (line) {
+        appendStandaloneLine(line);
+      }
+      return;
+    }
+
+    appendAsciiArtLine(line);
+  };
+
+  const handleRegularLineCommit = (line: string, element: HTMLPreElement | null) => {
+    if (!shouldStartAsciiArtBlock(line)) {
+      return;
+    }
+
+    const target = element ?? ensureIncomingLine();
+    startAsciiArtBlock(line, target);
+  };
+
   function processIncomingChunk(chunk: string) {
     if (!chunk) {
       return;
@@ -1067,23 +1267,37 @@ const createRuntime = (container: HTMLElement): TerminalRuntime => {
 
     for (const char of chunk) {
       if (char === '\r') {
-        const target = ensureIncomingLine();
-        renderAnsiLine(target, buffer);
+        if (runtime.asciiArtBlock) {
+          updateAsciiArtPreview(buffer);
+          lineElement = runtime.asciiArtBlock.element;
+          runtime.incomingLineElement = runtime.asciiArtBlock.element;
+        } else {
+          const target = ensureIncomingLine();
+          renderAnsiLine(target, buffer);
+          lineElement = runtime.incomingLineElement;
+        }
         buffer = '';
-        lineElement = runtime.incomingLineElement;
         needsRender = false;
         continue;
       }
 
       if (char === '\n') {
-        if (buffer || !lineElement) {
-          const target = ensureIncomingLine();
-          renderAnsiLine(target, buffer);
+        if (runtime.asciiArtBlock) {
+          updateAsciiArtPreview(buffer);
+          handleAsciiLineCommit(buffer);
+        } else {
+          if (buffer || !lineElement) {
+            const target = ensureIncomingLine();
+            renderAnsiLine(target, buffer);
+            lineElement = runtime.incomingLineElement;
+          }
+          handleRegularLineCommit(buffer, lineElement);
         }
+
         buffer = '';
-        lineElement = null;
+        lineElement = runtime.asciiArtBlock ? runtime.asciiArtBlock.element : null;
         runtime.incomingBuffer = '';
-        runtime.incomingLineElement = null;
+        runtime.incomingLineElement = runtime.asciiArtBlock ? runtime.asciiArtBlock.element : null;
         needsRender = false;
         continue;
       }
@@ -1101,9 +1315,15 @@ const createRuntime = (container: HTMLElement): TerminalRuntime => {
     }
 
     if (needsRender) {
-      const target = ensureIncomingLine();
-      renderAnsiLine(target, buffer);
-      lineElement = target;
+      if (runtime.asciiArtBlock) {
+        updateAsciiArtPreview(buffer);
+        lineElement = runtime.asciiArtBlock.element;
+        runtime.incomingLineElement = runtime.asciiArtBlock.element;
+      } else {
+        const target = ensureIncomingLine();
+        renderAnsiLine(target, buffer);
+        lineElement = target;
+      }
     }
 
     runtime.incomingBuffer = buffer;
@@ -1121,6 +1341,10 @@ const createRuntime = (container: HTMLElement): TerminalRuntime => {
       errors.push('Host overrides cannot contain spaces and must be under 255 characters.');
     }
 
+    if (hostValue && isBlockedHostOverride(hostValue)) {
+      errors.push('Host overrides cannot target private or loopback addresses.');
+    }
+
     if (portValue) {
       const parsedPort = Number.parseInt(portValue, 10);
       if (!Number.isFinite(parsedPort) || parsedPort <= 0 || parsedPort > 65_535) {
@@ -1134,7 +1358,7 @@ const createRuntime = (container: HTMLElement): TerminalRuntime => {
       overrides.protocol = protocolValue;
     }
 
-    if (hostValue) {
+    if (hostValue && !isBlockedHostOverride(hostValue)) {
       if (!runtime.target.defaults.host || hostValue !== runtime.target.defaults.host) {
         overrides.host = hostValue;
       }
@@ -1514,12 +1738,29 @@ const createRuntime = (container: HTMLElement): TerminalRuntime => {
     return Boolean(runtime.socket && runtime.socket.readyState === WebSocket.OPEN);
   }
 
+  function updateEntryPreview(value: string) {
+    const previewValue = normaliseBufferValue(value);
+    if (!previewValue) {
+      runtime.entryPreviewTextElement.textContent = '';
+      runtime.entryPreviewElement.hidden = true;
+      delete runtime.entryPreviewElement.dataset.previewState;
+      return;
+    }
+
+    runtime.entryPreviewTextElement.textContent = previewValue;
+    runtime.entryPreviewElement.hidden = false;
+    runtime.entryPreviewElement.dataset.previewState = previewValue.includes('\n')
+      ? 'multiline'
+      : 'single';
+  }
+
   function updateEntryControls() {
     const bufferedValue = normaliseBufferValue(runtime.captureElement.value);
     const hasBuffered = bufferedValue.length > 0;
     const socketOpen = isSocketOpen();
     runtime.entrySendButton.disabled = !hasBuffered || !socketOpen;
     runtime.entryClearButton.disabled = !hasBuffered;
+    updateEntryPreview(bufferedValue);
   }
 
   function sendTextPayload(rawValue: string): boolean {
@@ -1707,6 +1948,7 @@ export const renderTerminal = (store: ChatStore, container: HTMLElement) => {
   runtime.updateViewportSizing?.();
 
   const state = store.snapshot();
+  container.classList.toggle('terminal-chat--game', Boolean(state.activeGame));
   if (state.activeGame === 'alpha') {
     runtime.gameStatus.innerHTML =
       'Fly me to Alpha Centauri armed: connect the terminal, then follow the nav charts broadcast in the BBS feeds.';
