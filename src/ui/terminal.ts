@@ -1923,12 +1923,12 @@ const createRuntime = (container: HTMLElement): TerminalRuntime => {
     return true;
   }
 
-    if (typeof window !== 'undefined') {
-      let unloadHandled = false;
-      const handleUnload = () => {
-        if (unloadHandled) {
-          return;
-        }
+  if (typeof window !== 'undefined') {
+    let unloadHandled = false;
+    const handleUnload = () => {
+      if (unloadHandled) {
+        return;
+      }
       unloadHandled = true;
       if (!runtime.socket) {
         return;
@@ -1942,8 +1942,8 @@ const createRuntime = (container: HTMLElement): TerminalRuntime => {
         }
       }
     };
-    window.addEventListener('pagehide', handleUnload);
     window.addEventListener('beforeunload', handleUnload);
+    window.addEventListener('unload', handleUnload);
   }
 
     runtime.captureElement.addEventListener('keydown', (event) => {
