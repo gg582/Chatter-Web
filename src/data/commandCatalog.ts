@@ -21,6 +21,11 @@ export const commandGroups: CommandGroup[] = [
         ui: 'Session card → “Help overview” link.'
       },
       {
+        command: '/motd',
+        description: 'Show the server message of the day.',
+        ui: 'Session card → “Message of the day” banner.'
+      },
+      {
         command: '/exit',
         description: 'Leave the SSH session.',
         ui: 'Session card → Log out button.'

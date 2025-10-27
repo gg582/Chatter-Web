@@ -1328,6 +1328,16 @@ summary::-webkit-details-marker {
   flex-direction: column;
 }
 
+.chatter-app--mobile .terminal__viewport {
+  min-height: 300px;
+  height: auto;
+  max-height: min(70vh, 720px);
+}
+
+.chatter-app--mobile .terminal__output {
+  max-height: min(70vh, 680px);
+}
+
 .terminal__output {
   flex: 1 1 auto;
   min-height: 0;

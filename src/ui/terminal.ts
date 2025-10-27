@@ -380,6 +380,8 @@ type TerminalRuntime = {
   endpointElement: HTMLElement;
   usernameInput: HTMLInputElement;
   usernameField: HTMLElement;
+  passwordInput: HTMLInputElement;
+  passwordField: HTMLElement;
   binaryDecoder: TextDecoder;
   connected: boolean;
   connecting: boolean;
@@ -606,6 +608,10 @@ const limitOutputLines = (output: HTMLElement, maxLines = 600) => {
 
 const computeViewportHeight = (windowHeight: number): number => {
   const minimum = 260;
+  if (!Number.isFinite(windowHeight) || windowHeight <= 0) {
+    return minimum;
+  }
+
   const suggested = Math.max(windowHeight * 0.65, minimum);
   const available = Math.max(windowHeight - 200, minimum);
   const capped = Math.min(suggested, available, 720);
@@ -744,6 +750,17 @@ const createRuntime = (container: HTMLElement): TerminalRuntime => {
                   placeholder="Enter your handle"
                   value="${escapeHtml(target.defaultUsername)}"
                   autocomplete="off"
+                  autocapitalize="none"
+                  spellcheck="false"
+                />
+              </label>
+              <label class="terminal-chat__field terminal__field--inline" data-terminal-password-field>
+                <span class="terminal-chat__field-label">Password</span>
+                <input
+                  type="password"
+                  data-terminal-password
+                  placeholder="Optional password"
+                  autocomplete="current-password"
                   autocapitalize="none"
                   spellcheck="false"
                 />
@@ -892,6 +909,8 @@ const createRuntime = (container: HTMLElement): TerminalRuntime => {
   const endpointElement = container.querySelector<HTMLElement>('[data-terminal-endpoint]');
   const usernameInput = container.querySelector<HTMLInputElement>('[data-terminal-username]');
   const usernameField = container.querySelector<HTMLElement>('[data-terminal-username-field]');
+  const passwordInput = container.querySelector<HTMLInputElement>('[data-terminal-password]');
+  const passwordField = container.querySelector<HTMLElement>('[data-terminal-password-field]');
   const targetForm = container.querySelector<HTMLFormElement>('[data-terminal-target-form]');
   const protocolSelect = container.querySelector<HTMLSelectElement>('[data-terminal-protocol]');
   const hostInput = container.querySelector<HTMLInputElement>('[data-terminal-host]');
@@ -931,6 +950,8 @@ const createRuntime = (container: HTMLElement): TerminalRuntime => {
     !endpointElement ||
     !usernameInput ||
     !usernameField ||
+    !passwordInput ||
+    !passwordField ||
     !menuElement ||
     !menuToggleButton ||
     !menuCloseButton ||
@@ -991,6 +1012,8 @@ const createRuntime = (container: HTMLElement): TerminalRuntime => {
     endpointElement,
     usernameInput,
     usernameField,
+    passwordInput,
+    passwordField,
     mobilePlatform,
     binaryDecoder: new TextDecoder(),
     socketUrl: typeof socketUrl === 'string' && socketUrl.trim() ? socketUrl.trim() : null,
@@ -1156,10 +1179,36 @@ const createRuntime = (container: HTMLElement): TerminalRuntime => {
       return;
     }
 
-    const desiredHeight = computeViewportHeight(window.innerHeight);
-    runtime.viewport.style.height = `${desiredHeight}px`;
-    runtime.outputElement.style.height = `${desiredHeight}px`;
-    runtime.outputElement.style.overflowY = 'hidden';
+    const viewportHeight =
+      (window.visualViewport && Number.isFinite(window.visualViewport.height)
+        ? window.visualViewport.height
+        : null) ??
+      (Number.isFinite(window.innerHeight) ? window.innerHeight : null) ??
+      (typeof document !== 'undefined' &&
+        document.documentElement &&
+        Number.isFinite(document.documentElement.clientHeight)
+          ? document.documentElement.clientHeight
+          : null) ??
+      0;
+
+    const desiredHeight = computeViewportHeight(viewportHeight);
+    const appliedHeight = Math.max(260, desiredHeight);
+
+    if (runtime.mobilePlatform) {
+      runtime.viewport.style.height = 'auto';
+      runtime.viewport.style.maxHeight = `${appliedHeight}px`;
+      runtime.viewport.style.minHeight = '260px';
+      runtime.outputElement.style.height = 'auto';
+      runtime.outputElement.style.maxHeight = `${appliedHeight}px`;
+    } else {
+      runtime.viewport.style.height = `${appliedHeight}px`;
+      runtime.viewport.style.maxHeight = `${appliedHeight}px`;
+      runtime.viewport.style.minHeight = '';
+      runtime.outputElement.style.height = `${appliedHeight}px`;
+      runtime.outputElement.style.maxHeight = `${appliedHeight}px`;
+    }
+
+    runtime.outputElement.style.overflowY = 'auto';
 
     const computed = window.getComputedStyle(runtime.outputElement);
     const lineHeightValue = Number.parseFloat(computed.lineHeight);
@@ -1168,7 +1217,8 @@ const createRuntime = (container: HTMLElement): TerminalRuntime => {
     const lineHeight = Number.isFinite(lineHeightValue) && lineHeightValue > 0 ? lineHeightValue : fallbackLineHeight;
     const paddingTop = Number.parseFloat(computed.paddingTop) || 0;
     const paddingBottom = Number.parseFloat(computed.paddingBottom) || 0;
-    const availableForLines = Math.max(desiredHeight - paddingTop - paddingBottom, lineHeight);
+    const measuredHeight = runtime.outputElement.clientHeight || appliedHeight;
+    const availableForLines = Math.max(measuredHeight - paddingTop - paddingBottom, lineHeight);
     runtime.maxOutputLines = Math.max(1, Math.floor(availableForLines / lineHeight));
     limitOutputLines(runtime.outputElement, runtime.maxOutputLines);
   };
@@ -1179,6 +1229,10 @@ const createRuntime = (container: HTMLElement): TerminalRuntime => {
     updateViewportSizing();
     const handleResize = () => updateViewportSizing();
     window.addEventListener('resize', handleResize);
+    if (window.visualViewport) {
+      window.visualViewport.addEventListener('resize', handleResize);
+      window.visualViewport.addEventListener('scroll', handleResize);
+    }
   }
 
   const asciiArtHeaderPattern = /shared ascii art:/i;
@@ -1405,6 +1459,17 @@ const createRuntime = (container: HTMLElement): TerminalRuntime => {
 
   const hasUsername = () => runtime.usernameInput.value.trim().length > 0;
 
+  const syncPasswordField = () => {
+    if (runtime.target.protocol === 'ssh') {
+      runtime.passwordField.style.display = '';
+      runtime.passwordInput.disabled = false;
+    } else {
+      runtime.passwordField.style.display = 'none';
+      runtime.passwordInput.disabled = true;
+      runtime.passwordInput.value = '';
+    }
+  };
+
   const updateConnectAvailability = () => {
     if (runtime.connected || runtime.connecting) {
       runtime.connectButton.disabled = true;
@@ -1468,6 +1533,7 @@ const createRuntime = (container: HTMLElement): TerminalRuntime => {
     runtime.target = resolveTarget();
     runtime.endpointElement.textContent = runtime.target.description;
     syncUsernameField();
+    syncPasswordField();
 
     if (announce && runtime.target.available && !previousAvailability) {
       runtime.updateStatus('Disconnected', 'disconnected');
@@ -1531,6 +1597,7 @@ const createRuntime = (container: HTMLElement): TerminalRuntime => {
       return;
     }
     const username = runtime.usernameInput.value.trim();
+    const passwordValue = runtime.passwordInput.disabled ? '' : runtime.passwordInput.value;
     if (!username) {
       runtime.updateStatus('Username required', 'disconnected');
       setEntryStatus('Enter a username before sending buffered commands.', 'error');
@@ -1558,6 +1625,11 @@ const createRuntime = (container: HTMLElement): TerminalRuntime => {
         socketUrl.searchParams.set('username', username);
       } else {
         socketUrl.searchParams.delete('username');
+      }
+      if (passwordValue) {
+        socketUrl.searchParams.set('password', passwordValue);
+      } else {
+        socketUrl.searchParams.delete('password');
       }
       const socket = new WebSocket(socketUrl.toString());
       socket.binaryType = 'arraybuffer';
