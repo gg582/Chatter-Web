@@ -400,6 +400,7 @@ type TerminalRuntime = {
   updateConnectAvailability?: () => void;
   updateViewportSizing?: () => void;
   mobilePlatform: MobilePlatform | null;
+  requestDisconnect: (reason?: string) => boolean;
 };
 
 type AnsiState = {
@@ -1024,6 +1025,7 @@ const createRuntime = (container: HTMLElement): TerminalRuntime => {
     incomingLineElement: null,
     asciiArtBlock: null,
     maxOutputLines: 600,
+    requestDisconnect: () => false,
     appendLine: (text: string, kind: TerminalLineKind = 'info') => {
       if (kind === 'incoming') {
         processIncomingChunk(text);
@@ -1718,13 +1720,16 @@ const createRuntime = (container: HTMLElement): TerminalRuntime => {
     updateFormPlaceholders();
   });
 
-    disconnectButton.addEventListener('click', () => {
-      const socket = runtime.socket;
-      if (!socket) {
-        return;
-      }
+  const requestDisconnect = (reason?: string): boolean => {
+    const socket = runtime.socket;
+    if (!socket) {
+      return false;
+    }
 
-      const sendDisconnectSequence = (value: string): boolean => {
+    const closeReason = reason && reason.trim() ? reason : 'Client closed';
+    let statusApplied = false;
+
+    const sendDisconnectSequence = (value: string): boolean => {
       if (!socket || socket.readyState !== WebSocket.OPEN) {
         return false;
       }
@@ -1738,41 +1743,53 @@ const createRuntime = (container: HTMLElement): TerminalRuntime => {
       }
     };
 
-      if (socket.readyState === WebSocket.OPEN) {
-        runtime.updateStatus('Disconnecting…', 'connecting');
-        runtime.disconnectButton.disabled = true;
-        runtime.connected = false;
-        runtime.connecting = true;
-        runtime.updateConnectAvailability?.();
-        setEntryStatus('Disconnect requested. Buffer stays available while we close the bridge.', 'muted');
-        updateEntryControls();
+    if (socket.readyState === WebSocket.OPEN) {
+      runtime.updateStatus('Disconnecting…', 'connecting');
+      runtime.disconnectButton.disabled = true;
+      runtime.connected = false;
+      runtime.connecting = true;
+      runtime.updateConnectAvailability?.();
+      setEntryStatus('Disconnect requested. Buffer stays available while we close the bridge.', 'muted');
+      updateEntryControls();
+      statusApplied = true;
 
-        const modeSent = sendDisconnectSequence('/mode command\r');
-        const exitSent = modeSent && sendDisconnectSequence('exit\r');
+      const modeSent = sendDisconnectSequence('/mode command\r');
+      const exitSent = modeSent && sendDisconnectSequence('exit\r');
 
       if (modeSent && exitSent) {
         if (typeof window !== 'undefined') {
           window.setTimeout(() => {
             if (socket.readyState === WebSocket.OPEN) {
               try {
-                socket.close(1000, 'Client closed');
+                socket.close(1000, closeReason);
               } catch (error) {
                 console.warn('Failed to close terminal socket after graceful disconnect attempt', error);
               }
             }
           }, 1500);
         }
-        return;
+        return true;
       }
     }
 
     try {
-      socket.close(1000, 'Client closed');
+      socket.close(1000, closeReason);
     } catch (error) {
       console.warn('Failed to close terminal socket', error);
     }
-    setEntryStatus('Disconnect requested. Buffer stays available while we close the bridge.', 'muted');
-    updateEntryControls();
+
+    if (!statusApplied) {
+      setEntryStatus('Disconnect requested. Buffer stays available while we close the bridge.', 'muted');
+      updateEntryControls();
+    }
+
+    return true;
+  };
+
+  runtime.requestDisconnect = requestDisconnect;
+
+  disconnectButton.addEventListener('click', () => {
+    requestDisconnect();
   });
 
   const focusCapture = () => {
@@ -1923,29 +1940,6 @@ const createRuntime = (container: HTMLElement): TerminalRuntime => {
     return true;
   }
 
-  if (typeof window !== 'undefined') {
-    let unloadHandled = false;
-    const handleUnload = () => {
-      if (unloadHandled) {
-        return;
-      }
-      unloadHandled = true;
-      if (!runtime.socket) {
-        return;
-      }
-      const state = runtime.socket.readyState;
-      if (state === WebSocket.OPEN || state === WebSocket.CONNECTING) {
-        try {
-          runtime.socket.close(1001, 'Page closed');
-        } catch (error) {
-          console.warn('Failed to close terminal socket on unload', error);
-        }
-      }
-    };
-    window.addEventListener('beforeunload', handleUnload);
-    window.addEventListener('unload', handleUnload);
-  }
-
     runtime.captureElement.addEventListener('keydown', (event) => {
       if (event.key === 'Enter' && !event.shiftKey && !event.altKey) {
         event.preventDefault();
@@ -2038,7 +2032,7 @@ const createRuntime = (container: HTMLElement): TerminalRuntime => {
   return runtime;
 };
 
-export const renderTerminal = (store: ChatStore, container: HTMLElement) => {
+export const renderTerminal = (store: ChatStore, container: HTMLElement): TerminalRuntime => {
   let runtime = runtimeMap.get(container);
   if (!runtime) {
     runtime = createRuntime(container);
@@ -2068,4 +2062,6 @@ export const renderTerminal = (store: ChatStore, container: HTMLElement) => {
   } else {
     runtime.gameStatus.textContent = 'No active game selected. Choose one from the Assistants panel.';
   }
+
+  return runtime;
 };

@@ -1328,14 +1328,31 @@ summary::-webkit-details-marker {
   flex-direction: column;
 }
 
+.chatter-app--mobile .panel.panel--terminal {
+  margin-left: -1.5rem;
+  margin-right: -1.5rem;
+  width: calc(100% + 3rem);
+  border-radius: 0;
+  background: var(--terminal-bg);
+  box-shadow: none;
+}
+
+.chatter-app--mobile .terminal-chat {
+  border-radius: 0;
+  border-left: none;
+  border-right: none;
+  box-shadow: none;
+  background: var(--terminal-bg);
+}
+
 .chatter-app--mobile .terminal__viewport {
-  min-height: 300px;
+  min-height: 900px;
   height: auto;
-  max-height: min(70vh, 720px);
+  max-height: none;
 }
 
 .chatter-app--mobile .terminal__output {
-  max-height: min(70vh, 680px);
+  max-height: none;
 }
 
 .terminal__output {

@@ -8,6 +8,9 @@ if (!root) {
 
 const teardown = mountChatter(root);
 
-window.addEventListener('beforeunload', () => {
+const handlePageExit = () => {
   teardown();
-});
+};
+
+window.addEventListener('beforeunload', handlePageExit);
+window.addEventListener('pagehide', handlePageExit);
