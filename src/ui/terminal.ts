@@ -244,6 +244,13 @@ const keySequences: Record<string, string> = {
   Insert: '\u001b[2~'
 };
 
+let entryStatusIdCounter = 0;
+
+const createEntryStatusId = () => {
+  entryStatusIdCounter += 1;
+  return `terminal-entry-status-${entryStatusIdCounter}`;
+};
+
 type TerminalLineKind = 'info' | 'error' | 'incoming' | 'outgoing';
 
 type TerminalRuntime = {
@@ -566,12 +573,14 @@ const createRuntime = (container: HTMLElement): TerminalRuntime => {
     delete container.dataset.mobilePlatformLabel;
   }
 
-    const entryIntro = detectedLabel
+  const entryIntro = detectedLabel
       ? `Detected ${escapeHtml(detectedLabel)}. Queue commands in the dedicated entry and we\'ll keep arrows and Ctrl shortcuts flowing to the bridge.`
       : 'Queue commands in the dedicated entry to keep arrows and Ctrl shortcuts flowing straight to the bridge.';
 
-    const entryInstructions =
+  const entryInstructions =
       'Type a command and press Enter or Send to forward the next line to the bridge. Shift+Enter adds a newline to the buffer.';
+
+  const entryStatusId = createEntryStatusId();
 
   container.innerHTML = `
     <section class="card card--terminal">
@@ -684,6 +693,7 @@ const createRuntime = (container: HTMLElement): TerminalRuntime => {
               data-terminal-entry-buffer
               rows="4"
               placeholder="${escapeHtml(entryInstructions)}"
+              aria-describedby="${entryStatusId}"
               autocomplete="off"
               autocorrect="off"
               autocapitalize="off"
@@ -694,7 +704,13 @@ const createRuntime = (container: HTMLElement): TerminalRuntime => {
             <button type="submit" data-terminal-entry-send>Send next line</button>
             <button type="button" data-terminal-entry-clear>Clear buffer</button>
           </div>
-          <p class="terminal__entry-status" data-terminal-entry-status>${escapeHtml(entryInstructions)}</p>
+          <p
+            id="${entryStatusId}"
+            class="terminal__entry-status"
+            role="status"
+            aria-live="polite"
+            data-terminal-entry-status
+          >${escapeHtml(entryInstructions)}</p>
         </form>
       </section>
       <p class="terminal__game" data-terminal-game></p>
@@ -755,13 +771,17 @@ const createRuntime = (container: HTMLElement): TerminalRuntime => {
       throw new Error('Failed to mount the web terminal.');
     }
 
-    const entryStatusNode = entryStatusElement as HTMLElement;
-    const entrySendControl = entrySendButton as HTMLButtonElement;
-    const entryClearControl = entryClearButton as HTMLButtonElement;
+    const entryStatusNode = entryStatusElement;
+    const entrySendControl = entrySendButton;
+    const entryClearControl = entryClearButton;
+    let entryStatusIdentifier = entryStatusNode.id.trim();
 
-  if (mobilePlatform && (!mobileForm || !mobileBuffer || !mobileSendButton || !mobileStatus || !mobileClearButton)) {
-    throw new Error('Failed to mount the mobile command buffer.');
-  }
+    if (!entryStatusIdentifier) {
+      entryStatusIdentifier = createEntryStatusId();
+      entryStatusNode.id = entryStatusIdentifier;
+    }
+
+    captureElement.setAttribute('aria-describedby', entryStatusIdentifier);
 
   const runtime: TerminalRuntime = {
     socket: null,
@@ -1354,19 +1374,18 @@ const createRuntime = (container: HTMLElement): TerminalRuntime => {
   });
 
   const focusCapture = () => {
-    if (runtime.mobilePlatform && runtime.mobileBuffer) {
-      try {
-        runtime.mobileBuffer.focus({ preventScroll: true });
-      } catch (error) {
-        runtime.mobileBuffer.focus();
-      }
-      return;
+    const target = runtime.captureElement;
+    try {
+      target.focus({ preventScroll: true });
+    } catch (error) {
+      target.focus();
     }
 
     try {
-      runtime.captureElement.focus({ preventScroll: true });
+      const position = target.value.length;
+      target.setSelectionRange(position, position);
     } catch (error) {
-      runtime.captureElement.focus();
+      // Ignore selection updates in environments that do not support setSelectionRange.
     }
   };
 
