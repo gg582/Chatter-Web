@@ -1,6 +1,5 @@
 export const basicCommands: string[] = [
   '/help',
-  '/motd',
   '/exit',
   '/users',
   '/connected',

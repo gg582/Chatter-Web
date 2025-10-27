@@ -33,11 +33,7 @@ export default function Home() {
           </p>
         </section>
         <nav className="shell-menu" aria-label="Lounge menu">
-          <details className="menu-item" data-menu="motd">
-            <summary>Message of the day</summary>
-            <section className="menu-panel" data-component="motd" />
-          </details>
-          <details className="menu-item" data-menu="session" open>
+          <details className="menu-item menu-item--flat" data-menu="session" open>
             <summary>Your session</summary>
             <section className="menu-panel" data-component="session" />
           </details>

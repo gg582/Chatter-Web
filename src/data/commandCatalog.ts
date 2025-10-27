@@ -13,17 +13,12 @@ export interface CommandGroup {
 export const commandGroups: CommandGroup[] = [
   {
     title: 'Orientation & presence',
-    summary: 'Get your bearings, read the MOTD, and see who is online.',
+    summary: 'Get your bearings and see who is online.',
     commands: [
       {
         command: '/help',
         description: 'Show the CLI help output.',
         ui: 'Session card → “Help overview” link.'
-      },
-      {
-        command: '/motd',
-        description: 'View the message of the day.',
-        ui: 'MOTD card at the top of the chat column.'
       },
       {
         command: '/exit',

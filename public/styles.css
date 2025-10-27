@@ -460,18 +460,6 @@ summary::-webkit-details-marker {
   color: #134064;
 }
 
-.motd {
-  display: flex;
-  flex-direction: column;
-  gap: 0.75rem;
-}
-
-.motd__body {
-  font-size: 1.05rem;
-  line-height: 1.6;
-  color: var(--text);
-}
-
 .session-panel {
   display: flex;
   flex-direction: column;
