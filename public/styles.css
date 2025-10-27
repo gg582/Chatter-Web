@@ -251,15 +251,11 @@ summary::-webkit-details-marker {
 }
 
 .panel--terminal {
-  padding: 2rem;
-  border-radius: 32px;
-  border: 2px solid transparent;
-  background:
-    linear-gradient(#ffffff, #ffffff) padding-box,
-    linear-gradient(135deg, rgba(180, 243, 155, 0.85), rgba(255, 183, 213, 0.85)) border-box;
-  box-shadow:
-    0 28px 55px rgba(255, 183, 213, 0.24),
-    0 22px 48px rgba(180, 243, 155, 0.2);
+  padding: 0;
+  border-radius: 0;
+  border: none;
+  background: transparent;
+  box-shadow: none;
 }
 
 .card {

@@ -5,11 +5,17 @@ import { createServer } from 'node:http';
 import type { IncomingMessage } from 'node:http';
 import { connect, Socket as NetSocket } from 'node:net';
 import { spawn, type ChildProcessWithoutNullStreams } from 'node:child_process';
-import { extname, join } from 'node:path';
+import { extname, join, resolve as resolvePath } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const serverDirectory = fileURLToPath(new URL('.', import.meta.url));
-const staticRoots = [serverDirectory];
+const candidateRoots = [
+  serverDirectory,
+  join(serverDirectory, '..'),
+  join(serverDirectory, 'public'),
+  join(serverDirectory, '..', 'public')
+];
+const staticRoots = Array.from(new Set(candidateRoots.map((dir) => resolvePath(dir))));
 const TERMINAL_PATH = '/terminal';
 const MAX_USERNAME_BYTES = 64;
 type EnvLookupResult = { value: string | undefined; source: string | undefined };
