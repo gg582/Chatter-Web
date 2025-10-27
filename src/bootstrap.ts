@@ -2,7 +2,6 @@ import { ChatStore } from './state/chatStore.js';
 import { renderUtilityPanel } from './ui/utilityPanel.js';
 import { renderCheatSheet } from './ui/cheatsheet.js';
 import { renderSession } from './ui/sessionCard.js';
-import { renderMotd } from './ui/motd.js';
 import { renderTerminal } from './ui/terminal.js';
 import { describeMobilePlatform, detectMobilePlatform } from './ui/helpers.js';
 
@@ -21,7 +20,6 @@ export const mountChatter = (root: HTMLElement) => {
   }
 
   const terminalElement = root.querySelector<HTMLElement>('[data-component="terminal"]');
-  const motdElement = root.querySelector<HTMLElement>('[data-component="motd"]');
   const utilityElement = root.querySelector<HTMLElement>('[data-component="utility"]');
   const cheatsheetElement = root.querySelector<HTMLElement>('[data-component="cheatsheet"]');
   const sessionElement = root.querySelector<HTMLElement>('[data-component="session"]');
@@ -31,13 +29,12 @@ export const mountChatter = (root: HTMLElement) => {
     terminalElement.dataset.mobilePlatformLabel = describeMobilePlatform(mobilePlatform);
   }
 
-  if (!terminalElement || !motdElement || !utilityElement || !cheatsheetElement || !sessionElement) {
+  if (!terminalElement || !utilityElement || !cheatsheetElement || !sessionElement) {
     throw new Error('Failed to mount the Chatter UI.');
   }
 
   const render = () => {
     renderTerminal(store, terminalElement);
-    renderMotd(store, motdElement);
     renderSession(store, sessionElement, root);
     renderUtilityPanel(store, utilityElement);
     renderCheatSheet(cheatsheetElement);

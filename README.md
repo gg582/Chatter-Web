@@ -110,7 +110,7 @@ focuses on the `ChatStore` helpers that back the moderation, messaging, and arch
 
 Every command advertised by the Chatter SSH `/help` has a dedicated surface:
 
-- **Orientation:** `/help`, `/motd`, `/exit`, `/users`, `/connected`, `/search`, and scroll history.
+- **Orientation:** `/help`, `/exit`, `/users`, `/connected`, `/search`, and scroll history.
 - **Identity:** `/nick`, `/status`, `/showstatus`, `/os`, `/getos`, `/birthday`, `/soulmate`, `/pair`.
 - **Messaging:** regular messages, `/reply`, `/pm`, `/chat`, `/delete-msg`, reactions (`/good`…`/wtf`).
 - **Media:** `/image`, `/video`, `/audio`, `/files`, `/asciiart` with dedicated attachment panes.
