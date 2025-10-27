@@ -566,9 +566,12 @@ const createRuntime = (container: HTMLElement): TerminalRuntime => {
     delete container.dataset.mobilePlatformLabel;
   }
 
-  const entryIntro = detectedLabel
-    ? `Detected ${escapeHtml(detectedLabel)}. The dedicated command entry captures arrows, Ctrl shortcuts, and text for the bridge.`
-    : 'Use the dedicated command entry to keep arrows, Ctrl shortcuts, and text flowing straight to the bridge.';
+    const entryIntro = detectedLabel
+      ? `Detected ${escapeHtml(detectedLabel)}. Queue commands in the dedicated entry and we\'ll keep arrows and Ctrl shortcuts flowing to the bridge.`
+      : 'Queue commands in the dedicated entry to keep arrows and Ctrl shortcuts flowing straight to the bridge.';
+
+    const entryInstructions =
+      'Type a command and press Enter or Send to forward the next line to the bridge. Shift+Enter adds a newline to the buffer.';
 
   container.innerHTML = `
     <section class="card card--terminal">
@@ -672,19 +675,27 @@ const createRuntime = (container: HTMLElement): TerminalRuntime => {
           <h3 class="terminal__entry-title">Command entry</h3>
           <p class="terminal__entry-subtitle">${entryIntro}</p>
         </header>
-        <label class="terminal__entry-field">
-          <span class="terminal__entry-label">Live terminal input</span>
-          <textarea
-            class="terminal__capture"
-            data-terminal-capture
-            rows="3"
-            placeholder="Focus here and type. Enter sends a newline to the bridge."
-            autocomplete="off"
-            autocorrect="off"
-            autocapitalize="off"
-            spellcheck="false"
-          ></textarea>
-        </label>
+        <form class="terminal__entry-form" data-terminal-entry-form>
+          <label class="terminal__entry-field">
+            <span class="terminal__entry-label">Buffered input</span>
+            <textarea
+              class="terminal__capture"
+              data-terminal-capture
+              data-terminal-entry-buffer
+              rows="4"
+              placeholder="${escapeHtml(entryInstructions)}"
+              autocomplete="off"
+              autocorrect="off"
+              autocapitalize="off"
+              spellcheck="false"
+            ></textarea>
+          </label>
+          <div class="terminal__entry-actions">
+            <button type="submit" data-terminal-entry-send>Send next line</button>
+            <button type="button" data-terminal-entry-clear>Clear buffer</button>
+          </div>
+          <p class="terminal__entry-status" data-terminal-entry-status>${escapeHtml(entryInstructions)}</p>
+        </form>
       </section>
       <p class="terminal__game" data-terminal-game></p>
     </section>
@@ -710,6 +721,10 @@ const createRuntime = (container: HTMLElement): TerminalRuntime => {
   const targetStatus = container.querySelector<HTMLElement>('[data-terminal-target-status]');
   const optionsElement = container.querySelector<HTMLDetailsElement>('[data-terminal-options]');
   const entryElement = container.querySelector<HTMLElement>('[data-terminal-entry]');
+  const entryForm = entryElement?.querySelector<HTMLFormElement>('[data-terminal-entry-form]');
+  const entryStatusElement = entryElement?.querySelector<HTMLElement>('[data-terminal-entry-status]');
+  const entrySendButton = entryElement?.querySelector<HTMLButtonElement>('[data-terminal-entry-send]');
+  const entryClearButton = entryElement?.querySelector<HTMLButtonElement>('[data-terminal-entry-clear]');
 
   if (
     !statusElement ||
@@ -731,10 +746,18 @@ const createRuntime = (container: HTMLElement): TerminalRuntime => {
     !targetResetButton ||
     !targetStatus ||
     !optionsElement ||
-    !entryElement
-  ) {
-    throw new Error('Failed to mount the web terminal.');
-  }
+    !entryElement ||
+    !entryForm ||
+    !entryStatusElement ||
+    !entrySendButton ||
+    !entryClearButton
+    ) {
+      throw new Error('Failed to mount the web terminal.');
+    }
+
+    const entryStatusNode = entryStatusElement as HTMLElement;
+    const entrySendControl = entrySendButton as HTMLButtonElement;
+    const entryClearControl = entryClearButton as HTMLButtonElement;
 
   if (mobilePlatform && (!mobileForm || !mobileBuffer || !mobileSendButton || !mobileStatus || !mobileClearButton)) {
     throw new Error('Failed to mount the mobile command buffer.');
@@ -1122,15 +1145,17 @@ const createRuntime = (container: HTMLElement): TerminalRuntime => {
 
   runtime.updateStatus('Disconnected', 'disconnected');
   refreshTarget(false);
-  if (!runtime.socketUrl) {
-    runtime.updateStatus('Bridge unavailable', 'disconnected');
-    updateConnectAvailability();
-  }
-
-  connectButton.addEventListener('click', () => {
-    if (runtime.connected) {
-      return;
+    if (!runtime.socketUrl) {
+      runtime.updateStatus('Bridge unavailable', 'disconnected');
+      updateConnectAvailability();
+      setEntryStatus('Bridge unavailable. Buffer stays queued until the service returns.', 'error');
+      updateEntryControls();
     }
+
+    connectButton.addEventListener('click', () => {
+      if (runtime.connected) {
+        return;
+      }
 
     const { overrides, errors } = collectOverridesFromInputs();
     if (errors.length > 0) {
@@ -1148,22 +1173,26 @@ const createRuntime = (container: HTMLElement): TerminalRuntime => {
       );
       return;
     }
-    const socketUrlText = runtime.socketUrl;
-    if (!socketUrlText) {
-      runtime.updateStatus('Bridge unavailable', 'disconnected');
-      return;
-    }
-    const username = runtime.usernameInput.value.trim();
-    if (!username) {
-      runtime.updateStatus('Username required', 'disconnected');
-      return;
-    }
-    runtime.updateStatus('Connecting…', 'connecting');
-    runtime.connecting = true;
-    runtime.connectButton.disabled = true;
-    runtime.updateMobileSendAvailability?.();
-    try {
-      const socketUrl = new URL(socketUrlText);
+      const socketUrlText = runtime.socketUrl;
+      if (!socketUrlText) {
+        runtime.updateStatus('Bridge unavailable', 'disconnected');
+        setEntryStatus('Bridge unavailable. Buffer stays queued until the service returns.', 'error');
+        updateEntryControls();
+        return;
+      }
+      const username = runtime.usernameInput.value.trim();
+      if (!username) {
+        runtime.updateStatus('Username required', 'disconnected');
+        setEntryStatus('Enter a username before sending buffered commands.', 'error');
+        return;
+      }
+      runtime.updateStatus('Connecting…', 'connecting');
+      runtime.connecting = true;
+      runtime.connectButton.disabled = true;
+      setEntryStatus('Connecting to the bridge… buffered commands will send once ready.', 'muted');
+      updateEntryControls();
+      try {
+        const socketUrl = new URL(socketUrlText);
       socketUrl.searchParams.set('protocol', runtime.target.protocol);
       if (runtime.target.host) {
         socketUrl.searchParams.set('host', runtime.target.host);
@@ -1182,21 +1211,18 @@ const createRuntime = (container: HTMLElement): TerminalRuntime => {
       }
       const socket = new WebSocket(socketUrl.toString());
       socket.binaryType = 'arraybuffer';
-      runtime.socket = socket;
-      runtime.binaryDecoder = new TextDecoder();
-      socket.addEventListener('open', () => {
-        runtime.connecting = false;
-        runtime.connected = true;
-        runtime.updateStatus('Connected', 'connected');
-        runtime.disconnectButton.disabled = false;
-        focusCapture();
-        updateConnectAvailability();
-        runtime.updateMobileSendAvailability?.();
-        runtime.setMobileStatus?.(
-          'Connected. Use the mobile buffer to send commands one line at a time without additional latency.',
-          'muted'
-        );
-      });
+        runtime.socket = socket;
+        runtime.binaryDecoder = new TextDecoder();
+        socket.addEventListener('open', () => {
+          runtime.connecting = false;
+          runtime.connected = true;
+          runtime.updateStatus('Connected', 'connected');
+          runtime.disconnectButton.disabled = false;
+          focusCapture();
+          updateConnectAvailability();
+          setEntryStatus('Connected. Press Enter or Send to forward the next line.', 'muted');
+          updateEntryControls();
+        });
       socket.addEventListener('message', (event) => {
         if (typeof event.data === 'string') {
           const pending = runtime.binaryDecoder.decode();
@@ -1211,43 +1237,37 @@ const createRuntime = (container: HTMLElement): TerminalRuntime => {
           }
         }
       });
-      socket.addEventListener('close', (event) => {
-        const remainder = runtime.binaryDecoder.decode();
-        if (remainder) {
-          runtime.appendLine(remainder, 'incoming');
-        }
+        socket.addEventListener('close', (event) => {
+          const remainder = runtime.binaryDecoder.decode();
+          if (remainder) {
+            runtime.appendLine(remainder, 'incoming');
+          }
+          runtime.connecting = false;
+          runtime.connected = false;
+          runtime.socket = null;
+          runtime.disconnectButton.disabled = true;
+          runtime.updateStatus('Disconnected', 'disconnected');
+          refreshTarget(false);
+          updateConnectAvailability();
+          setEntryStatus('Disconnected. Buffer stays queued until you reconnect.', 'muted');
+          updateEntryControls();
+        });
+        socket.addEventListener('error', () => {
+          runtime.updateStatus('Connection error', 'disconnected');
+          setEntryStatus('Bridge error. Commands will resume after reconnecting.', 'error');
+        });
+      } catch (error) {
         runtime.connecting = false;
         runtime.connected = false;
         runtime.socket = null;
         runtime.disconnectButton.disabled = true;
-        runtime.updateStatus('Disconnected', 'disconnected');
-        refreshTarget(false);
+        runtime.updateStatus('Connection failed', 'disconnected');
+        console.error('Terminal connection failed', error);
         updateConnectAvailability();
-        runtime.updateMobileSendAvailability?.();
-        runtime.setMobileStatus?.(
-          event.wasClean
-            ? 'Bridge disconnected. Commands stay buffered until you reconnect.'
-            : 'Connection lost. Commands stay buffered until you reconnect.',
-          event.wasClean ? 'muted' : 'error'
-        );
-      });
-      socket.addEventListener('error', () => {
-        runtime.updateStatus('Connection error', 'disconnected');
-        runtime.updateMobileSendAvailability?.();
-        runtime.setMobileStatus?.('Connection error. Try reconnecting before sending commands.', 'error');
-      });
-    } catch (error) {
-      runtime.connecting = false;
-      runtime.connected = false;
-      runtime.socket = null;
-      runtime.disconnectButton.disabled = true;
-      runtime.updateStatus('Connection failed', 'disconnected');
-      console.error('Terminal connection failed', error);
-      updateConnectAvailability();
-      runtime.updateMobileSendAvailability?.();
-      runtime.setMobileStatus?.('Connection failed. Commands stay buffered until you retry.', 'error');
-    }
-  });
+        setEntryStatus('Connection failed. Buffer kept for your next attempt.', 'error');
+        updateEntryControls();
+      }
+    });
 
   targetForm.addEventListener('submit', (event) => {
     event.preventDefault();
@@ -1276,13 +1296,13 @@ const createRuntime = (container: HTMLElement): TerminalRuntime => {
     updateFormPlaceholders();
   });
 
-  disconnectButton.addEventListener('click', () => {
-    const socket = runtime.socket;
-    if (!socket) {
-      return;
-    }
+    disconnectButton.addEventListener('click', () => {
+      const socket = runtime.socket;
+      if (!socket) {
+        return;
+      }
 
-    const sendDisconnectSequence = (value: string): boolean => {
+      const sendDisconnectSequence = (value: string): boolean => {
       if (!socket || socket.readyState !== WebSocket.OPEN) {
         return false;
       }
@@ -1296,17 +1316,17 @@ const createRuntime = (container: HTMLElement): TerminalRuntime => {
       }
     };
 
-    if (socket.readyState === WebSocket.OPEN) {
-      runtime.updateStatus('Disconnecting…', 'connecting');
-      runtime.disconnectButton.disabled = true;
-      runtime.connected = false;
-      runtime.connecting = true;
-      runtime.updateConnectAvailability?.();
-      runtime.updateMobileSendAvailability?.();
-      runtime.setMobileStatus?.('Disconnecting… queued commands will send once the bridge closes.', 'muted');
+      if (socket.readyState === WebSocket.OPEN) {
+        runtime.updateStatus('Disconnecting…', 'connecting');
+        runtime.disconnectButton.disabled = true;
+        runtime.connected = false;
+        runtime.connecting = true;
+        runtime.updateConnectAvailability?.();
+        setEntryStatus('Disconnect requested. Buffer stays available while we close the bridge.', 'muted');
+        updateEntryControls();
 
-      const modeSent = sendDisconnectSequence('/mode command\r');
-      const exitSent = modeSent && sendDisconnectSequence('exit\r');
+        const modeSent = sendDisconnectSequence('/mode command\r');
+        const exitSent = modeSent && sendDisconnectSequence('exit\r');
 
       if (modeSent && exitSent) {
         if (typeof window !== 'undefined') {
@@ -1329,7 +1349,8 @@ const createRuntime = (container: HTMLElement): TerminalRuntime => {
     } catch (error) {
       console.warn('Failed to close terminal socket', error);
     }
-    runtime.updateMobileSendAvailability?.();
+    setEntryStatus('Disconnect requested. Buffer stays available while we close the bridge.', 'muted');
+    updateEntryControls();
   });
 
   const focusCapture = () => {
@@ -1367,41 +1388,109 @@ const createRuntime = (container: HTMLElement): TerminalRuntime => {
     entryElement.classList.remove('terminal__entry--focused');
   });
 
-  let isComposing = false;
-  let pendingCompositionCommit: string | null = null;
-  let compositionFlushTimer: ReturnType<typeof setTimeout> | null = null;
-
-  const cancelPendingCompositionFlush = () => {
-    if (compositionFlushTimer !== null) {
-      clearTimeout(compositionFlushTimer);
-      compositionFlushTimer = null;
+  function setEntryStatus(message: string, tone: 'default' | 'muted' | 'error' = 'default') {
+    entryStatusNode.textContent = message;
+    entryStatusNode.classList.remove('terminal__entry-status--muted', 'terminal__entry-status--error');
+    if (tone === 'muted') {
+      entryStatusNode.classList.add('terminal__entry-status--muted');
+    } else if (tone === 'error') {
+      entryStatusNode.classList.add('terminal__entry-status--error');
     }
-  };
+  }
 
-  const flushPendingComposition = (): boolean => {
-    if (pendingCompositionCommit === null) {
-      cancelPendingCompositionFlush();
+  function normaliseBufferValue(value: string): string {
+    return value.replace(/\r\n?|\n/g, '\n');
+  }
+
+  function isSocketOpen(): boolean {
+    return Boolean(runtime.socket && runtime.socket.readyState === WebSocket.OPEN);
+  }
+
+  function updateEntryControls() {
+    const bufferedValue = normaliseBufferValue(runtime.captureElement.value);
+    const hasBuffered = bufferedValue.length > 0;
+    const socketOpen = isSocketOpen();
+    entrySendControl.disabled = !hasBuffered || !socketOpen;
+    entryClearControl.disabled = !hasBuffered;
+  }
+
+  function sendTextPayload(rawValue: string): boolean {
+    if (!rawValue) {
       return false;
     }
 
-    const value = pendingCompositionCommit;
-    pendingCompositionCommit = null;
-    cancelPendingCompositionFlush();
-
-    if (value) {
-      sendTextPayload(value);
+    if (!isSocketOpen()) {
+      setEntryStatus('Connect the bridge before sending commands.', 'error');
+      updateEntryControls();
+      return false;
     }
 
-    clearCaptureValue();
-    return Boolean(value);
-  };
+    const payload = normaliseLineBreaks(rawValue);
+    if (!payload) {
+      return false;
+    }
 
-  if (typeof window !== 'undefined') {
-    let unloadHandled = false;
-    const handleUnload = () => {
-      if (unloadHandled) {
-        return;
+    try {
+      runtime.socket?.send(textEncoder.encode(payload));
+      return true;
+    } catch (error) {
+      console.warn('Failed to send terminal payload', error);
+      setEntryStatus('Failed to send the command to the bridge. Try again.', 'error');
+      return false;
+    }
+  }
+
+  function flushNextBufferedLine(allowBlank = false): boolean {
+    const buffered = normaliseBufferValue(runtime.captureElement.value);
+    if (!buffered && !allowBlank) {
+      setEntryStatus('Buffer is empty. Type a command first or press Enter to send a blank line.', 'muted');
+      return false;
+    }
+
+    let line = '';
+    let remainder = '';
+
+    if (buffered) {
+      const newlineIndex = buffered.indexOf('\n');
+      if (newlineIndex === -1) {
+        line = buffered;
+        remainder = '';
+      } else {
+        line = buffered.slice(0, newlineIndex);
+        remainder = buffered.slice(newlineIndex + 1);
       }
+    }
+
+    const sent = sendTextPayload(`${line}\n`);
+    if (!sent) {
+      return false;
+    }
+
+    runtime.captureElement.value = remainder;
+    try {
+      const position = runtime.captureElement.value.length;
+      runtime.captureElement.setSelectionRange(position, position);
+    } catch (error) {
+      // Ignore selection errors
+    }
+    runtime.captureElement.focus();
+
+    if (line) {
+      setEntryStatus('Sent the next line to the bridge.', 'default');
+    } else {
+      setEntryStatus('Sent a blank line to the bridge.', 'default');
+    }
+
+    updateEntryControls();
+    return true;
+  }
+
+    if (typeof window !== 'undefined') {
+      let unloadHandled = false;
+      const handleUnload = () => {
+        if (unloadHandled) {
+          return;
+        }
       unloadHandled = true;
       if (!runtime.socket) {
         return;
@@ -1419,116 +1508,68 @@ const createRuntime = (container: HTMLElement): TerminalRuntime => {
     window.addEventListener('beforeunload', handleUnload);
   }
 
-  const clearCaptureValue = () => {
-    runtime.captureElement.value = '';
-  };
-
-  const sendTextPayload = (rawValue: string) => {
-    if (!rawValue) {
-      return;
-    }
-
-    if (!runtime.socket || runtime.socket.readyState !== WebSocket.OPEN) {
-      return;
-    }
-
-    const payload = normaliseLineBreaks(rawValue);
-    if (!payload) {
-      return;
-    }
-
-    runtime.socket.send(textEncoder.encode(payload));
-  };
-
-  runtime.captureElement.addEventListener('keydown', (event) => {
-    if (!runtime.socket || runtime.socket.readyState !== WebSocket.OPEN) {
-      event.preventDefault();
-      return;
-    }
-
-    let payload = '';
-    if (event.ctrlKey && event.key.length === 1) {
-      const upper = event.key.toUpperCase();
-      const code = upper.charCodeAt(0);
-      if (code >= 65 && code <= 90) {
-        payload = String.fromCharCode(code - 64);
+    runtime.captureElement.addEventListener('keydown', (event) => {
+      if (event.key === 'Enter' && !event.shiftKey && !event.altKey) {
+        event.preventDefault();
+        flushNextBufferedLine(true);
+        return;
       }
-    } else if (keySequences[event.key]) {
-      payload = keySequences[event.key];
-    }
 
-    if (payload) {
-      runtime.socket.send(textEncoder.encode(payload));
+      let payload = '';
+      if (event.ctrlKey && event.key.length === 1) {
+        const upper = event.key.toUpperCase();
+        const code = upper.charCodeAt(0);
+        if (code >= 65 && code <= 90) {
+          payload = String.fromCharCode(code - 64);
+        }
+      } else if (keySequences[event.key]) {
+        payload = keySequences[event.key];
+      }
+
+      if (!payload) {
+        return;
+      }
+
+      if (!isSocketOpen()) {
+        if (event.key === 'Tab') {
+          event.preventDefault();
+          const target = runtime.captureElement;
+          const start = target.selectionStart ?? target.value.length;
+          const end = target.selectionEnd ?? target.value.length;
+          target.value = `${target.value.slice(0, start)}\t${target.value.slice(end)}`;
+          try {
+            target.setSelectionRange(start + 1, start + 1);
+          } catch (error) {
+            // Ignore selection errors when environments do not support setSelectionRange
+          }
+          updateEntryControls();
+        }
+        return;
+      }
+
+      if (sendTextPayload(payload)) {
+        event.preventDefault();
+      }
+    });
+
+    entryForm.addEventListener('submit', (event) => {
       event.preventDefault();
-    }
-  });
+      flushNextBufferedLine(false);
+    });
 
-  runtime.captureElement.addEventListener('compositionstart', () => {
-    isComposing = true;
-    pendingCompositionCommit = null;
-    cancelPendingCompositionFlush();
-  });
+    entryClearControl.addEventListener('click', () => {
+      runtime.captureElement.value = '';
+      setEntryStatus('Buffer cleared. Nothing queued for the bridge.', 'muted');
+      updateEntryControls();
+      focusCapture();
+    });
 
-  runtime.captureElement.addEventListener('compositionend', (event) => {
-    isComposing = false;
-    const compositionEvent = event as CompositionEvent;
-    const committedValue =
-      typeof compositionEvent.data === 'string' && compositionEvent.data.length > 0
-        ? compositionEvent.data
-        : runtime.captureElement.value;
+    runtime.captureElement.addEventListener('input', () => {
+      updateEntryControls();
+    });
 
-    if (committedValue) {
-      pendingCompositionCommit = committedValue;
-      cancelPendingCompositionFlush();
-      compositionFlushTimer = setTimeout(() => {
-        flushPendingComposition();
-      }, 0);
-    } else {
-      pendingCompositionCommit = null;
-      cancelPendingCompositionFlush();
-      clearCaptureValue();
-    }
-  });
-
-  runtime.captureElement.addEventListener('input', (event) => {
-    const inputEvent = event as InputEvent;
-
-    if (inputEvent.isComposing || isComposing) {
-      return;
-    }
-
-    if (flushPendingComposition()) {
-      return;
-    }
-
-    if (inputEvent.inputType === 'insertLineBreak') {
-      sendTextPayload('\u000d');
-      clearCaptureValue();
-      return;
-    }
-
-    if (inputEvent.inputType && inputEvent.inputType.startsWith('delete')) {
-      sendTextPayload('\u0008');
-      clearCaptureValue();
-      return;
-    }
-
-    let valueToSend = '';
-
-    if (inputEvent.inputType === 'insertFromPaste' || inputEvent.inputType === 'insertFromDrop') {
-      valueToSend = runtime.captureElement.value;
-    } else if (typeof inputEvent.data === 'string') {
-      valueToSend = inputEvent.data;
-    } else {
-      valueToSend = runtime.captureElement.value;
-    }
-
-    if (valueToSend) {
-      sendTextPayload(valueToSend);
-    }
-
-    clearCaptureValue();
-  });
+    setEntryStatus(entryInstructions, 'muted');
+    updateEntryControls();
 
   runtime.usernameInput.addEventListener('input', () => {
     updateConnectAvailability();
