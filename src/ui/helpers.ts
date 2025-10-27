@@ -27,3 +27,58 @@ export const formatRelative = (iso: string): string => {
 
 export const escapeHtml = (text: string): string =>
   text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+
+export type MobilePlatform = 'ios' | 'android' | 'postmarketos' | 'ubports' | 'blackberry';
+
+const MOBILE_PLATFORM_VALUES: readonly MobilePlatform[] = [
+  'ios',
+  'android',
+  'postmarketos',
+  'ubports',
+  'blackberry'
+] as const;
+
+const MOBILE_PLATFORM_PATTERNS: ReadonlyArray<{ platform: MobilePlatform; pattern: RegExp }> = [
+  { platform: 'ios', pattern: /(iphone|ipad|ipod)(?!.*windows)/i },
+  { platform: 'android', pattern: /android/i },
+  { platform: 'postmarketos', pattern: /(postmarket|pmos)/i },
+  { platform: 'ubports', pattern: /(ubports|ubuntu\s+touch)/i },
+  { platform: 'blackberry', pattern: /(blackberry|bb10)/i }
+];
+
+const MOBILE_PLATFORM_LABELS: Record<MobilePlatform, string> = {
+  ios: 'iOS',
+  android: 'Android',
+  postmarketos: 'postmarketOS',
+  ubports: 'UBports',
+  blackberry: 'BlackBerry'
+};
+
+const normaliseUserAgent = (userAgent: string): string => userAgent.trim();
+
+export const detectMobilePlatform = (userAgent?: string): MobilePlatform | null => {
+  const source =
+    typeof userAgent === 'string' && userAgent.trim()
+      ? userAgent
+      : typeof navigator !== 'undefined' && typeof navigator.userAgent === 'string'
+        ? navigator.userAgent
+        : '';
+
+  if (!source) {
+    return null;
+  }
+
+  const normalised = normaliseUserAgent(source);
+  for (const entry of MOBILE_PLATFORM_PATTERNS) {
+    if (entry.pattern.test(normalised)) {
+      return entry.platform;
+    }
+  }
+  return null;
+};
+
+export const describeMobilePlatform = (platform: MobilePlatform): string =>
+  MOBILE_PLATFORM_LABELS[platform] ?? platform;
+
+export const isMobilePlatform = (value: string | undefined | null): value is MobilePlatform =>
+  Boolean(value && MOBILE_PLATFORM_VALUES.includes(value as MobilePlatform));
