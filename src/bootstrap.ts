@@ -4,15 +4,32 @@ import { renderCheatSheet } from './ui/cheatsheet.js';
 import { renderSession } from './ui/sessionCard.js';
 import { renderMotd } from './ui/motd.js';
 import { renderTerminal } from './ui/terminal.js';
+import { describeMobilePlatform, detectMobilePlatform } from './ui/helpers.js';
 
 export const mountChatter = (root: HTMLElement) => {
   const store = new ChatStore();
+
+  const mobilePlatform = detectMobilePlatform();
+  if (mobilePlatform) {
+    root.classList.add('chatter-app--mobile');
+    root.dataset.mobilePlatform = mobilePlatform;
+    root.dataset.mobilePlatformLabel = describeMobilePlatform(mobilePlatform);
+  } else {
+    root.classList.remove('chatter-app--mobile');
+    delete root.dataset.mobilePlatform;
+    delete root.dataset.mobilePlatformLabel;
+  }
 
   const terminalElement = root.querySelector<HTMLElement>('[data-component="terminal"]');
   const motdElement = root.querySelector<HTMLElement>('[data-component="motd"]');
   const utilityElement = root.querySelector<HTMLElement>('[data-component="utility"]');
   const cheatsheetElement = root.querySelector<HTMLElement>('[data-component="cheatsheet"]');
   const sessionElement = root.querySelector<HTMLElement>('[data-component="session"]');
+
+  if (terminalElement && mobilePlatform) {
+    terminalElement.dataset.mobilePlatform = mobilePlatform;
+    terminalElement.dataset.mobilePlatformLabel = describeMobilePlatform(mobilePlatform);
+  }
 
   if (!terminalElement || !motdElement || !utilityElement || !cheatsheetElement || !sessionElement) {
     throw new Error('Failed to mount the Chatter UI.');
