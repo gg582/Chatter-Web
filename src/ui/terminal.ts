@@ -1058,6 +1058,52 @@ const createRuntime = (container: HTMLElement): TerminalRuntime => {
     keyboardPanel.querySelectorAll<HTMLButtonElement>('[data-terminal-kbd-key]')
   );
 
+  const KEEP_ALIVE_INTERVAL_MS = 20000;
+  const KEEP_ALIVE_PAYLOAD = new Uint8Array([0]);
+  let keepAliveTimer: number | null = null;
+  let lastBridgeActivity = Date.now();
+
+  const markBridgeActivity = () => {
+    lastBridgeActivity = Date.now();
+  };
+
+  const stopKeepAliveTimer = () => {
+    if (keepAliveTimer !== null && typeof window !== 'undefined') {
+      window.clearInterval(keepAliveTimer);
+      keepAliveTimer = null;
+    }
+  };
+
+  const ensureKeepAliveTimer = () => {
+    if (typeof window === 'undefined') {
+      return;
+    }
+
+    if (keepAliveTimer !== null) {
+      return;
+    }
+
+    keepAliveTimer = window.setInterval(() => {
+      const socket = runtime.socket;
+      if (!socket || socket.readyState !== WebSocket.OPEN) {
+        return;
+      }
+
+      const now = Date.now();
+      if (now - lastBridgeActivity < KEEP_ALIVE_INTERVAL_MS) {
+        return;
+      }
+
+      try {
+        socket.send(KEEP_ALIVE_PAYLOAD);
+        markBridgeActivity();
+      } catch (error) {
+        console.warn('Failed to send terminal keep-alive payload', error);
+        stopKeepAliveTimer();
+      }
+    }, KEEP_ALIVE_INTERVAL_MS);
+  };
+
   let menuOpen = false;
   const setMenuOpen = (open: boolean) => {
     menuOpen = open;
@@ -1638,6 +1684,8 @@ const createRuntime = (container: HTMLElement): TerminalRuntime => {
         runtime.socket = socket;
         runtime.binaryDecoder = new TextDecoder();
         socket.addEventListener('open', () => {
+          markBridgeActivity();
+          ensureKeepAliveTimer();
           runtime.connecting = false;
           runtime.connected = true;
           runtime.updateStatus('Connected', 'connected');
@@ -1648,6 +1696,7 @@ const createRuntime = (container: HTMLElement): TerminalRuntime => {
           updateEntryControls();
         });
       socket.addEventListener('message', (event) => {
+        markBridgeActivity();
         if (typeof event.data === 'string') {
           const pending = runtime.binaryDecoder.decode();
           if (pending) {
@@ -1662,6 +1711,7 @@ const createRuntime = (container: HTMLElement): TerminalRuntime => {
         }
       });
         socket.addEventListener('close', (event) => {
+          stopKeepAliveTimer();
           const remainder = runtime.binaryDecoder.decode();
           if (remainder) {
             runtime.appendLine(remainder, 'incoming');
@@ -1677,6 +1727,7 @@ const createRuntime = (container: HTMLElement): TerminalRuntime => {
           updateEntryControls();
         });
         socket.addEventListener('error', () => {
+          stopKeepAliveTimer();
           runtime.updateStatus('Connection error', 'disconnected');
           setEntryStatus('Bridge error. Commands will resume after reconnecting.', 'error');
         });
@@ -1726,6 +1777,7 @@ const createRuntime = (container: HTMLElement): TerminalRuntime => {
       return false;
     }
 
+    stopKeepAliveTimer();
     const closeReason = reason && reason.trim() ? reason : 'Client closed';
     let statusApplied = false;
 
@@ -1736,6 +1788,7 @@ const createRuntime = (container: HTMLElement): TerminalRuntime => {
 
       try {
         socket.send(textEncoder.encode(value));
+        markBridgeActivity();
         return true;
       } catch (error) {
         console.warn('Failed to send disconnect sequence', error);
@@ -1887,6 +1940,7 @@ const createRuntime = (container: HTMLElement): TerminalRuntime => {
 
     try {
       runtime.socket?.send(textEncoder.encode(payload));
+      markBridgeActivity();
       return true;
     } catch (error) {
       console.warn('Failed to send terminal payload', error);
