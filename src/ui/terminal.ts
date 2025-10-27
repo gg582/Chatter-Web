@@ -309,7 +309,7 @@ const resolveSocketUrl = (container: HTMLElement): string | null => {
 
 const keySequences: Record<string, string> = {
   Enter: '\r',
-  Backspace: '\u0008',
+  Backspace: '\u007f',
   Tab: '\t',
   Escape: '\u001b',
   ArrowUp: '\u001b[A',
