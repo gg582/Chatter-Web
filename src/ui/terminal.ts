@@ -1113,11 +1113,15 @@ const createRuntime = (container: HTMLElement): TerminalRuntime => {
         setEntryStatus(`${shortcut.label} sent to the bridge.`, 'muted');
         if (inputGroup === ENTRY_INPUT_GROUP) {
           focusCapture();
-        } else {
+        } else if (typeof button.focus === 'function') {
           try {
-            button.focus();
+            button.focus({ preventScroll: true });
           } catch (error) {
-            // Ignore focus errors for unsupported environments.
+            try {
+              button.focus();
+            } catch (fallbackError) {
+              // Ignore focus errors for unsupported environments.
+            }
           }
         }
       }
