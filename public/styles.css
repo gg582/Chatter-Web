@@ -85,6 +85,50 @@ summary::-webkit-details-marker {
   gap: 2.5rem;
 }
 
+.chatter-app--mobile {
+  background: var(--terminal-bg);
+  color: var(--terminal-text);
+  min-height: 100dvh;
+  padding: 0;
+  gap: 0;
+}
+
+.chatter-app--mobile .chatter-shell,
+.chatter-app--mobile .shell-menu,
+.chatter-app--mobile .shell-brand,
+.chatter-app--mobile .shell-mobile-banner {
+  display: none;
+}
+
+.chatter-app--mobile .chatter-layout {
+  margin: 0;
+  padding: 0;
+  flex: 1 1 auto;
+  min-height: 100dvh;
+  display: flex;
+  flex-direction: column;
+}
+
+.chatter-app--mobile .terminal-section {
+  flex: 1 1 auto;
+  display: flex;
+}
+
+.chatter-app--mobile .panel.panel--terminal {
+  margin: 0;
+  width: 100%;
+  min-height: 100dvh;
+  border-radius: 0;
+  padding: 0;
+  background: var(--terminal-bg);
+  box-shadow: none;
+  display: flex;
+}
+
+.chatter-app--mobile .panel.panel--terminal > .terminal-chat {
+  flex: 1 1 auto;
+}
+
 .chatter-shell {
   background: linear-gradient(135deg, rgba(180, 243, 155, 0.5), rgba(158, 216, 255, 0.45));
   border-radius: 30px;
@@ -883,6 +927,8 @@ summary::-webkit-details-marker {
   display: flex;
   flex-direction: column;
   gap: 0;
+  flex: 1 1 auto;
+  min-height: 0;
 }
 
 .terminal-chat__conversation {
@@ -895,6 +941,8 @@ summary::-webkit-details-marker {
   color: var(--terminal-text);
   position: relative;
   z-index: 0;
+  flex: 1 1 auto;
+  min-height: 0;
 }
 
 .terminal-chat__conversation-head {
@@ -994,6 +1042,17 @@ summary::-webkit-details-marker {
   display: flex;
   flex-direction: column;
   gap: 0.9rem;
+}
+
+.terminal-chat__drawer-section--info {
+  gap: 0.75rem;
+}
+
+.terminal-chat__drawer-note {
+  margin: 0;
+  font-size: 0.9rem;
+  color: var(--terminal-muted);
+  line-height: 1.5;
 }
 
 .terminal-chat__section-title {
@@ -1306,6 +1365,8 @@ summary::-webkit-details-marker {
   position: relative;
   display: flex;
   flex-direction: column;
+  flex: 1 1 auto;
+  min-height: 0;
 }
 
 .terminal__output {
@@ -1364,18 +1425,19 @@ summary::-webkit-details-marker {
 }
 
 .terminal-chat--mobile {
+  background: var(--terminal-bg);
+  border: none;
   border-radius: 0;
-  border-left: none;
-  border-right: none;
   box-shadow: none;
+  min-height: 100dvh;
 }
 
 .terminal-chat--mobile .terminal-chat__header {
-  align-items: stretch;
+  align-items: flex-start;
   flex-direction: column;
   gap: 0.75rem;
-  padding: 0.75rem 1rem;
-  background: rgba(15, 23, 42, 0.85);
+  padding: 1rem;
+  background: transparent;
   border-bottom: 1px solid rgba(148, 163, 184, 0.25);
 }
 
@@ -1400,22 +1462,29 @@ summary::-webkit-details-marker {
 }
 
 .terminal-chat--mobile .terminal-chat__layout {
-  gap: 0.35rem;
+  flex: 1 1 auto;
+  min-height: 0;
+  gap: 0;
 }
 
 .terminal-chat--mobile .terminal-chat__conversation {
-  padding: 0.75rem 0.85rem;
-  gap: 0.8rem;
+  flex: 1 1 auto;
+  padding: 1rem;
+  gap: 0.75rem;
 }
 
 .terminal-chat--mobile .terminal-chat__conversation-note {
-  font-size: 0.95rem;
-  line-height: 1.5;
+  font-size: 0.9rem;
+  line-height: 1.45;
 }
 
 .terminal-chat--mobile .terminal__viewport {
-  min-height: clamp(420px, 90vh, 1080px);
-  border-radius: 18px;
+  flex: 1 1 auto;
+  min-height: 0;
+  height: auto;
+  border: none;
+  border-radius: 0;
+  background: var(--terminal-bg);
 }
 
 .terminal-chat--mobile .terminal__output {
@@ -1424,14 +1493,16 @@ summary::-webkit-details-marker {
 }
 
 .terminal-chat--mobile .terminal-chat__entry-preview {
-  border-radius: 18px;
   margin-top: 0.5rem;
   padding: 0.65rem 0.85rem;
+  border-radius: 0;
+  border: 1px solid var(--terminal-border);
+  background: var(--terminal-panel);
 }
 
 .terminal-chat--mobile .terminal-chat__composer {
-  padding: 0.75rem 1rem 1rem;
-  gap: 0.85rem;
+  padding: 1rem;
+  gap: 0.75rem;
 }
 
 .terminal-chat--mobile .terminal-chat__composer-head {
@@ -1441,7 +1512,7 @@ summary::-webkit-details-marker {
 }
 
 .terminal-chat--mobile .terminal-chat__entry-status {
-  text-align: left;
+  display: none;
 }
 
 .terminal-chat--mobile .terminal-chat__entry-form {
@@ -1474,7 +1545,7 @@ summary::-webkit-details-marker {
 }
 
 .terminal-chat--mobile .terminal-chat__drawer-content {
-  max-height: calc(100vh - 9rem);
+  max-height: calc(100dvh - 8rem);
   overflow-y: auto;
 }
 

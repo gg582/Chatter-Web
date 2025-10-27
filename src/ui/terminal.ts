@@ -708,12 +708,10 @@ const createRuntime = (container: HTMLElement): TerminalRuntime => {
       : 'Touch controls are enabled for your session.'
     : '';
 
-  const mobileHeaderNote = mobileHeaderMessage
-    ? `<p class="terminal-chat__mobile-note">${mobileHeaderMessage}</p>`
-    : '';
+  const mobileHeaderNote = '';
 
   const conversationNoteHtml = mobilePlatform
-    ? escapeHtml('Scroll through recent output and send commands with the composer below.')
+    ? escapeHtml('Tap Menu for connection settings and help.')
     : entryIntro;
 
   const entryInstructions =
@@ -721,6 +719,28 @@ const createRuntime = (container: HTMLElement): TerminalRuntime => {
 
   const entryStatusId = createEntryStatusId();
   const menuId = `${entryStatusId}-menu`;
+
+  const drawerSubtitle = mobilePlatform
+    ? 'Manage connection details and mobile guidance in one place.'
+    : 'Keep your target, username, and overrides together.';
+
+  const mobileDrawerInfo = mobilePlatform
+    ? (() => {
+        const notes = [mobileHeaderMessage, entryIntro, entryInstructions]
+          .filter((note): note is string => Boolean(note && note.trim()))
+          .map((note) => `<p class="terminal-chat__drawer-note">${escapeHtml(note)}</p>`)
+          .join('');
+        if (!notes) {
+          return '';
+        }
+        return `
+          <section class="terminal-chat__drawer-section terminal-chat__drawer-section--info">
+            <h4 class="terminal-chat__section-title">Mobile guidance</h4>
+            ${notes}
+          </section>
+        `;
+      })()
+    : '';
 
   container.innerHTML = `
     <section class="${shellClasses.join(' ')}" data-terminal-shell>
@@ -753,7 +773,7 @@ const createRuntime = (container: HTMLElement): TerminalRuntime => {
           <div class="terminal-chat__drawer-header">
             <div>
               <h3 class="terminal-chat__drawer-title">Connection menu</h3>
-              <p class="terminal-chat__drawer-subtitle">Keep your target, username, and overrides together.</p>
+              <p class="terminal-chat__drawer-subtitle">${escapeHtml(drawerSubtitle)}</p>
             </div>
             <button type="button" class="terminal-chat__icon-button" data-terminal-menu-close>
               <span class="terminal-chat__icon-label">Close</span>
@@ -761,6 +781,7 @@ const createRuntime = (container: HTMLElement): TerminalRuntime => {
             </button>
           </div>
           <div class="terminal-chat__drawer-content">
+            ${mobileDrawerInfo}
             <section class="terminal-chat__drawer-section">
               <h4 class="terminal-chat__section-title">Identity</h4>
               <label class="terminal-chat__field terminal__field--inline" data-terminal-username-field>
