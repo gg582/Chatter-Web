@@ -231,11 +231,6 @@ export const commandGroups: CommandGroup[] = [
         ui: 'Assistants → Games launcher → Suspend control.'
       },
       {
-        command: '/gemini <on|off>',
-        description: 'Toggle the Gemini provider (operator only).',
-        ui: 'Assistants → Gemini toggle.'
-      },
-      {
         command: '/gemini-unfreeze',
         description: 'Clear the Gemini cooldown.',
         ui: 'Assistants → Gemini cooldown reset.'
@@ -272,31 +267,6 @@ export const commandGroups: CommandGroup[] = [
     summary: 'Keep order and run community votes.',
     commands: [
       {
-        command: '/grant <ip>',
-        description: 'Grant operator access to an IP.',
-        ui: 'Moderation → Operator access list.'
-      },
-      {
-        command: '/revoke <ip>',
-        description: 'Revoke operator access.',
-        ui: 'Moderation → Operator access list.'
-      },
-      {
-        command: '/ban <username>',
-        description: 'Ban a user.',
-        ui: 'Moderation → Ban manager.'
-      },
-      {
-        command: '/banlist',
-        description: 'List banned users.',
-        ui: 'Moderation → Ban manager.'
-      },
-      {
-        command: '/pardon <user|ip>',
-        description: 'Remove a ban (operator only).',
-        ui: 'Moderation → Ban manager.'
-      },
-      {
         command: '/block <user|ip>',
         description: 'Hide messages from a user or IP locally.',
         ui: 'Moderation → Block list.'
@@ -310,11 +280,6 @@ export const commandGroups: CommandGroup[] = [
         command: '/poke <username>',
         description: 'Send a bell to call a user.',
         ui: 'Moderation → Attention tools.'
-      },
-      {
-        command: '/kick <username>',
-        description: 'Disconnect a user.',
-        ui: 'Moderation → Attention tools → Kick button.'
       },
       {
         command: '/poll <question>|<option...>',
