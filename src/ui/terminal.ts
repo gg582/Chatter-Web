@@ -324,21 +324,24 @@ const keySequences: Record<string, string> = {
   Insert: '\u001b[2~'
 };
 
+const ENTRY_INPUT_GROUP = 'entry-buffer';
+
 const onScreenShortcuts: Record<
   string,
   {
     payload: string;
     label: string;
+    inputGroup: string;
   }
 > = {
-  'ctrl-c': { payload: '\u0003', label: 'Ctrl+C' },
-  'ctrl-z': { payload: '\u001a', label: 'Ctrl+Z' },
-  'ctrl-s': { payload: '\u0013', label: 'Ctrl+S' },
-  'ctrl-a': { payload: '\u0001', label: 'Ctrl+A' },
-  'arrow-up': { payload: keySequences.ArrowUp, label: 'Arrow up' },
-  'arrow-down': { payload: keySequences.ArrowDown, label: 'Arrow down' },
-  'arrow-left': { payload: keySequences.ArrowLeft, label: 'Arrow left' },
-  'arrow-right': { payload: keySequences.ArrowRight, label: 'Arrow right' }
+  'ctrl-c': { payload: '\u0003', label: 'Ctrl+C', inputGroup: ENTRY_INPUT_GROUP },
+  'ctrl-z': { payload: '\u001a', label: 'Ctrl+Z', inputGroup: ENTRY_INPUT_GROUP },
+  'ctrl-s': { payload: '\u0013', label: 'Ctrl+S', inputGroup: ENTRY_INPUT_GROUP },
+  'ctrl-a': { payload: '\u0001', label: 'Ctrl+A', inputGroup: ENTRY_INPUT_GROUP },
+  'arrow-up': { payload: keySequences.ArrowUp, label: 'Arrow up', inputGroup: 'arrow-up' },
+  'arrow-down': { payload: keySequences.ArrowDown, label: 'Arrow down', inputGroup: 'arrow-down' },
+  'arrow-left': { payload: keySequences.ArrowLeft, label: 'Arrow left', inputGroup: 'arrow-left' },
+  'arrow-right': { payload: keySequences.ArrowRight, label: 'Arrow right', inputGroup: 'arrow-right' }
 };
 
 let entryStatusIdCounter = 0;
@@ -863,14 +866,14 @@ const createRuntime = (container: HTMLElement): TerminalRuntime => {
         <div class="terminal-chat__keyboard" id="${entryStatusId}-kbd" data-terminal-kbd hidden>
           <p class="terminal-chat__keyboard-hint">Send desktop shortcuts straight from your phone.</p>
           <div class="terminal-chat__keyboard-grid">
-            <button type="button" data-terminal-kbd-key="ctrl-c">Ctrl+C</button>
-            <button type="button" data-terminal-kbd-key="ctrl-z">Ctrl+Z</button>
-            <button type="button" data-terminal-kbd-key="ctrl-s">Ctrl+S</button>
-            <button type="button" data-terminal-kbd-key="ctrl-a">Ctrl+A</button>
-            <button type="button" data-terminal-kbd-key="arrow-up">↑</button>
-            <button type="button" data-terminal-kbd-key="arrow-down">↓</button>
-            <button type="button" data-terminal-kbd-key="arrow-left">←</button>
-            <button type="button" data-terminal-kbd-key="arrow-right">→</button>
+            <button type="button" data-terminal-kbd-key="ctrl-c" data-terminal-kbd-group="entry-buffer">Ctrl+C</button>
+            <button type="button" data-terminal-kbd-key="ctrl-z" data-terminal-kbd-group="entry-buffer">Ctrl+Z</button>
+            <button type="button" data-terminal-kbd-key="ctrl-s" data-terminal-kbd-group="entry-buffer">Ctrl+S</button>
+            <button type="button" data-terminal-kbd-key="ctrl-a" data-terminal-kbd-group="entry-buffer">Ctrl+A</button>
+            <button type="button" data-terminal-kbd-key="arrow-up" data-terminal-kbd-group="arrow-up">↑</button>
+            <button type="button" data-terminal-kbd-key="arrow-down" data-terminal-kbd-group="arrow-down">↓</button>
+            <button type="button" data-terminal-kbd-key="arrow-left" data-terminal-kbd-group="arrow-left">←</button>
+            <button type="button" data-terminal-kbd-key="arrow-right" data-terminal-kbd-group="arrow-right">→</button>
           </div>
           <p class="terminal-chat__keyboard-foot">Shortcuts send immediately. Keep composing in the buffer above.</p>
         </div>
@@ -1103,10 +1106,20 @@ const createRuntime = (container: HTMLElement): TerminalRuntime => {
       if (!shortcut) {
         return;
       }
+      const buttonGroup = button.dataset.terminalKbdGroup?.trim();
+      const inputGroup = buttonGroup || shortcut.inputGroup;
       const sent = sendTextPayload(shortcut.payload);
       if (sent) {
         setEntryStatus(`${shortcut.label} sent to the bridge.`, 'muted');
-        focusCapture();
+        if (inputGroup === ENTRY_INPUT_GROUP) {
+          focusCapture();
+        } else {
+          try {
+            button.focus();
+          } catch (error) {
+            // Ignore focus errors for unsupported environments.
+          }
+        }
       }
     });
   });
