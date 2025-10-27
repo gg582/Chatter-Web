@@ -309,7 +309,7 @@ const resolveSocketUrl = (container: HTMLElement): string | null => {
 
 const keySequences: Record<string, string> = {
   Enter: '\r',
-  Backspace: '\u0008',
+  Backspace: '\u007f',
   Tab: '\t',
   Escape: '\u001b',
   ArrowUp: '\u001b[A',
@@ -1862,6 +1862,28 @@ const createRuntime = (container: HTMLElement): TerminalRuntime => {
         event.preventDefault();
         flushNextBufferedLine(true);
         return;
+      }
+
+      if (event.key === 'Backspace') {
+        const target = event.currentTarget as HTMLTextAreaElement;
+        const selectionStart = target.selectionStart;
+        const selectionEnd = target.selectionEnd;
+        const hasSelection =
+          typeof selectionStart === 'number' &&
+          typeof selectionEnd === 'number' &&
+          selectionStart !== selectionEnd;
+        const caretBeyondStart = typeof selectionStart === 'number' && selectionStart > 0;
+
+        if (hasSelection || caretBeyondStart) {
+          return;
+        }
+
+        if (
+          (selectionStart === null || selectionEnd === null) &&
+          target.value.length > 0
+        ) {
+          return;
+        }
       }
 
       let payload = '';
