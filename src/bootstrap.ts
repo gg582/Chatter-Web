@@ -33,8 +33,11 @@ export const mountChatter = (root: HTMLElement) => {
     throw new Error('Failed to mount the Chatter UI.');
   }
 
+  let runtime: ReturnType<typeof renderTerminal> | null = null;
+  let disposed = false;
+
   const render = () => {
-    renderTerminal(store, terminalElement);
+    runtime = renderTerminal(store, terminalElement);
     renderSession(store, sessionElement, root);
     renderUtilityPanel(store, utilityElement);
     renderCheatSheet(cheatsheetElement);
@@ -44,6 +47,11 @@ export const mountChatter = (root: HTMLElement) => {
   const unsubscribe = store.subscribe(render);
 
   return () => {
+    if (disposed) {
+      return;
+    }
+    disposed = true;
+    runtime?.requestDisconnect('Page closing');
     unsubscribe();
   };
 };

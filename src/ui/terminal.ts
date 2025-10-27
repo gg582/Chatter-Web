@@ -400,6 +400,7 @@ type TerminalRuntime = {
   updateConnectAvailability?: () => void;
   updateViewportSizing?: () => void;
   mobilePlatform: MobilePlatform | null;
+  requestDisconnect: (reason?: string) => boolean;
 };
 
 type AnsiState = {
@@ -1024,6 +1025,7 @@ const createRuntime = (container: HTMLElement): TerminalRuntime => {
     incomingLineElement: null,
     asciiArtBlock: null,
     maxOutputLines: 600,
+    requestDisconnect: () => false,
     appendLine: (text: string, kind: TerminalLineKind = 'info') => {
       if (kind === 'incoming') {
         processIncomingChunk(text);
@@ -1055,6 +1057,52 @@ const createRuntime = (container: HTMLElement): TerminalRuntime => {
   const keyboardButtons = Array.from(
     keyboardPanel.querySelectorAll<HTMLButtonElement>('[data-terminal-kbd-key]')
   );
+
+  const KEEP_ALIVE_INTERVAL_MS = 20000;
+  const KEEP_ALIVE_PAYLOAD = new Uint8Array([0]);
+  let keepAliveTimer: number | null = null;
+  let lastBridgeActivity = Date.now();
+
+  const markBridgeActivity = () => {
+    lastBridgeActivity = Date.now();
+  };
+
+  const stopKeepAliveTimer = () => {
+    if (keepAliveTimer !== null && typeof window !== 'undefined') {
+      window.clearInterval(keepAliveTimer);
+      keepAliveTimer = null;
+    }
+  };
+
+  const ensureKeepAliveTimer = () => {
+    if (typeof window === 'undefined') {
+      return;
+    }
+
+    if (keepAliveTimer !== null) {
+      return;
+    }
+
+    keepAliveTimer = window.setInterval(() => {
+      const socket = runtime.socket;
+      if (!socket || socket.readyState !== WebSocket.OPEN) {
+        return;
+      }
+
+      const now = Date.now();
+      if (now - lastBridgeActivity < KEEP_ALIVE_INTERVAL_MS) {
+        return;
+      }
+
+      try {
+        socket.send(KEEP_ALIVE_PAYLOAD);
+        markBridgeActivity();
+      } catch (error) {
+        console.warn('Failed to send terminal keep-alive payload', error);
+        stopKeepAliveTimer();
+      }
+    }, KEEP_ALIVE_INTERVAL_MS);
+  };
 
   let menuOpen = false;
   const setMenuOpen = (open: boolean) => {
@@ -1636,6 +1684,8 @@ const createRuntime = (container: HTMLElement): TerminalRuntime => {
         runtime.socket = socket;
         runtime.binaryDecoder = new TextDecoder();
         socket.addEventListener('open', () => {
+          markBridgeActivity();
+          ensureKeepAliveTimer();
           runtime.connecting = false;
           runtime.connected = true;
           runtime.updateStatus('Connected', 'connected');
@@ -1646,6 +1696,7 @@ const createRuntime = (container: HTMLElement): TerminalRuntime => {
           updateEntryControls();
         });
       socket.addEventListener('message', (event) => {
+        markBridgeActivity();
         if (typeof event.data === 'string') {
           const pending = runtime.binaryDecoder.decode();
           if (pending) {
@@ -1660,6 +1711,7 @@ const createRuntime = (container: HTMLElement): TerminalRuntime => {
         }
       });
         socket.addEventListener('close', (event) => {
+          stopKeepAliveTimer();
           const remainder = runtime.binaryDecoder.decode();
           if (remainder) {
             runtime.appendLine(remainder, 'incoming');
@@ -1675,6 +1727,7 @@ const createRuntime = (container: HTMLElement): TerminalRuntime => {
           updateEntryControls();
         });
         socket.addEventListener('error', () => {
+          stopKeepAliveTimer();
           runtime.updateStatus('Connection error', 'disconnected');
           setEntryStatus('Bridge error. Commands will resume after reconnecting.', 'error');
         });
@@ -1718,19 +1771,24 @@ const createRuntime = (container: HTMLElement): TerminalRuntime => {
     updateFormPlaceholders();
   });
 
-    disconnectButton.addEventListener('click', () => {
-      const socket = runtime.socket;
-      if (!socket) {
-        return;
-      }
+  const requestDisconnect = (reason?: string): boolean => {
+    const socket = runtime.socket;
+    if (!socket) {
+      return false;
+    }
 
-      const sendDisconnectSequence = (value: string): boolean => {
+    stopKeepAliveTimer();
+    const closeReason = reason && reason.trim() ? reason : 'Client closed';
+    let statusApplied = false;
+
+    const sendDisconnectSequence = (value: string): boolean => {
       if (!socket || socket.readyState !== WebSocket.OPEN) {
         return false;
       }
 
       try {
         socket.send(textEncoder.encode(value));
+        markBridgeActivity();
         return true;
       } catch (error) {
         console.warn('Failed to send disconnect sequence', error);
@@ -1738,41 +1796,53 @@ const createRuntime = (container: HTMLElement): TerminalRuntime => {
       }
     };
 
-      if (socket.readyState === WebSocket.OPEN) {
-        runtime.updateStatus('Disconnecting…', 'connecting');
-        runtime.disconnectButton.disabled = true;
-        runtime.connected = false;
-        runtime.connecting = true;
-        runtime.updateConnectAvailability?.();
-        setEntryStatus('Disconnect requested. Buffer stays available while we close the bridge.', 'muted');
-        updateEntryControls();
+    if (socket.readyState === WebSocket.OPEN) {
+      runtime.updateStatus('Disconnecting…', 'connecting');
+      runtime.disconnectButton.disabled = true;
+      runtime.connected = false;
+      runtime.connecting = true;
+      runtime.updateConnectAvailability?.();
+      setEntryStatus('Disconnect requested. Buffer stays available while we close the bridge.', 'muted');
+      updateEntryControls();
+      statusApplied = true;
 
-        const modeSent = sendDisconnectSequence('/mode command\r');
-        const exitSent = modeSent && sendDisconnectSequence('exit\r');
+      const modeSent = sendDisconnectSequence('/mode command\r');
+      const exitSent = modeSent && sendDisconnectSequence('exit\r');
 
       if (modeSent && exitSent) {
         if (typeof window !== 'undefined') {
           window.setTimeout(() => {
             if (socket.readyState === WebSocket.OPEN) {
               try {
-                socket.close(1000, 'Client closed');
+                socket.close(1000, closeReason);
               } catch (error) {
                 console.warn('Failed to close terminal socket after graceful disconnect attempt', error);
               }
             }
           }, 1500);
         }
-        return;
+        return true;
       }
     }
 
     try {
-      socket.close(1000, 'Client closed');
+      socket.close(1000, closeReason);
     } catch (error) {
       console.warn('Failed to close terminal socket', error);
     }
-    setEntryStatus('Disconnect requested. Buffer stays available while we close the bridge.', 'muted');
-    updateEntryControls();
+
+    if (!statusApplied) {
+      setEntryStatus('Disconnect requested. Buffer stays available while we close the bridge.', 'muted');
+      updateEntryControls();
+    }
+
+    return true;
+  };
+
+  runtime.requestDisconnect = requestDisconnect;
+
+  disconnectButton.addEventListener('click', () => {
+    requestDisconnect();
   });
 
   const focusCapture = () => {
@@ -1870,6 +1940,7 @@ const createRuntime = (container: HTMLElement): TerminalRuntime => {
 
     try {
       runtime.socket?.send(textEncoder.encode(payload));
+      markBridgeActivity();
       return true;
     } catch (error) {
       console.warn('Failed to send terminal payload', error);
@@ -1921,29 +1992,6 @@ const createRuntime = (container: HTMLElement): TerminalRuntime => {
 
     updateEntryControls();
     return true;
-  }
-
-  if (typeof window !== 'undefined') {
-    let unloadHandled = false;
-    const handleUnload = () => {
-      if (unloadHandled) {
-        return;
-      }
-      unloadHandled = true;
-      if (!runtime.socket) {
-        return;
-      }
-      const state = runtime.socket.readyState;
-      if (state === WebSocket.OPEN || state === WebSocket.CONNECTING) {
-        try {
-          runtime.socket.close(1001, 'Page closed');
-        } catch (error) {
-          console.warn('Failed to close terminal socket on unload', error);
-        }
-      }
-    };
-    window.addEventListener('beforeunload', handleUnload);
-    window.addEventListener('unload', handleUnload);
   }
 
     runtime.captureElement.addEventListener('keydown', (event) => {
@@ -2038,7 +2086,7 @@ const createRuntime = (container: HTMLElement): TerminalRuntime => {
   return runtime;
 };
 
-export const renderTerminal = (store: ChatStore, container: HTMLElement) => {
+export const renderTerminal = (store: ChatStore, container: HTMLElement): TerminalRuntime => {
   let runtime = runtimeMap.get(container);
   if (!runtime) {
     runtime = createRuntime(container);
@@ -2068,4 +2116,6 @@ export const renderTerminal = (store: ChatStore, container: HTMLElement) => {
   } else {
     runtime.gameStatus.textContent = 'No active game selected. Choose one from the Assistants panel.';
   }
+
+  return runtime;
 };
