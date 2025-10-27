@@ -3,13 +3,19 @@ import { stat } from 'node:fs/promises';
 import { createHash } from 'node:crypto';
 import { createServer } from 'node:http';
 import type { IncomingMessage } from 'node:http';
-import { connect, Socket as NetSocket } from 'node:net';
+import { connect, isIP, Socket as NetSocket } from 'node:net';
 import { spawn, type ChildProcessWithoutNullStreams } from 'node:child_process';
-import { extname, join } from 'node:path';
+import { extname, join, resolve as resolvePath } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const serverDirectory = fileURLToPath(new URL('.', import.meta.url));
-const staticRoots = [serverDirectory];
+const candidateRoots = [
+  serverDirectory,
+  join(serverDirectory, '..'),
+  join(serverDirectory, 'public'),
+  join(serverDirectory, '..', 'public')
+];
+const staticRoots = Array.from(new Set(candidateRoots.map((dir) => resolvePath(dir))));
 const TERMINAL_PATH = '/terminal';
 const MAX_USERNAME_BYTES = 64;
 type EnvLookupResult = { value: string | undefined; source: string | undefined };
@@ -140,9 +146,88 @@ const normaliseProtocolOverride = (
   return { present: true, valid: true, protocol: lower as BbsProtocol };
 };
 
+const stripIpv6Brackets = (value: string): string =>
+  value.startsWith('[') && value.endsWith(']') ? value.slice(1, -1) : value;
+
+const stripZoneId = (value: string): string => (value.includes('%') ? value.split('%', 1)[0] : value);
+
+const isPrivateIpv4 = (segments: number[]) => {
+  if (segments.length !== 4 || segments.some((part) => Number.isNaN(part) || part < 0 || part > 255)) {
+    return false;
+  }
+
+  const [a, b] = segments;
+
+  if (a === 10 || a === 127 || a === 0) {
+    return true;
+  }
+
+  if (a === 192 && b === 168) {
+    return true;
+  }
+
+  if (a === 172 && b >= 16 && b <= 31) {
+    return true;
+  }
+
+  if (a === 169 && b === 254) {
+    return true;
+  }
+
+  if (a === 100 && b >= 64 && b <= 127) {
+    return true;
+  }
+
+  return false;
+};
+
+const isPrivateIpv6 = (value: string) => {
+  const normalised = value.toLowerCase();
+
+  if (normalised === '::1' || normalised === '::') {
+    return true;
+  }
+
+  if (normalised.startsWith('fc') || normalised.startsWith('fd')) {
+    return true;
+  }
+
+  if (normalised.startsWith('fe8') || normalised.startsWith('fe9') || normalised.startsWith('fea') || normalised.startsWith('feb')) {
+    return true;
+  }
+
+  return false;
+};
+
+const isBlockedHostOverride = (value: string): boolean => {
+  const withoutBrackets = stripIpv6Brackets(value);
+  const stripped = stripZoneId(withoutBrackets);
+  const lower = stripped.toLowerCase();
+
+  if (!stripped) {
+    return true;
+  }
+
+  if (lower === 'localhost' || lower.endsWith('.localhost')) {
+    return true;
+  }
+
+  const ipVersion = isIP(stripped);
+  if (ipVersion === 4) {
+    const parts = stripped.split('.').map((segment) => Number.parseInt(segment, 10));
+    return isPrivateIpv4(parts);
+  }
+
+  if (ipVersion === 6) {
+    return isPrivateIpv6(stripped);
+  }
+
+  return false;
+};
+
 const normaliseHostOverride = (
   value: string | null
-): { present: boolean; valid: boolean; host: string | null } => {
+): { present: boolean; valid: boolean; host: string | null; error?: string } => {
   if (value === null) {
     return { present: false, valid: true, host: null };
   }
@@ -154,6 +239,10 @@ const normaliseHostOverride = (
 
   if (/\s/.test(trimmed) || trimmed.length > 255) {
     return { present: true, valid: false, host: null };
+  }
+
+  if (isBlockedHostOverride(trimmed)) {
+    return { present: true, valid: false, host: null, error: 'Host override not permitted' };
   }
 
   return { present: true, valid: true, host: trimmed };
@@ -775,7 +864,7 @@ const handleUpgrade = (req: IncomingMessage, socket: NetSocket, head: Buffer) =>
 
     const hostResult = normaliseHostOverride(requestUrl.searchParams.get('host'));
     if (!hostResult.valid) {
-      respondUpgradeError(socket, 400, 'Invalid host override');
+      respondUpgradeError(socket, 400, hostResult.error ?? 'Invalid host override');
       return;
     }
     if (hostResult.present) {
