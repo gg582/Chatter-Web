@@ -720,7 +720,6 @@ const createRuntime = (container: HTMLElement): TerminalRuntime => {
   const statusElement = container.querySelector<HTMLElement>('[data-terminal-status]');
   const indicatorElement = container.querySelector<HTMLElement>('[data-terminal-indicator]');
   const outputElement = container.querySelector<HTMLElement>('[data-terminal-output]');
-  const captureElement = container.querySelector<HTMLTextAreaElement>('[data-terminal-capture]');
   const connectButton = container.querySelector<HTMLButtonElement>('[data-terminal-connect]');
   const disconnectButton = container.querySelector<HTMLButtonElement>('[data-terminal-disconnect]');
   const focusButton = container.querySelector<HTMLButtonElement>('[data-terminal-focus]');
@@ -738,6 +737,7 @@ const createRuntime = (container: HTMLElement): TerminalRuntime => {
   const optionsElement = container.querySelector<HTMLDetailsElement>('[data-terminal-options]');
   const entryElement = container.querySelector<HTMLElement>('[data-terminal-entry]');
   const entryForm = entryElement?.querySelector<HTMLFormElement>('[data-terminal-entry-form]');
+  const entryBufferElement = entryElement?.querySelector<HTMLTextAreaElement>('[data-terminal-entry-buffer]');
   const entryStatusElement = entryElement?.querySelector<HTMLElement>('[data-terminal-entry-status]');
   const entrySendButton = entryElement?.querySelector<HTMLButtonElement>('[data-terminal-entry-send]');
   const entryClearButton = entryElement?.querySelector<HTMLButtonElement>('[data-terminal-entry-clear]');
@@ -746,7 +746,7 @@ const createRuntime = (container: HTMLElement): TerminalRuntime => {
     !statusElement ||
     !indicatorElement ||
     !outputElement ||
-    !captureElement ||
+    !entryBufferElement ||
     !connectButton ||
     !disconnectButton ||
     !focusButton ||
@@ -771,6 +771,7 @@ const createRuntime = (container: HTMLElement): TerminalRuntime => {
       throw new Error('Failed to mount the web terminal.');
     }
 
+    const captureElement = entryBufferElement;
     const entryStatusNode = entryStatusElement;
     const entrySendControl = entrySendButton;
     const entryClearControl = entryClearButton;
