@@ -259,6 +259,11 @@ type TerminalRuntime = {
   indicatorElement: HTMLElement;
   outputElement: HTMLElement;
   captureElement: HTMLTextAreaElement;
+  entryElement: HTMLElement;
+  entryForm: HTMLFormElement;
+  entryStatusElement: HTMLElement;
+  entrySendButton: HTMLButtonElement;
+  entryClearButton: HTMLButtonElement;
   connectButton: HTMLButtonElement;
   disconnectButton: HTMLButtonElement;
   focusButton: HTMLButtonElement;
@@ -771,18 +776,15 @@ const createRuntime = (container: HTMLElement): TerminalRuntime => {
       throw new Error('Failed to mount the web terminal.');
     }
 
-    const captureElement = entryBufferElement;
-    const entryStatusNode = entryStatusElement;
-    const entrySendControl = entrySendButton;
-    const entryClearControl = entryClearButton;
-    let entryStatusIdentifier = entryStatusNode.id.trim();
+  const captureElement = entryBufferElement;
+  let entryStatusIdentifier = entryStatusElement.id.trim();
 
-    if (!entryStatusIdentifier) {
-      entryStatusIdentifier = createEntryStatusId();
-      entryStatusNode.id = entryStatusIdentifier;
-    }
+  if (!entryStatusIdentifier) {
+    entryStatusIdentifier = createEntryStatusId();
+    entryStatusElement.id = entryStatusIdentifier;
+  }
 
-    captureElement.setAttribute('aria-describedby', entryStatusIdentifier);
+  captureElement.setAttribute('aria-describedby', entryStatusIdentifier);
 
   const runtime: TerminalRuntime = {
     socket: null,
@@ -790,6 +792,11 @@ const createRuntime = (container: HTMLElement): TerminalRuntime => {
     indicatorElement,
     outputElement,
     captureElement,
+    entryElement,
+    entryForm,
+    entryStatusElement,
+    entrySendButton,
+    entryClearButton,
     connectButton,
     disconnectButton,
     focusButton,
@@ -1400,21 +1407,21 @@ const createRuntime = (container: HTMLElement): TerminalRuntime => {
 
   runtime.captureElement.addEventListener('focus', () => {
     runtime.viewport.classList.add('terminal__viewport--focused');
-    entryElement.classList.add('terminal__entry--focused');
+    runtime.entryElement.classList.add('terminal__entry--focused');
   });
 
   runtime.captureElement.addEventListener('blur', () => {
     runtime.viewport.classList.remove('terminal__viewport--focused');
-    entryElement.classList.remove('terminal__entry--focused');
+    runtime.entryElement.classList.remove('terminal__entry--focused');
   });
 
   function setEntryStatus(message: string, tone: 'default' | 'muted' | 'error' = 'default') {
-    entryStatusNode.textContent = message;
-    entryStatusNode.classList.remove('terminal__entry-status--muted', 'terminal__entry-status--error');
+    runtime.entryStatusElement.textContent = message;
+    runtime.entryStatusElement.classList.remove('terminal__entry-status--muted', 'terminal__entry-status--error');
     if (tone === 'muted') {
-      entryStatusNode.classList.add('terminal__entry-status--muted');
+      runtime.entryStatusElement.classList.add('terminal__entry-status--muted');
     } else if (tone === 'error') {
-      entryStatusNode.classList.add('terminal__entry-status--error');
+      runtime.entryStatusElement.classList.add('terminal__entry-status--error');
     }
   }
 
@@ -1430,8 +1437,8 @@ const createRuntime = (container: HTMLElement): TerminalRuntime => {
     const bufferedValue = normaliseBufferValue(runtime.captureElement.value);
     const hasBuffered = bufferedValue.length > 0;
     const socketOpen = isSocketOpen();
-    entrySendControl.disabled = !hasBuffered || !socketOpen;
-    entryClearControl.disabled = !hasBuffered;
+    runtime.entrySendButton.disabled = !hasBuffered || !socketOpen;
+    runtime.entryClearButton.disabled = !hasBuffered;
   }
 
   function sendTextPayload(rawValue: string): boolean {
@@ -1572,12 +1579,12 @@ const createRuntime = (container: HTMLElement): TerminalRuntime => {
       }
     });
 
-    entryForm.addEventListener('submit', (event) => {
+    runtime.entryForm.addEventListener('submit', (event) => {
       event.preventDefault();
       flushNextBufferedLine(false);
     });
 
-    entryClearControl.addEventListener('click', () => {
+    runtime.entryClearButton.addEventListener('click', () => {
       runtime.captureElement.value = '';
       setEntryStatus('Buffer cleared. Nothing queued for the bridge.', 'muted');
       updateEntryControls();
