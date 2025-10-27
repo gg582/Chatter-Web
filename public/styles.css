@@ -1489,6 +1489,7 @@ summary::-webkit-details-marker {
 
 .terminal-chat--mobile .terminal__output {
   max-height: none;
+  min-height: clamp(420px, 90vh, 1080px);
 }
 
 .terminal-chat--mobile .terminal-chat__entry-preview {
