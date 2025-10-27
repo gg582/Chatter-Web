@@ -183,6 +183,20 @@ const stripIpv6Brackets = (value: string): string =>
 
 const stripZoneId = (value: string): string => (value.includes('%') ? value.split('%', 1)[0] : value);
 
+const ANSI_ESCAPE_SEQUENCE_PATTERN = /\u001b\[[0-9;?]*[ -\/]*[@-~]/gu;
+const PASSWORD_PROMPT_PATTERN = /\bpassword\b[^\r\n]{0,40}[:?=>]/iu;
+
+const stripAnsiSequences = (value: string): string => value.replace(ANSI_ESCAPE_SEQUENCE_PATTERN, '');
+
+const containsPasswordPrompt = (value: string): boolean => {
+  if (!value) {
+    return false;
+  }
+
+  const sanitized = stripAnsiSequences(value);
+  return PASSWORD_PROMPT_PATTERN.test(sanitized);
+};
+
 const isPrivateIpv4 = (segments: number[]) => {
   if (segments.length !== 4 || segments.some((part) => Number.isNaN(part) || part < 0 || part > 255)) {
     return false;
@@ -547,11 +561,39 @@ const attachTelnetBridge = (context: TerminalClientContext) => {
   const remote = connect({ host, port });
   remote.setNoDelay(true);
 
+  let telnetPromptBuffer = '';
+  let telnetPasswordPending =
+    typeof context.settings.sshPassword === 'string' && context.settings.sshPassword.length > 0;
+  let telnetPasswordValue = telnetPasswordPending ? context.settings.sshPassword ?? '' : '';
+
+  const handleTelnetPasswordPrompt = (chunk: Buffer) => {
+    if (!telnetPasswordPending) {
+      return;
+    }
+
+    telnetPromptBuffer += chunk.toString('utf8');
+    if (telnetPromptBuffer.length > 512) {
+      telnetPromptBuffer = telnetPromptBuffer.slice(-512);
+    }
+
+    if (containsPasswordPrompt(telnetPromptBuffer)) {
+      telnetPasswordPending = false;
+      telnetPromptBuffer = '';
+      try {
+        remote.write(`${telnetPasswordValue}\r\n`);
+        telnetPasswordValue = '';
+      } catch (error) {
+        console.error('Failed to send TELNET password', error);
+      }
+    }
+  };
+
   remote.on('connect', () => {
     sendTextFrame(context, `Connected to ${host}:${port}.`);
   });
 
   remote.on('data', (chunk) => {
+    handleTelnetPasswordPrompt(chunk);
     sendBinaryFrame(context, chunk);
   });
 
@@ -629,7 +671,7 @@ const attachSshBridge = (context: TerminalClientContext) => {
       promptBuffer = promptBuffer.slice(-512);
     }
 
-    if (promptBuffer.toLowerCase().includes('password:')) {
+    if (containsPasswordPrompt(promptBuffer)) {
       passwordPending = false;
       promptBuffer = '';
       try {
