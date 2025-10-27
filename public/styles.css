@@ -1312,8 +1312,8 @@ summary::-webkit-details-marker {
   border-radius: 0;
   border: 1px solid var(--terminal-border);
   background: var(--terminal-bg);
-  min-height: 360px;
-  height: clamp(360px, 60vh, 780px);
+  min-height: 432px;
+  height: clamp(432px, 72vh, 936px);
   overflow: hidden;
   position: relative;
   display: flex;
