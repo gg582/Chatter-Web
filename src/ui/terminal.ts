@@ -1263,11 +1263,16 @@ const createRuntime = (container: HTMLElement): TerminalRuntime => {
     let appliedHeight = Math.max(260, desiredHeight);
 
     if (runtime.mobilePlatform) {
-      const availableForTerminal = Math.max(viewportHeight - 120, 360);
-      appliedHeight = Math.min(Math.max(desiredHeight, 420), availableForTerminal);
+      const safeViewportHeight = Math.max(viewportHeight, 0);
+      const availableForTerminal = Math.max(
+        Math.min(safeViewportHeight - 48, safeViewportHeight * 0.98),
+        360
+      );
+      const scaledHeight = Math.max(desiredHeight * 3, 540);
+      appliedHeight = Math.min(scaledHeight, availableForTerminal);
       runtime.viewport.style.height = 'auto';
       runtime.viewport.style.maxHeight = `${appliedHeight}px`;
-      runtime.viewport.style.minHeight = '360px';
+      runtime.viewport.style.minHeight = `${Math.min(appliedHeight, 540)}px`;
       runtime.outputElement.style.height = 'auto';
       runtime.outputElement.style.maxHeight = `${appliedHeight}px`;
     } else {
