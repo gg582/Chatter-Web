@@ -280,6 +280,14 @@ type TerminalRuntime = {
   updateStatus: (label: string, state: 'disconnected' | 'connecting' | 'connected') => void;
   updateConnectAvailability?: () => void;
   updateViewportSizing?: () => void;
+  mobilePlatform: MobilePlatform | null;
+  mobileForm?: HTMLFormElement;
+  mobileBuffer?: HTMLTextAreaElement;
+  mobileSendButton?: HTMLButtonElement;
+  mobileClearButton?: HTMLButtonElement;
+  mobileStatus?: HTMLElement;
+  setMobileStatus?: (message: string, tone?: 'default' | 'muted' | 'error') => void;
+  updateMobileSendAvailability?: () => void;
 };
 
 type AnsiState = {
@@ -824,8 +832,91 @@ const createRuntime = (container: HTMLElement): TerminalRuntime => {
     updateStatus: (label, state) => {
       runtime.statusElement.textContent = label;
       runtime.indicatorElement.setAttribute('data-state', state);
-    }
+    },
+    mobilePlatform,
+    mobileForm: mobileForm ?? undefined,
+    mobileBuffer: mobileBuffer ?? undefined,
+    mobileSendButton: mobileSendButton ?? undefined,
+    mobileClearButton: mobileClearButton ?? undefined,
+    mobileStatus: mobileStatus ?? undefined
   };
+
+  if (mobilePlatform && mobileForm && mobileBuffer && mobileSendButton && mobileClearButton && mobileStatus) {
+    const introLabel = resolvedLabel || describeMobilePlatform(mobilePlatform);
+    const setMobileStatus = (message: string, tone: 'default' | 'muted' | 'error' = 'default') => {
+      mobileStatus.textContent = message;
+      mobileStatus.classList.remove('terminal__mobile-status--muted', 'terminal__mobile-status--error');
+      if (tone === 'muted') {
+        mobileStatus.classList.add('terminal__mobile-status--muted');
+      } else if (tone === 'error') {
+        mobileStatus.classList.add('terminal__mobile-status--error');
+      }
+    };
+
+    const updateMobileSendAvailability = () => {
+      const ready = Boolean(runtime.socket && runtime.socket.readyState === WebSocket.OPEN);
+      mobileSendButton.disabled = !ready;
+    };
+
+    const sendBufferedLine = (): boolean => {
+      if (!runtime.socket || runtime.socket.readyState !== WebSocket.OPEN) {
+        setMobileStatus('Connect to the terminal bridge before sending commands.', 'error');
+        return false;
+      }
+
+      const rawValue = mobileBuffer.value;
+      if (!rawValue) {
+        setMobileStatus('Type a command or add a newline to queue an empty line.', 'error');
+        return false;
+      }
+
+      const normalised = rawValue.replace(/\r/g, '');
+      if (!normalised) {
+        setMobileStatus('Type a command or add a newline to queue an empty line.', 'error');
+        return false;
+      }
+
+      const newlineIndex = normalised.indexOf('\n');
+      const line = newlineIndex === -1 ? normalised : normalised.slice(0, newlineIndex);
+      const remainder = newlineIndex === -1 ? '' : normalised.slice(newlineIndex + 1);
+
+      if (!line && newlineIndex === -1) {
+        setMobileStatus('Insert a newline to send an empty line or enter a command.', 'error');
+        return false;
+      }
+
+      sendTextPayload(line ? `${line}\r` : '\r');
+      mobileBuffer.value = remainder;
+      mobileBuffer.focus();
+
+      if (line) {
+        setMobileStatus(remainder ? 'Line sent. Next buffered line is ready.' : 'Line sent. Buffer is now empty.', 'muted');
+      } else {
+        setMobileStatus('Sent a blank line.', 'muted');
+      }
+
+      return true;
+    };
+
+    mobileForm.addEventListener('submit', (event) => {
+      event.preventDefault();
+      sendBufferedLine();
+    });
+
+    mobileClearButton.addEventListener('click', () => {
+      mobileBuffer.value = '';
+      setMobileStatus('Buffer cleared. Compose a new command when you are ready.', 'muted');
+      mobileBuffer.focus();
+    });
+
+    runtime.setMobileStatus = setMobileStatus;
+    runtime.updateMobileSendAvailability = updateMobileSendAvailability;
+    updateMobileSendAvailability();
+    setMobileStatus(
+      `${introLabel} mobile mode ready. Connect to the bridge, type a command, then send a line when you are ready.`,
+      'muted'
+    );
+  }
 
   function ensureIncomingLine(): HTMLPreElement {
     if (runtime.incomingLineElement && runtime.incomingLineElement.isConnected) {
@@ -986,9 +1077,11 @@ const createRuntime = (container: HTMLElement): TerminalRuntime => {
   const updateConnectAvailability = () => {
     if (runtime.connected || runtime.connecting) {
       runtime.connectButton.disabled = true;
+      runtime.updateMobileSendAvailability?.();
       return;
     }
     runtime.connectButton.disabled = !runtime.target.available || !runtime.socketUrl || !hasUsername();
+    runtime.updateMobileSendAvailability?.();
   };
   runtime.updateConnectAvailability = updateConnectAvailability;
 
@@ -1510,6 +1603,11 @@ export const renderTerminal = (store: ChatStore, container: HTMLElement) => {
   if (!runtime) {
     runtime = createRuntime(container);
     runtimeMap.set(container, runtime);
+  }
+
+  const datasetPlatform = container.dataset.mobilePlatform;
+  if (datasetPlatform && isMobilePlatform(datasetPlatform)) {
+    runtime.mobilePlatform = datasetPlatform;
   }
 
   runtime.target = resolveTarget();
