@@ -453,6 +453,62 @@ const ANSI_BACKGROUND_COLOR_MAP: Record<number, string> = {
   107: '#ffffff'
 };
 
+const ANSI_256_BASE_COLORS: readonly string[] = [
+  '#000000',
+  '#800000',
+  '#008000',
+  '#808000',
+  '#000080',
+  '#800080',
+  '#008080',
+  '#c0c0c0',
+  '#808080',
+  '#ff0000',
+  '#00ff00',
+  '#ffff00',
+  '#0000ff',
+  '#ff00ff',
+  '#00ffff',
+  '#ffffff'
+];
+
+const ANSI_256_COMPONENT_VALUES = [0, 95, 135, 175, 215, 255];
+
+const toHexComponent = (value: number) => value.toString(16).padStart(2, '0');
+
+const clampColorComponent = (value: number) => Math.max(0, Math.min(255, Math.round(value)));
+
+const rgbToHex = (r: number, g: number, b: number) =>
+  `#${toHexComponent(clampColorComponent(r))}${toHexComponent(clampColorComponent(g))}${toHexComponent(
+    clampColorComponent(b)
+  )}`;
+
+const resolveAnsi256Color = (index: number): string | null => {
+  if (!Number.isInteger(index) || index < 0 || index > 255) {
+    return null;
+  }
+
+  if (index < ANSI_256_BASE_COLORS.length) {
+    return ANSI_256_BASE_COLORS[index];
+  }
+
+  if (index < 232) {
+    const offset = index - 16;
+    const r = Math.floor(offset / 36);
+    const g = Math.floor((offset % 36) / 6);
+    const b = offset % 6;
+
+    return rgbToHex(
+      ANSI_256_COMPONENT_VALUES[r],
+      ANSI_256_COMPONENT_VALUES[g],
+      ANSI_256_COMPONENT_VALUES[b]
+    );
+  }
+
+  const level = 8 + (index - 232) * 10;
+  return rgbToHex(level, level, level);
+};
+
 const ANSI_PATTERN = /\u001b\[([0-9;]*)([A-Za-z])/g;
 
 const ANSI_BOLD_FOREGROUND_ALIASES: Record<number, number> = {
@@ -502,9 +558,9 @@ const createAnsiFragment = (line: string): ParsedAnsiLine => {
   };
 
   while ((match = ANSI_PATTERN.exec(line)) !== null) {
-    const index = match.index;
-    if (index > lastIndex) {
-      pushSegment(line.slice(lastIndex, index));
+    const matchIndex = match.index;
+    if (matchIndex > lastIndex) {
+      pushSegment(line.slice(lastIndex, matchIndex));
     }
     lastIndex = ANSI_PATTERN.lastIndex;
 
@@ -514,7 +570,12 @@ const createAnsiFragment = (line: string): ParsedAnsiLine => {
 
     const codes = match[1] ? match[1].split(';') : ['0'];
 
-    for (const codeText of codes) {
+    let codeIndex = 0;
+
+    while (codeIndex < codes.length) {
+      const codeText = codes[codeIndex];
+      codeIndex += 1;
+
       const code = Number.parseInt(codeText, 10);
       if (!Number.isFinite(code)) {
         continue;
@@ -549,6 +610,56 @@ const createAnsiFragment = (line: string): ParsedAnsiLine => {
       }
       if (code === 49) {
         state.background = null;
+        continue;
+      }
+      if (code === 38 || code === 48) {
+        const modeText = codes[codeIndex];
+        const mode = modeText ? Number.parseInt(modeText, 10) : Number.NaN;
+        if (!Number.isFinite(mode)) {
+          continue;
+        }
+        codeIndex += 1;
+
+        if (mode === 5) {
+          const colorIndexText = codes[codeIndex];
+          const colorIndex = colorIndexText ? Number.parseInt(colorIndexText, 10) : Number.NaN;
+          if (Number.isFinite(colorIndex)) {
+            const resolved = resolveAnsi256Color(colorIndex);
+            if (resolved) {
+              if (code === 38) {
+                state.color = resolved;
+                state.colorCode = null;
+              } else {
+                state.background = resolved;
+              }
+            }
+          }
+          codeIndex += 1;
+          continue;
+        }
+
+        if (mode === 2) {
+          const rText = codes[codeIndex];
+          const gText = codes[codeIndex + 1];
+          const bText = codes[codeIndex + 2];
+          if (typeof rText === 'string' && typeof gText === 'string' && typeof bText === 'string') {
+            const r = Number.parseInt(rText, 10);
+            const g = Number.parseInt(gText, 10);
+            const b = Number.parseInt(bText, 10);
+            if (Number.isFinite(r) && Number.isFinite(g) && Number.isFinite(b)) {
+              const resolved = rgbToHex(r, g, b);
+              if (code === 38) {
+                state.color = resolved;
+                state.colorCode = null;
+              } else {
+                state.background = resolved;
+              }
+            }
+          }
+          codeIndex += 3;
+          continue;
+        }
+
         continue;
       }
       const foreground = resolveForegroundColor(code, state.bold);
