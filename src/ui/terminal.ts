@@ -811,6 +811,11 @@ const createRuntime = (container: HTMLElement): TerminalRuntime => {
   const entryStatusElement = entryElement?.querySelector<HTMLElement>('[data-terminal-entry-status]');
   const entrySendButton = entryElement?.querySelector<HTMLButtonElement>('[data-terminal-entry-send]');
   const entryClearButton = entryElement?.querySelector<HTMLButtonElement>('[data-terminal-entry-clear]');
+  const mobileForm = container.querySelector<HTMLFormElement>('[data-terminal-mobile-form]');
+  const mobileBuffer = container.querySelector<HTMLTextAreaElement>('[data-terminal-mobile-buffer]');
+  const mobileSendButton = container.querySelector<HTMLButtonElement>('[data-terminal-mobile-send]');
+  const mobileClearButton = container.querySelector<HTMLButtonElement>('[data-terminal-mobile-clear]');
+  const mobileStatus = container.querySelector<HTMLElement>('[data-terminal-mobile-status]');
 
   if (
     !statusElement ||
