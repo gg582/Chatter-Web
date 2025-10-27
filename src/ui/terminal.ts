@@ -697,6 +697,25 @@ const createRuntime = (container: HTMLElement): TerminalRuntime => {
       ? `Detected ${escapeHtml(detectedLabel)}. Use the composer below to queue commands. Tap kbd for shortcut keys.`
       : 'Use the composer below to queue commands and tap kbd for shortcut keys.';
 
+  const shellClasses = ['terminal-chat'];
+  if (mobilePlatform) {
+    shellClasses.push('terminal-chat--mobile');
+  }
+
+  const mobileHeaderMessage = mobilePlatform
+    ? resolvedLabel
+      ? `Detected ${escapeHtml(resolvedLabel)}. Touch controls are enabled for your session.`
+      : 'Touch controls are enabled for your session.'
+    : '';
+
+  const mobileHeaderNote = mobileHeaderMessage
+    ? `<p class="terminal-chat__mobile-note">${mobileHeaderMessage}</p>`
+    : '';
+
+  const conversationNoteHtml = mobilePlatform
+    ? escapeHtml('Scroll through recent output and send commands with the composer below.')
+    : entryIntro;
+
   const entryInstructions =
       'Type a command and press Enter or Send to forward the next line to the bridge. Shift+Enter adds a newline and kbd unlocks arrows or Ctrl shortcuts.';
 
@@ -704,7 +723,7 @@ const createRuntime = (container: HTMLElement): TerminalRuntime => {
   const menuId = `${entryStatusId}-menu`;
 
   container.innerHTML = `
-    <section class="terminal-chat" data-terminal-shell>
+    <section class="${shellClasses.join(' ')}" data-terminal-shell>
       <header class="terminal-chat__header">
         <button
           type="button"
@@ -723,6 +742,7 @@ const createRuntime = (container: HTMLElement): TerminalRuntime => {
             <span data-terminal-status>Disconnected</span>
           </div>
         </div>
+        ${mobileHeaderNote}
         <div class="terminal-chat__header-actions">
           <button type="button" class="terminal-chat__connect" data-terminal-connect>Connect</button>
           <button type="button" class="terminal-chat__disconnect" data-terminal-disconnect disabled>Disconnect</button>
@@ -822,7 +842,7 @@ const createRuntime = (container: HTMLElement): TerminalRuntime => {
               <span class="terminal-chat__endpoint-label">Current target</span>
               <span class="terminal-chat__endpoint-value" data-terminal-endpoint>${escapeHtml(target.description)}</span>
             </div>
-            <p class="terminal-chat__conversation-note">${entryIntro}</p>
+            <p class="terminal-chat__conversation-note">${conversationNoteHtml}</p>
           </div>
           <div class="terminal-chat__viewport terminal__viewport" data-terminal-viewport>
             <div class="terminal-chat__output terminal__output" data-terminal-output></div>
@@ -1240,12 +1260,14 @@ const createRuntime = (container: HTMLElement): TerminalRuntime => {
       0;
 
     const desiredHeight = computeViewportHeight(viewportHeight);
-    const appliedHeight = Math.max(260, desiredHeight);
+    let appliedHeight = Math.max(260, desiredHeight);
 
     if (runtime.mobilePlatform) {
+      const availableForTerminal = Math.max(viewportHeight - 120, 360);
+      appliedHeight = Math.min(Math.max(desiredHeight, 420), availableForTerminal);
       runtime.viewport.style.height = 'auto';
       runtime.viewport.style.maxHeight = `${appliedHeight}px`;
-      runtime.viewport.style.minHeight = '260px';
+      runtime.viewport.style.minHeight = '360px';
       runtime.outputElement.style.height = 'auto';
       runtime.outputElement.style.maxHeight = `${appliedHeight}px`;
     } else {
