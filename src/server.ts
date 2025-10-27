@@ -18,6 +18,7 @@ const candidateRoots = [
 const staticRoots = Array.from(new Set(candidateRoots.map((dir) => resolvePath(dir))));
 const TERMINAL_PATH = '/terminal';
 const MAX_USERNAME_BYTES = 64;
+const MAX_PASSWORD_BYTES = 256;
 type EnvLookupResult = { value: string | undefined; source: string | undefined };
 
 const readEnvValue = (...keys: string[]): EnvLookupResult => {
@@ -41,6 +42,7 @@ type BbsSettings = {
   port: number;
   protocol: BbsProtocol;
   sshUser?: string;
+  sshPassword?: string;
   sshCommand?: string;
 };
 
@@ -89,6 +91,10 @@ const readBbsSettings = (options: { silent?: boolean } = {}): BbsSettings | null
   }
 
   const { value: sshUser } = readEnvValue('CHATTER_BBS_SSH_USER', 'CHATTER_TERMINAL_SSH_USER');
+  const { value: sshPassword } = readEnvValue(
+    'CHATTER_BBS_SSH_PASSWORD',
+    'CHATTER_TERMINAL_SSH_PASSWORD'
+  );
   const { value: sshCommand } = readEnvValue(
     'CHATTER_BBS_SSH_COMMAND',
     'CHATTER_TERMINAL_SSH_COMMAND'
@@ -99,6 +105,7 @@ const readBbsSettings = (options: { silent?: boolean } = {}): BbsSettings | null
     port,
     protocol,
     sshUser: sshUser || undefined,
+    sshPassword: sshPassword || undefined,
     sshCommand: sshCommand || undefined
   };
 };
@@ -124,6 +131,31 @@ const normaliseUsername = (value: string | null): { valid: boolean; username: st
   }
 
   return { valid: true, username: utf8Buffer.toString('utf8') };
+};
+
+const normalisePassword = (
+  value: string | null
+): { present: boolean; valid: boolean; password: string | null } => {
+  if (value === null) {
+    return { present: false, valid: true, password: null };
+  }
+
+  const normalised = value.normalize('NFC');
+
+  if (!normalised) {
+    return { present: true, valid: true, password: null };
+  }
+
+  if (/[\u0000-\u001f\u007f]/u.test(normalised)) {
+    return { present: true, valid: false, password: null };
+  }
+
+  const utf8Buffer = Buffer.from(normalised, 'utf8');
+  if (utf8Buffer.length > MAX_PASSWORD_BYTES) {
+    return { present: true, valid: false, password: null };
+  }
+
+  return { present: true, valid: true, password: utf8Buffer.toString('utf8') };
 };
 
 const normaliseProtocolOverride = (
@@ -549,7 +581,7 @@ const attachTelnetBridge = (context: TerminalClientContext) => {
 };
 
 const attachSshBridge = (context: TerminalClientContext) => {
-  const { host, port, sshUser, sshCommand } = context.settings;
+  const { host, port, sshUser, sshPassword, sshCommand } = context.settings;
 
   if (!sshUser) {
     sendTextFrame(context, 'SSH requires a username. Provide one before connecting.');
@@ -583,11 +615,39 @@ const attachSshBridge = (context: TerminalClientContext) => {
     return;
   }
 
+  let promptBuffer = '';
+  let passwordPending = typeof sshPassword === 'string' && sshPassword.length > 0;
+  let passwordValue = passwordPending ? sshPassword ?? '' : '';
+
+  const handlePotentialPasswordPrompt = (chunk: Buffer) => {
+    if (!passwordPending) {
+      return;
+    }
+
+    promptBuffer += chunk.toString('utf8');
+    if (promptBuffer.length > 512) {
+      promptBuffer = promptBuffer.slice(-512);
+    }
+
+    if (promptBuffer.toLowerCase().includes('password:')) {
+      passwordPending = false;
+      promptBuffer = '';
+      try {
+        child.stdin.write(`${passwordValue}\n`);
+        passwordValue = '';
+      } catch (error) {
+        console.error('Failed to send SSH password', error);
+      }
+    }
+  };
+
   child.stdout.on('data', (chunk) => {
+    handlePotentialPasswordPrompt(chunk as Buffer);
     sendBinaryFrame(context, chunk as Buffer);
   });
 
   child.stderr.on('data', (chunk) => {
+    handlePotentialPasswordPrompt(chunk as Buffer);
     sendBinaryFrame(context, chunk as Buffer);
   });
 
@@ -836,11 +896,15 @@ const handleUpgrade = (req: IncomingMessage, socket: NetSocket, head: Buffer) =>
         port: defaultPort,
         protocol: fallbackProtocol,
         sshUser: readEnvValue('CHATTER_BBS_SSH_USER', 'CHATTER_TERMINAL_SSH_USER').value || undefined,
+        sshPassword:
+          readEnvValue('CHATTER_BBS_SSH_PASSWORD', 'CHATTER_TERMINAL_SSH_PASSWORD').value || undefined,
         sshCommand:
           readEnvValue('CHATTER_BBS_SSH_COMMAND', 'CHATTER_TERMINAL_SSH_COMMAND').value || undefined
       };
 
   let usernameOverride: string | null = null;
+  let passwordOverride: string | null = null;
+  let passwordOverridePresent = false;
   let protocolOverride: BbsProtocol | null = null;
   let hostOverride: string | null = null;
   let portOverride: number | null = null;
@@ -852,6 +916,16 @@ const handleUpgrade = (req: IncomingMessage, socket: NetSocket, head: Buffer) =>
       return;
     }
     usernameOverride = normalised.username;
+
+    const passwordResult = normalisePassword(requestUrl.searchParams.get('password'));
+    if (!passwordResult.valid) {
+      respondUpgradeError(socket, 400, 'Invalid password');
+      return;
+    }
+    if (passwordResult.present) {
+      passwordOverridePresent = true;
+      passwordOverride = passwordResult.password;
+    }
 
     const protocolResult = normaliseProtocolOverride(requestUrl.searchParams.get('protocol'));
     if (!protocolResult.valid) {
@@ -898,6 +972,10 @@ const handleUpgrade = (req: IncomingMessage, socket: NetSocket, head: Buffer) =>
 
   if (usernameOverride) {
     sessionSettings.sshUser = usernameOverride;
+  }
+
+  if (passwordOverridePresent) {
+    sessionSettings.sshPassword = passwordOverride ?? undefined;
   }
 
   if (!sessionSettings.host) {
