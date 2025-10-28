@@ -209,6 +209,22 @@ summary::-webkit-details-marker {
   overflow-y: auto;
 }
 
+.taskbar-panel__section--bridge {
+  grid-column: 1 / -1;
+  padding: 0;
+  background: transparent;
+  border: none;
+  box-shadow: none;
+  max-height: none;
+  overflow: visible;
+}
+
+.settings-screen__bridge-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+}
+
 .taskbar-panel__section {
   background: rgba(15, 23, 42, 0.48);
   border: 1px solid rgba(148, 163, 184, 0.28);

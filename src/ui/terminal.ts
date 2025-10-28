@@ -378,6 +378,7 @@ type TerminalRuntime = {
   usernameField: HTMLElement;
   passwordInput: HTMLInputElement;
   passwordField: HTMLElement;
+  controlsHost: HTMLElement | null;
   binaryDecoder: TextDecoder;
   connected: boolean;
   connecting: boolean;
@@ -397,6 +398,10 @@ type TerminalRuntime = {
   updateViewportSizing?: () => void;
   mobilePlatform: MobilePlatform | null;
   requestDisconnect: (reason?: string) => boolean;
+};
+
+type RenderTerminalOptions = {
+  controlsHost?: HTMLElement | null;
 };
 
 type AnsiState = {
@@ -739,7 +744,11 @@ const describeKey = (event: KeyboardEvent): string => {
 const normaliseLineBreaks = (value: string): string =>
   value.replace(/\r\n?|\n/g, '\r\n');
 
-const createRuntime = (container: HTMLElement): TerminalRuntime => {
+const createRuntime = (
+  container: HTMLElement,
+  options?: RenderTerminalOptions
+): TerminalRuntime => {
+  const controlsHost = options?.controlsHost ?? null;
   const target = resolveTarget();
   const socketUrl = resolveSocketUrl(container);
   const hostPlaceholderText = target.placeholders.host || 'bbs.example.com';
@@ -836,9 +845,7 @@ const createRuntime = (container: HTMLElement): TerminalRuntime => {
 
   const entryStatusId = createEntryStatusId();
 
-  container.innerHTML = `
-    <section class="${shellClasses.join(' ')}" data-terminal-shell>
-      <div class="terminal-chat__fullscreen">
+  const controlBarMarkup = `
         <nav class="terminal-chat__menu-bar" aria-label="Terminal bridge controls">
           <div class="terminal-chat__menu-title">
             <span class="terminal-chat__menu-heading">Chatter terminal</span>
@@ -938,7 +945,20 @@ const createRuntime = (container: HTMLElement): TerminalRuntime => {
               </div>
             </form>
           </div>
-        </nav>
+        </nav>`;
+
+  if (controlsHost) {
+    controlsHost.innerHTML = `
+      <div class="settings-screen__bridge-panel">
+        ${controlBarMarkup}
+      </div>
+    `;
+  }
+
+  container.innerHTML = `
+    <section class="${shellClasses.join(' ')}" data-terminal-shell>
+      <div class="terminal-chat__fullscreen">
+        ${controlsHost ? '' : controlBarMarkup}
         <section class="terminal-chat__panel-section terminal-chat__panel-section--entry terminal__entry" data-terminal-entry>
                 <div class="terminal-chat__entry-head">
                   <button type="button" class="terminal-chat__focus" data-terminal-focus>Focus</button>
@@ -1004,48 +1024,56 @@ const createRuntime = (container: HTMLElement): TerminalRuntime => {
 
 
 
-  const statusElements = Array.from(
-    container.querySelectorAll<HTMLElement>('[data-terminal-status]')
-  );
-  const indicatorElements = Array.from(
-    container.querySelectorAll<HTMLElement>('[data-terminal-indicator]')
-  );
-  const outputElement = container.querySelector<HTMLElement>('[data-terminal-output]');
-  const connectButtons = Array.from(
-    container.querySelectorAll<HTMLButtonElement>('[data-terminal-connect]')
-  );
-  const disconnectButtons = Array.from(
-    container.querySelectorAll<HTMLButtonElement>('[data-terminal-disconnect]')
-  );
-  const focusButton = container.querySelector<HTMLButtonElement>('[data-terminal-focus]');
-  const viewport = container.querySelector<HTMLElement>('[data-terminal-viewport]');
-  const gameStatus = container.querySelector<HTMLElement>('[data-terminal-game]');
-  const endpointElement = container.querySelector<HTMLElement>('[data-terminal-endpoint]');
-  const usernameInput = container.querySelector<HTMLInputElement>('[data-terminal-username]');
-  const usernameField = container.querySelector<HTMLElement>('[data-terminal-username-field]');
-  const passwordInput = container.querySelector<HTMLInputElement>('[data-terminal-password]');
-  const passwordField = container.querySelector<HTMLElement>('[data-terminal-password-field]');
-  const targetForm = container.querySelector<HTMLFormElement>('[data-terminal-target-form]');
-  const protocolSelect = container.querySelector<HTMLSelectElement>('[data-terminal-protocol]');
-  const hostInput = container.querySelector<HTMLInputElement>('[data-terminal-host]');
-  const portInput = container.querySelector<HTMLInputElement>('[data-terminal-port]');
-  const targetResetButton = container.querySelector<HTMLButtonElement>('[data-terminal-target-reset]');
-  const targetStatus = container.querySelector<HTMLElement>('[data-terminal-target-status]');
-  const keyboardToggleButton = container.querySelector<HTMLButtonElement>('[data-terminal-kbd-toggle]');
-  const keyboardPanel = container.querySelector<HTMLElement>('[data-terminal-kbd]');
-  const entryElement = container.querySelector<HTMLElement>('[data-terminal-entry]');
+  const queryAll = <T extends Element>(selector: string): T[] => {
+    const matches = Array.from(container.querySelectorAll<T>(selector));
+    if (controlsHost) {
+      matches.push(...Array.from(controlsHost.querySelectorAll<T>(selector)));
+    }
+    return matches;
+  };
+
+  const query = <T extends Element>(selector: string): T | null => {
+    const withinContainer = container.querySelector<T>(selector);
+    if (withinContainer) {
+      return withinContainer;
+    }
+    return controlsHost?.querySelector<T>(selector) ?? null;
+  };
+
+  const statusElements = queryAll<HTMLElement>('[data-terminal-status]');
+  const indicatorElements = queryAll<HTMLElement>('[data-terminal-indicator]');
+  const outputElement = query<HTMLElement>('[data-terminal-output]');
+  const connectButtons = queryAll<HTMLButtonElement>('[data-terminal-connect]');
+  const disconnectButtons = queryAll<HTMLButtonElement>('[data-terminal-disconnect]');
+  const focusButton = query<HTMLButtonElement>('[data-terminal-focus]');
+  const viewport = query<HTMLElement>('[data-terminal-viewport]');
+  const gameStatus = query<HTMLElement>('[data-terminal-game]');
+  const endpointElement = query<HTMLElement>('[data-terminal-endpoint]');
+  const usernameInput = query<HTMLInputElement>('[data-terminal-username]');
+  const usernameField = query<HTMLElement>('[data-terminal-username-field]');
+  const passwordInput = query<HTMLInputElement>('[data-terminal-password]');
+  const passwordField = query<HTMLElement>('[data-terminal-password-field]');
+  const targetForm = query<HTMLFormElement>('[data-terminal-target-form]');
+  const protocolSelect = query<HTMLSelectElement>('[data-terminal-protocol]');
+  const hostInput = query<HTMLInputElement>('[data-terminal-host]');
+  const portInput = query<HTMLInputElement>('[data-terminal-port]');
+  const targetResetButton = query<HTMLButtonElement>('[data-terminal-target-reset]');
+  const targetStatus = query<HTMLElement>('[data-terminal-target-status]');
+  const keyboardToggleButton = query<HTMLButtonElement>('[data-terminal-kbd-toggle]');
+  const keyboardPanel = query<HTMLElement>('[data-terminal-kbd]');
+  const entryElement = query<HTMLElement>('[data-terminal-entry]');
   const entryForm = entryElement?.querySelector<HTMLFormElement>('[data-terminal-entry-form]');
   const entryBufferElement = entryElement?.querySelector<HTMLTextAreaElement>('[data-terminal-entry-buffer]');
   const entryStatusElement = entryElement?.querySelector<HTMLElement>('[data-terminal-entry-status]');
   const entrySendButton = entryElement?.querySelector<HTMLButtonElement>('[data-terminal-entry-send]');
   const entryClearButton = entryElement?.querySelector<HTMLButtonElement>('[data-terminal-entry-clear]');
-  const entryPreviewElement = container.querySelector<HTMLDivElement>('[data-terminal-entry-preview]');
-  const entryPreviewTextElement = container.querySelector<HTMLPreElement>('[data-terminal-entry-preview-text]');
-  const mobileForm = container.querySelector<HTMLFormElement>('[data-terminal-mobile-form]');
-  const mobileBuffer = container.querySelector<HTMLTextAreaElement>('[data-terminal-mobile-buffer]');
-  const mobileSendButton = container.querySelector<HTMLButtonElement>('[data-terminal-mobile-send]');
-  const mobileClearButton = container.querySelector<HTMLButtonElement>('[data-terminal-mobile-clear]');
-  const mobileStatus = container.querySelector<HTMLElement>('[data-terminal-mobile-status]');
+  const entryPreviewElement = query<HTMLDivElement>('[data-terminal-entry-preview]');
+  const entryPreviewTextElement = query<HTMLPreElement>('[data-terminal-entry-preview-text]');
+  const mobileForm = query<HTMLFormElement>('[data-terminal-mobile-form]');
+  const mobileBuffer = query<HTMLTextAreaElement>('[data-terminal-mobile-buffer]');
+  const mobileSendButton = query<HTMLButtonElement>('[data-terminal-mobile-send]');
+  const mobileClearButton = query<HTMLButtonElement>('[data-terminal-mobile-clear]');
+  const mobileStatus = query<HTMLElement>('[data-terminal-mobile-status]');
 
   if (
     statusElements.length === 0 ||
@@ -1115,6 +1143,7 @@ const createRuntime = (container: HTMLElement): TerminalRuntime => {
     usernameField,
     passwordInput,
     passwordField,
+    controlsHost,
     mobilePlatform,
     binaryDecoder: new TextDecoder(),
     socketUrl: typeof socketUrl === 'string' && socketUrl.trim() ? socketUrl.trim() : null,
@@ -2202,10 +2231,17 @@ const createRuntime = (container: HTMLElement): TerminalRuntime => {
   return runtime;
 };
 
-export const renderTerminal = (store: ChatStore, container: HTMLElement): TerminalRuntime => {
+export const renderTerminal = (
+  store: ChatStore,
+  container: HTMLElement,
+  options?: RenderTerminalOptions
+): TerminalRuntime => {
+  const controlsHost = options?.controlsHost ?? null;
+
   let runtime = runtimeMap.get(container);
-  if (!runtime) {
-    runtime = createRuntime(container);
+  if (!runtime || runtime.controlsHost !== controlsHost) {
+    runtime?.requestDisconnect('Rebuilding terminal controls');
+    runtime = createRuntime(container, { controlsHost });
     runtimeMap.set(container, runtime);
   }
 

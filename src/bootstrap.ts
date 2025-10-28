@@ -88,13 +88,22 @@ export const mountChatter = (root: HTMLElement) => {
   const utilityElement = root.querySelector<HTMLElement>('[data-component="utility"]');
   const cheatsheetElement = root.querySelector<HTMLElement>('[data-component="cheatsheet"]');
   const sessionElement = root.querySelector<HTMLElement>('[data-component="session"]');
+  const bridgeControlsElement = root.querySelector<HTMLElement>(
+    '[data-component="bridge-controls"]'
+  );
 
   if (terminalElement && mobilePlatform) {
     terminalElement.dataset.mobilePlatform = mobilePlatform;
     terminalElement.dataset.mobilePlatformLabel = describeMobilePlatform(mobilePlatform);
   }
 
-  if (!terminalElement || !utilityElement || !cheatsheetElement || !sessionElement) {
+  if (
+    !terminalElement ||
+    !utilityElement ||
+    !cheatsheetElement ||
+    !sessionElement ||
+    !bridgeControlsElement
+  ) {
     throw new Error('Failed to mount the Chatter UI.');
   }
 
@@ -104,7 +113,7 @@ export const mountChatter = (root: HTMLElement) => {
   let disposed = false;
 
   const render = () => {
-    runtime = renderTerminal(store, terminalElement);
+    runtime = renderTerminal(store, terminalElement, { controlsHost: bridgeControlsElement });
     renderSession(store, sessionElement, root);
     renderUtilityPanel(store, utilityElement);
     renderCheatSheet(cheatsheetElement);

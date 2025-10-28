@@ -78,6 +78,11 @@ export default function Home() {
               <p>Manage your bridge connection and entry tools from here.</p>
             </div>
             <div className="taskbar-panel__grid settings-screen__grid">
+              <section
+                className="taskbar-panel__section taskbar-panel__section--bridge"
+                data-component="bridge-controls"
+                aria-label="Bridge controls"
+              />
               <section className="taskbar-panel__section" data-component="session" />
               <section
                 className="taskbar-panel__section taskbar-panel__section--utility"
