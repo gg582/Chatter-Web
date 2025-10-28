@@ -108,6 +108,7 @@ summary::-webkit-details-marker {
   justify-content: flex-end;
   gap: clamp(1rem, 2.75vw, 2rem);
   pointer-events: none;
+  transition: opacity 0.35s ease;
 }
 
 .overlay-window {
@@ -125,6 +126,17 @@ summary::-webkit-details-marker {
   gap: 1.35rem;
   overflow-y: auto;
   color: var(--terminal-text);
+  transition: transform 0.35s ease, opacity 0.35s ease;
+}
+
+.chatter-stage--menu-open .chatter-stage__overlay {
+  opacity: 0;
+  pointer-events: none;
+}
+
+.chatter-stage--menu-open .chatter-stage__overlay .overlay-window {
+  opacity: 0;
+  transform: translateY(24px);
 }
 
 .overlay-window--utility {

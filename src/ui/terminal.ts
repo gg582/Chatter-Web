@@ -1075,6 +1075,11 @@ const createRuntime = (container: HTMLElement): TerminalRuntime => {
   const mobileClearButton = container.querySelector<HTMLButtonElement>('[data-terminal-mobile-clear]');
   const mobileStatus = container.querySelector<HTMLElement>('[data-terminal-mobile-status]');
 
+  const stageRoot = container.closest<HTMLElement>('.chatter-stage');
+  if (stageRoot) {
+    stageRoot.classList.remove('chatter-stage--menu-open');
+  }
+
   if (
     !statusElement ||
     !indicatorElement ||
@@ -1247,6 +1252,9 @@ const createRuntime = (container: HTMLElement): TerminalRuntime => {
     menuBackdrop.hidden = !open;
     menuToggleButton.setAttribute('aria-expanded', open ? 'true' : 'false');
     container.classList.toggle('terminal-chat--menu-open', open);
+    if (stageRoot) {
+      stageRoot.classList.toggle('chatter-stage--menu-open', open);
+    }
     if (open) {
       if (!menuElement.hasAttribute('tabindex')) {
         menuElement.setAttribute('tabindex', '-1');
@@ -1764,7 +1772,12 @@ const createRuntime = (container: HTMLElement): TerminalRuntime => {
     updateTargetStatus();
 
     if (!runtime.target.available) {
-      setMenuOpen(true);
+      if (announce) {
+        setMenuOpen(true);
+      }
+      setEntryStatus('No server target configured. Open Menu to add connection details.', 'error');
+    } else if (!runtime.connected && !runtime.connecting) {
+      setEntryStatus(entryInstructions, 'muted');
     }
 
     updateConnectAvailability();
