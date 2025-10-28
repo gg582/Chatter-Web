@@ -369,9 +369,6 @@ type TerminalRuntime = {
   connectButtons: HTMLButtonElement[];
   disconnectButtons: HTMLButtonElement[];
   focusButton: HTMLButtonElement;
-  menuElement: HTMLElement;
-  menuToggleButton: HTMLButtonElement;
-  menuCloseButton: HTMLButtonElement;
   keyboardToggleButton: HTMLButtonElement | null;
   keyboardPanel: HTMLElement;
   viewport: HTMLElement;
@@ -818,100 +815,57 @@ const createRuntime = (container: HTMLElement): TerminalRuntime => {
       : 'Touch controls are enabled for your session.'
     : '';
 
-  const conversationNoteHtml = mobilePlatform
-    ? escapeHtml('Use the menu bar for connection settings and help.')
-    : entryIntro;
+  const controlBarNote = mobilePlatform
+    ? 'Use the control bar above to manage connection settings and mobile guidance.'
+    : 'Manage your connection, identity, and overrides from the control bar above.';
+
+  const conversationNoteHtml = escapeHtml(controlBarNote);
+
+  const extraMenuNotes = Array.from(
+    new Set(
+      [mobileHeaderMessage, mobilePlatform ? entryIntro : '']
+        .map((note) => (note ? note.trim() : ''))
+        .filter((note): note is string => Boolean(note))
+    )
+  )
+    .map((note) => `<p class="terminal-chat__menu-note">${escapeHtml(note)}</p>`)
+    .join('');
 
   const entryInstructions =
       'Type a command and press Enter or Send to forward the next line to the bridge. Shift+Enter adds a newline and the shortcut bar sends arrows or Ctrl keys instantly.';
 
   const entryStatusId = createEntryStatusId();
-  const menuId = `${entryStatusId}-menu`;
-
-  const menuSubtitle = mobilePlatform
-    ? 'Manage connection details and mobile guidance in one place.'
-    : 'Keep your target, username, and overrides together.';
-
-  const mobileMenuInfo = mobilePlatform
-    ? (() => {
-        const notes = [mobileHeaderMessage, entryIntro, entryInstructions]
-          .filter((note): note is string => Boolean(note && note.trim()))
-          .map((note) => `<p class="terminal-chat__panel-note">${escapeHtml(note)}</p>`)
-          .join('');
-        if (!notes) {
-          return '';
-        }
-        return `
-          <section class="terminal-chat__panel-section terminal-chat__panel-section--info">
-            <h4 class="terminal-chat__section-title">Mobile guidance</h4>
-            ${notes}
-          </section>
-        `;
-      })()
-    : '';
 
   container.innerHTML = `
     <section class="${shellClasses.join(' ')}" data-terminal-shell>
       <div class="terminal-chat__fullscreen">
-        <nav class="terminal-chat__menu-bar" aria-label="Terminal menu">
+        <nav class="terminal-chat__menu-bar" aria-label="Terminal bridge controls">
           <div class="terminal-chat__menu-title">
             <span class="terminal-chat__menu-heading">Chatter terminal</span>
-            <span class="terminal-chat__menu-subtitle">Bridge controls &amp; help</span>
+            <span class="terminal-chat__menu-subtitle">Bridge control bar</span>
           </div>
-          <div class="terminal-chat__menu-controls">
-            <div class="terminal-chat__menu-status">
-              <span class="terminal-chat__indicator" data-terminal-indicator data-state="disconnected"></span>
-              <span class="terminal-chat__menu-status-label" data-terminal-status data-state="disconnected">Disconnected</span>
-            </div>
-            <div class="terminal-chat__menu-actions">
-              <button type="button" class="terminal-chat__menu-button" data-terminal-connect>Connect</button>
-              <button type="button" class="terminal-chat__menu-button" data-terminal-disconnect disabled>Disconnect</button>
-              <button
-                type="button"
-                class="terminal-chat__menu-button terminal-chat__menu-button--primary"
-                data-terminal-menu-toggle
-                aria-controls="${menuId}"
-                aria-expanded="false"
-              >
-                Bridge settings
-              </button>
-            </div>
-          </div>
-        </nav>
-        <div class="terminal-chat__menu-tray" id="${menuId}" data-terminal-menu hidden>
-          <div class="terminal-chat__menu-tray-inner">
-            <header class="terminal-chat__menu-tray-head">
-              <div class="terminal-chat__menu-tray-title">
-                <h2 class="terminal-chat__menu-tray-heading">Terminal bridge</h2>
-                <p class="terminal-chat__menu-tray-subtitle">${escapeHtml(menuSubtitle)}</p>
+          <div class="terminal-chat__menu-rail">
+            <div class="terminal-chat__menu-block terminal-chat__menu-block--status" role="group" aria-label="Connection status">
+              <div class="terminal-chat__menu-status">
+                <span class="terminal-chat__indicator" data-terminal-indicator data-state="disconnected"></span>
+                <span class="terminal-chat__menu-status-label" data-terminal-status data-state="disconnected">Disconnected</span>
               </div>
-              <button type="button" class="terminal-chat__menu-tray-close" data-terminal-menu-close>
-                Hide settings
-              </button>
-            </header>
-            <div class="terminal-chat__panel-body">
-              <section class="terminal-chat__panel-section terminal-chat__panel-section--status">
-                <div class="terminal-chat__status-row">
-                  <div class="terminal-chat__status">
-                    <span class="terminal-chat__indicator" data-terminal-indicator data-state="disconnected"></span>
-                    <span data-terminal-status data-state="disconnected">Disconnected</span>
-                  </div>
-                  <div class="terminal-chat__status-actions">
-                    <button type="button" data-terminal-connect>Connect</button>
-                    <button type="button" data-terminal-disconnect disabled>Disconnect</button>
-                  </div>
-                </div>
-                <div class="terminal-chat__endpoint">
-                  <span class="terminal-chat__endpoint-label">Current target</span>
-                  <span class="terminal-chat__endpoint-value" data-terminal-endpoint>${escapeHtml(target.description)}</span>
-                </div>
-                <p class="terminal-chat__conversation-note">${conversationNoteHtml}</p>
-                <p class="terminal__game terminal-chat__game" data-terminal-game></p>
-              </section>
-              ${mobileMenuInfo}
-              <section class="terminal-chat__panel-section">
-                <h4 class="terminal-chat__section-title">Identity</h4>
-                <label class="terminal-chat__field terminal__field--inline" data-terminal-username-field>
+              <div class="terminal-chat__menu-actions">
+                <button type="button" class="terminal-chat__menu-button" data-terminal-connect>Connect</button>
+                <button type="button" class="terminal-chat__menu-button" data-terminal-disconnect disabled>Disconnect</button>
+              </div>
+              <div class="terminal-chat__menu-endpoint">
+                <span class="terminal-chat__menu-endpoint-label">Target</span>
+                <span class="terminal-chat__endpoint-value" data-terminal-endpoint>${escapeHtml(target.description)}</span>
+              </div>
+              <p class="terminal-chat__menu-note">${conversationNoteHtml}</p>
+              ${extraMenuNotes}
+              <p class="terminal-chat__menu-game terminal__game" data-terminal-game></p>
+            </div>
+            <div class="terminal-chat__menu-block terminal-chat__menu-block--identity" role="group" aria-label="Identity controls">
+              <span class="terminal-chat__menu-block-title">Identity</span>
+              <div class="terminal-chat__menu-inline-fields">
+                <label class="terminal-chat__field terminal__field--compact" data-terminal-username-field>
                   <span class="terminal-chat__field-label">Username</span>
                   <input
                     type="text"
@@ -923,7 +877,7 @@ const createRuntime = (container: HTMLElement): TerminalRuntime => {
                     spellcheck="false"
                   />
                 </label>
-                <label class="terminal-chat__field terminal__field--inline" data-terminal-password-field>
+                <label class="terminal-chat__field terminal__field--compact" data-terminal-password-field>
                   <span class="terminal-chat__field-label">Password</span>
                   <input
                     type="password"
@@ -934,54 +888,58 @@ const createRuntime = (container: HTMLElement): TerminalRuntime => {
                     spellcheck="false"
                   />
                 </label>
-                <p class="terminal-chat__hint terminal__note terminal__note--muted">
-                  Usernames and passwords never leave the browser. They're sent directly to the terminal bridge.
-                </p>
-              </section>
-              <section class="terminal-chat__panel-section">
-                <h4 class="terminal-chat__section-title">Connection settings</h4>
-                <form class="terminal-chat__target-form terminal__target-form" data-terminal-target-form>
-                  <p class="terminal-chat__hint terminal__note terminal__note--muted" data-terminal-target-status></p>
-                  <div class="terminal-chat__target-grid">
-                    <label class="terminal-chat__field">
-                      <span class="terminal-chat__field-label">Protocol</span>
-                      <select data-terminal-protocol>
-                        <option value="telnet">Telnet</option>
-                        <option value="ssh">SSH</option>
-                      </select>
-                    </label>
-                    <label class="terminal-chat__field">
-                      <span class="terminal-chat__field-label">Host</span>
-                      <input
-                        type="text"
-                        data-terminal-host
-                        placeholder="${escapeHtml(hostPlaceholderText)}"
-                        autocomplete="off"
-                        autocapitalize="none"
-                        autocorrect="off"
-                        spellcheck="false"
-                      />
-                    </label>
-                    <label class="terminal-chat__field">
-                      <span class="terminal-chat__field-label">Port</span>
-                      <input
-                        type="text"
-                        data-terminal-port
-                        placeholder="${escapeHtml(portPlaceholderText)}"
-                        autocomplete="off"
-                        autocorrect="off"
-                        inputmode="numeric"
-                        pattern="[0-9]*"
-                      />
-                    </label>
-                  </div>
-                  <div class="terminal-chat__target-actions">
-                    <button type="submit">Save target</button>
-                    <button type="button" data-terminal-target-reset>Reset to server</button>
-                  </div>
-                </form>
-              </section>
-              <section class="terminal-chat__panel-section terminal-chat__panel-section--entry terminal__entry" data-terminal-entry>
+              </div>
+              <p class="terminal-chat__hint terminal__note terminal__note--muted">
+                Usernames and passwords never leave the browser. They're sent directly to the terminal bridge.
+              </p>
+            </div>
+            <form
+              class="terminal-chat__menu-block terminal-chat__menu-block--target terminal-chat__target-form terminal__target-form"
+              data-terminal-target-form
+            >
+              <span class="terminal-chat__menu-block-title">Connection settings</span>
+              <p class="terminal-chat__hint terminal__note terminal__note--muted" data-terminal-target-status></p>
+              <div class="terminal-chat__menu-inline-fields">
+                <label class="terminal-chat__field">
+                  <span class="terminal-chat__field-label">Protocol</span>
+                  <select data-terminal-protocol>
+                    <option value="telnet">Telnet</option>
+                    <option value="ssh">SSH</option>
+                  </select>
+                </label>
+                <label class="terminal-chat__field">
+                  <span class="terminal-chat__field-label">Host</span>
+                  <input
+                    type="text"
+                    data-terminal-host
+                    placeholder="${escapeHtml(hostPlaceholderText)}"
+                    autocomplete="off"
+                    autocapitalize="none"
+                    autocorrect="off"
+                    spellcheck="false"
+                  />
+                </label>
+                <label class="terminal-chat__field">
+                  <span class="terminal-chat__field-label">Port</span>
+                  <input
+                    type="text"
+                    data-terminal-port
+                    placeholder="${escapeHtml(portPlaceholderText)}"
+                    autocomplete="off"
+                    autocorrect="off"
+                    inputmode="numeric"
+                    pattern="[0-9]*"
+                  />
+                </label>
+              </div>
+              <div class="terminal-chat__menu-actions terminal-chat__menu-actions--target">
+                <button type="submit" class="terminal-chat__menu-button terminal-chat__menu-button--primary">Save target</button>
+                <button type="button" class="terminal-chat__menu-button" data-terminal-target-reset>Reset to server</button>
+              </div>
+            </form>
+          </div>
+        </nav>
+        <section class="terminal-chat__panel-section terminal-chat__panel-section--entry terminal__entry" data-terminal-entry>
                 <div class="terminal-chat__entry-head">
                   <button type="button" class="terminal-chat__focus" data-terminal-focus>Focus</button>
                   <p
@@ -1014,9 +972,6 @@ const createRuntime = (container: HTMLElement): TerminalRuntime => {
                   </div>
                 </form>
               </section>
-            </div>
-          </div>
-        </div>
         <div class="terminal-chat__viewport terminal__viewport" data-terminal-viewport>
           <div class="terminal-chat__output terminal__output" data-terminal-output></div>
           <div
@@ -1040,7 +995,7 @@ const createRuntime = (container: HTMLElement): TerminalRuntime => {
             <button type="button" data-terminal-kbd-key="arrow-left" data-terminal-kbd-group="arrow-left">←</button>
             <button type="button" data-terminal-kbd-key="arrow-right" data-terminal-kbd-group="arrow-right">→</button>
           </div>
-          <p class="terminal-chat__keyboard-foot">Shortcuts send immediately. Keep composing in the buffer from the menu.</p>
+          <p class="terminal-chat__keyboard-foot">Shortcuts send immediately. Keep composing in the buffer above.</p>
         </div>
       </div>
     </section>
@@ -1075,9 +1030,6 @@ const createRuntime = (container: HTMLElement): TerminalRuntime => {
   const portInput = container.querySelector<HTMLInputElement>('[data-terminal-port]');
   const targetResetButton = container.querySelector<HTMLButtonElement>('[data-terminal-target-reset]');
   const targetStatus = container.querySelector<HTMLElement>('[data-terminal-target-status]');
-  const menuElement = container.querySelector<HTMLElement>('[data-terminal-menu]');
-  const menuToggleButton = container.querySelector<HTMLButtonElement>('[data-terminal-menu-toggle]');
-  const menuCloseButton = container.querySelector<HTMLButtonElement>('[data-terminal-menu-close]');
   const keyboardToggleButton = container.querySelector<HTMLButtonElement>('[data-terminal-kbd-toggle]');
   const keyboardPanel = container.querySelector<HTMLElement>('[data-terminal-kbd]');
   const entryElement = container.querySelector<HTMLElement>('[data-terminal-entry]');
@@ -1094,11 +1046,6 @@ const createRuntime = (container: HTMLElement): TerminalRuntime => {
   const mobileClearButton = container.querySelector<HTMLButtonElement>('[data-terminal-mobile-clear]');
   const mobileStatus = container.querySelector<HTMLElement>('[data-terminal-mobile-status]');
 
-  const stageRoot = container.closest<HTMLElement>('.chatter-stage');
-  if (stageRoot) {
-    stageRoot.classList.remove('chatter-stage--menu-open');
-  }
-
   if (
     statusElements.length === 0 ||
     indicatorElements.length === 0 ||
@@ -1114,9 +1061,6 @@ const createRuntime = (container: HTMLElement): TerminalRuntime => {
     !usernameField ||
     !passwordInput ||
     !passwordField ||
-    !menuElement ||
-    !menuToggleButton ||
-    !menuCloseButton ||
     !keyboardPanel ||
     !targetForm ||
     !protocolSelect ||
@@ -1161,9 +1105,6 @@ const createRuntime = (container: HTMLElement): TerminalRuntime => {
     connectButtons,
     disconnectButtons,
     focusButton,
-    menuElement,
-    menuToggleButton,
-    menuCloseButton,
     keyboardToggleButton,
     keyboardPanel,
     viewport,
@@ -1266,41 +1207,6 @@ const createRuntime = (container: HTMLElement): TerminalRuntime => {
       }
     }, KEEP_ALIVE_INTERVAL_MS);
   };
-
-  let menuOpen = false;
-  const setMenuOpen = (open: boolean) => {
-    menuOpen = open;
-    menuElement.hidden = !open;
-    menuToggleButton.setAttribute('aria-expanded', open ? 'true' : 'false');
-    container.classList.toggle('terminal-chat--menu-open', open);
-    if (stageRoot) {
-      stageRoot.classList.toggle('chatter-stage--menu-open', open);
-    }
-    if (open) {
-      if (!menuElement.hasAttribute('tabindex')) {
-        menuElement.setAttribute('tabindex', '-1');
-      }
-      menuElement.focus();
-    } else if (document.activeElement === menuElement) {
-      menuToggleButton.focus();
-    }
-  };
-
-  menuToggleButton.addEventListener('click', () => {
-    setMenuOpen(!menuOpen);
-  });
-
-  menuCloseButton.addEventListener('click', () => {
-    setMenuOpen(false);
-  });
-
-  menuElement.addEventListener('keydown', (event) => {
-    if (event.key === 'Escape') {
-      event.preventDefault();
-      setMenuOpen(false);
-      menuToggleButton.focus();
-    }
-  });
 
   const revealKeyboardPanel = () => {
     keyboardPanel.hidden = false;
@@ -1802,10 +1708,10 @@ const createRuntime = (container: HTMLElement): TerminalRuntime => {
     updateTargetStatus();
 
     if (!runtime.target.available) {
-      if (announce) {
-        setMenuOpen(true);
+      if (announce && hostInput) {
+        hostInput.focus();
       }
-      setEntryStatus('No server target configured. Use the menu bar to add connection details.', 'error');
+      setEntryStatus('No server target configured. Use the control bar to add connection details.', 'error');
     } else if (!runtime.connected && !runtime.connecting) {
       setEntryStatus(entryInstructions, 'muted');
     }
@@ -1838,11 +1744,9 @@ const createRuntime = (container: HTMLElement): TerminalRuntime => {
       refreshTarget(false);
 
       if (!runtime.target.available) {
-        setTargetStatusMessage('Cannot connect without a target host. Use the menu bar to add overrides.', 'error');
+        setTargetStatusMessage('Cannot connect without a target host. Use the control bar to add overrides.', 'error');
         return;
       }
-
-      setMenuOpen(false);
 
       const socketUrlText = runtime.socketUrl;
       if (!socketUrlText) {
