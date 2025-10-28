@@ -17,40 +17,70 @@
     <link rel="stylesheet" href="./styles.css" />
   </head>
   <body>
-    <div class="chatter-app" data-chatter-root>
-      <header class="chatter-shell">
-        <div class="shell-brand">
-          <span class="shell-brand__badge">Chatter BBS</span>
-          <h1>Link your console</h1>
-          <p>Hop straight into the telnet or SSH board and keep the lightweight lounge nearby.</p>
+    <div class="chatter-stage" data-chatter-root data-view="terminal">
+      <main class="chatter-stage__main">
+        <div class="chatter-stage__viewport" data-view-root>
+          <nav class="chatter-stage__nav" aria-label="화면 전환">
+            <button
+              type="button"
+              class="chatter-stage__nav-button chatter-stage__nav-button--settings"
+              data-view-target="settings"
+              aria-label="설정 열기"
+              aria-controls="chatter-settings-screen"
+            >
+              <span aria-hidden="true">⚙️</span>
+            </button>
+            <button
+              type="button"
+              class="chatter-stage__nav-button chatter-stage__nav-button--home"
+              data-view-target="terminal"
+              aria-label="터미널로 돌아가기"
+              aria-controls="chatter-terminal-screen"
+            >
+              <span aria-hidden="true">🏠</span>
+            </button>
+          </nav>
+          <section
+            class="chatter-stage__screen chatter-stage__screen--terminal"
+            id="chatter-terminal-screen"
+            data-view-screen="terminal"
+            aria-label="터미널"
+          >
+            <div class="chatter-stage__terminal" data-component="terminal"></div>
+            <details class="chatter-shortcuts" data-shortcuts>
+              <summary class="chatter-shortcuts__toggle">
+                <span class="chatter-shortcuts__icon" aria-hidden="true">⌘</span>
+                키 바로가기
+              </summary>
+              <section class="chatter-shortcuts__panel" data-component="cheatsheet" aria-label="키 바로가기"></section>
+            </details>
+          </section>
+          <section
+            class="chatter-stage__screen chatter-stage__screen--settings"
+            id="chatter-settings-screen"
+            data-view-screen="settings"
+            aria-label="설정"
+            aria-hidden="true"
+          >
+            <header class="settings-screen__header">
+              <div>
+                <span class="taskbar-panel__badge">Chatter BBS</span>
+                <h1>설정</h1>
+              </div>
+            </header>
+            <div class="taskbar-panel__intro">
+              <p>콘솔 연결과 엔트리를 관리하려면 여기에서 설정하세요.</p>
+            </div>
+            <div class="taskbar-panel__grid settings-screen__grid">
+              <section class="taskbar-panel__section" data-component="session"></section>
+              <section
+                class="taskbar-panel__section taskbar-panel__section--utility"
+                data-component="utility"
+                aria-label="엔트리"
+              ></section>
+            </div>
+          </section>
         </div>
-        <section class="shell-mobile-banner" data-mobile-banner>
-          <h2>Mobile lounge ready</h2>
-          <p>
-            When we detect iOS, Android, postmarketOS, UBports, or BlackBerry devices, we highlight the buffered command entry
-            beneath the terminal so you can queue lines while keystrokes, arrows, and Ctrl shortcuts land reliably over telnet
-            or SSH.
-          </p>
-        </section>
-        <nav class="shell-menu" aria-label="Lounge menu">
-          <details class="menu-item" data-menu="session" open>
-            <summary>Your session</summary>
-            <section class="menu-panel" data-component="session"></section>
-          </details>
-          <details class="menu-item" data-menu="utility">
-            <summary>Utilities</summary>
-            <section class="menu-panel" data-component="utility"></section>
-          </details>
-          <details class="menu-item" data-menu="cheatsheet">
-            <summary>Command cheatsheet</summary>
-            <section class="menu-panel" data-component="cheatsheet"></section>
-          </details>
-        </nav>
-      </header>
-      <main class="chatter-layout">
-        <section class="terminal-section">
-          <div class="panel panel--terminal" data-component="terminal"></div>
-        </section>
       </main>
     </div>
     <script src="./env.js" defer></script>

@@ -1,11 +1,10 @@
 'use client';
 
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef } from 'react';
 import { mountChatter } from '../src/bootstrap';
 
 export default function Home() {
   const rootRef = useRef<HTMLDivElement | null>(null);
-  const [isSettingsOpen, setIsSettingsOpen] = useState(false);
 
   useEffect(() => {
     if (!rootRef.current) {
@@ -17,45 +16,78 @@ export default function Home() {
     };
   }, []);
 
-  const handleToggleSettings = () => {
-    setIsSettingsOpen((previous) => !previous);
-  };
-
-  const stageClassName = `chatter-stage${isSettingsOpen ? ' chatter-stage--settings-open' : ''}`;
-  const overlayClassName = `chatter-stage__overlay${isSettingsOpen ? ' chatter-stage__overlay--open' : ''}`;
-
   return (
-    <div className={stageClassName} data-chatter-root ref={rootRef}>
-      <header className="chatter-stage__menubar">
-        <div className="chatter-stage__menubar-title">Chatter BBS</div>
-        <nav className="chatter-stage__menubar-actions" aria-label="주 메뉴">
-          <details className="chatter-stage__menubar-dropdown">
-            <summary className="button button--ghost">터미널 브릿지</summary>
-            <div className="chatter-stage__menubar-dropdown-panel">
-              <section className="chatter-stage__menubar-panel" data-component="session" />
-            </div>
-          </details>
-          <button
-            type="button"
-            className="button"
-            onClick={handleToggleSettings}
-            aria-expanded={isSettingsOpen}
-            aria-controls="chatter-settings-panel"
+    <div className="chatter-stage" data-chatter-root data-view="terminal" ref={rootRef}>
+      <main className="chatter-stage__main">
+        <div className="chatter-stage__viewport" data-view-root>
+          <nav className="chatter-stage__nav" aria-label="화면 전환">
+            <button
+              type="button"
+              className="chatter-stage__nav-button chatter-stage__nav-button--settings"
+              data-view-target="settings"
+              aria-label="설정 열기"
+              aria-controls="chatter-settings-screen"
+            >
+              <span aria-hidden="true">⚙️</span>
+            </button>
+            <button
+              type="button"
+              className="chatter-stage__nav-button chatter-stage__nav-button--home"
+              data-view-target="terminal"
+              aria-label="터미널로 돌아가기"
+              aria-controls="chatter-terminal-screen"
+            >
+              <span aria-hidden="true">🏠</span>
+            </button>
+          </nav>
+          <section
+            className="chatter-stage__screen chatter-stage__screen--terminal"
+            id="chatter-terminal-screen"
+            data-view-screen="terminal"
+            aria-label="터미널"
           >
-            {isSettingsOpen ? '설정 닫기' : '설정 열기'}
-          </button>
-        </nav>
-      </header>
-      <div className="chatter-stage__terminal" data-component="terminal" />
-      <div
-        className={overlayClassName}
-        id="chatter-settings-panel"
-        hidden={!isSettingsOpen}
-        aria-hidden={!isSettingsOpen}
-      >
-        <section className="overlay-window overlay-window--utility" data-component="utility" />
-        <section className="overlay-window overlay-window--cheatsheet" data-component="cheatsheet" />
-      </div>
+            <div className="chatter-stage__terminal" data-component="terminal" />
+            <details className="chatter-shortcuts" data-shortcuts>
+              <summary className="chatter-shortcuts__toggle">
+                <span className="chatter-shortcuts__icon" aria-hidden="true">
+                  ⌘
+                </span>
+                키 바로가기
+              </summary>
+              <section
+                className="chatter-shortcuts__panel"
+                data-component="cheatsheet"
+                aria-label="키 바로가기"
+              />
+            </details>
+          </section>
+          <section
+            className="chatter-stage__screen chatter-stage__screen--settings"
+            id="chatter-settings-screen"
+            data-view-screen="settings"
+            aria-label="설정"
+            aria-hidden="true"
+          >
+            <header className="settings-screen__header">
+              <div>
+                <span className="taskbar-panel__badge">Chatter BBS</span>
+                <h1>설정</h1>
+              </div>
+            </header>
+            <div className="taskbar-panel__intro">
+              <p>콘솔 연결과 엔트리를 관리하려면 여기에서 설정하세요.</p>
+            </div>
+            <div className="taskbar-panel__grid settings-screen__grid">
+              <section className="taskbar-panel__section" data-component="session" />
+              <section
+                className="taskbar-panel__section taskbar-panel__section--utility"
+                data-component="utility"
+                aria-label="엔트리"
+              />
+            </div>
+          </section>
+        </div>
+      </main>
     </div>
   );
 }
