@@ -234,6 +234,100 @@ summary::-webkit-details-marker {
   min-height: 0;
 }
 
+.chatter-stage__nav {
+  position: absolute;
+  top: clamp(1rem, 4vw, 2rem);
+  right: clamp(1rem, 4vw, 2rem);
+  display: flex;
+  gap: 0.65rem;
+  z-index: 60;
+}
+
+.chatter-stage__nav-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.4rem;
+  background: rgba(15, 23, 42, 0.82);
+  border: 1px solid rgba(148, 163, 184, 0.42);
+  border-radius: 999px;
+  color: var(--text);
+  padding: 0.55rem 0.95rem;
+  font-size: 1.15rem;
+  cursor: pointer;
+  box-shadow: var(--shadow-soft);
+  backdrop-filter: blur(12px);
+  transition: transform 0.2s ease, box-shadow 0.2s ease, border-color 0.2s ease;
+}
+
+.chatter-stage__nav-button:hover,
+.chatter-stage__nav-button:focus-visible {
+  transform: translateY(-1px);
+  border-color: rgba(148, 163, 184, 0.65);
+  box-shadow: 0 18px 36px rgba(0, 0, 0, 0.55);
+}
+
+.chatter-stage__nav-button:focus-visible {
+  outline: 2px solid var(--accent-sky);
+  outline-offset: 3px;
+}
+
+.chatter-stage[data-view='terminal'] .chatter-stage__nav-button--home {
+  display: none;
+}
+
+.chatter-stage[data-view='settings'] .chatter-stage__nav-button--settings {
+  display: none;
+}
+
+.chatter-stage__screen {
+  position: absolute;
+  inset: 0;
+  display: none;
+  flex-direction: column;
+  gap: 1.5rem;
+  padding: clamp(1.25rem, 4vw, 3rem);
+  min-height: 0;
+  overflow: hidden;
+}
+
+.chatter-stage__screen.is-active {
+  display: flex;
+}
+
+.chatter-stage__screen--terminal {
+  padding: 0;
+}
+
+.chatter-stage__screen--terminal .chatter-stage__terminal {
+  border-radius: 0;
+  border: none;
+  box-shadow: none;
+}
+
+.chatter-stage__screen--terminal .chatter-shortcuts {
+  right: clamp(1rem, 4vw, 2.5rem);
+}
+
+.chatter-stage__screen--settings {
+  overflow-y: auto;
+}
+
+.settings-screen__header {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.settings-screen__header h1 {
+  font-size: clamp(1.75rem, 4vw, 2.5rem);
+}
+
+.settings-screen__grid {
+  flex: 1 1 auto;
+}
+
 .chatter-stage__terminal {
   flex: 1 1 auto;
   display: flex;
