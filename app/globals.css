@@ -1516,33 +1516,6 @@ summary::-webkit-details-marker {
   gap: clamp(0.9rem, 2.5vw, 1.5rem);
 }
 
-.terminal-chat__entry-preview {
-  position: static;
-  display: flex;
-  gap: 0.75rem;
-  align-items: flex-start;
-  align-self: stretch;
-  margin: 0;
-  padding: 0.75rem 1rem;
-  border-radius: 14px;
-  background: rgba(15, 23, 42, 0.82);
-  border: 1px solid rgba(148, 163, 184, 0.35);
-  color: rgba(226, 232, 240, 0.7);
-  pointer-events: none;
-}
-
-.terminal-chat__entry-preview-caret {
-  font-weight: 700;
-  color: #38bdf8;
-}
-
-.terminal-chat__entry-preview-text {
-  margin: 0;
-  font-family: inherit;
-  font-size: 0.9rem;
-  white-space: pre-wrap;
-}
-
 .terminal-chat__keyboard {
   position: static;
   display: flex;
@@ -2000,38 +1973,6 @@ summary::-webkit-details-marker {
   flex-direction: column;
   gap: 0;
   align-items: stretch;
-}
-
-.terminal-chat__entry-preview {
-  display: flex;
-  gap: 0.75rem;
-  align-items: flex-start;
-  padding: 0.75rem 1rem;
-  background: transparent;
-  border-top: 1px solid var(--terminal-border);
-  font-family: 'IBM Plex Mono', 'SFMono-Regular', Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New', monospace;
-  font-size: 0.92rem;
-  color: var(--terminal-text);
-  line-height: 1.45;
-  max-height: min(40vh, 320px);
-  overflow-y: auto;
-}
-
-.terminal-chat__entry-preview-caret {
-  font-weight: 600;
-  color: var(--terminal-muted);
-  margin-top: 0.15rem;
-}
-
-.terminal-chat__entry-preview-text {
-  margin: 0;
-  flex: 1 1 auto;
-  white-space: pre-wrap;
-  word-break: break-word;
-}
-
-.terminal-chat__entry-preview[data-preview-state='multiline'] .terminal-chat__entry-preview-caret {
-  margin-top: 0.35rem;
 }
 
 .terminal-chat__mobile-note {

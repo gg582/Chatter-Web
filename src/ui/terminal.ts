@@ -362,8 +362,6 @@ type TerminalRuntime = {
   entryElement: HTMLElement;
   entryForm: HTMLFormElement;
   entryStatusElement: HTMLElement;
-  entryPreviewElement: HTMLDivElement;
-  entryPreviewTextElement: HTMLPreElement;
   connectButtons: HTMLButtonElement[];
   disconnectButtons: HTMLButtonElement[];
   focusButton: HTMLButtonElement;
@@ -940,15 +938,6 @@ const createRuntime = (
           <div class="terminal-chat__output terminal__output" data-terminal-output></div>
         </div>
         <div class="terminal-chat__entry-region">
-          <div
-            class="terminal-chat__entry-preview"
-            data-terminal-entry-preview
-            hidden
-            aria-hidden="true"
-          >
-            <span class="terminal-chat__entry-preview-caret" aria-hidden="true">›</span>
-            <pre class="terminal-chat__entry-preview-text" data-terminal-entry-preview-text></pre>
-          </div>
           <div class="terminal-chat__entry-main">
             <div class="terminal-chat__keyboard" id="${entryStatusId}-kbd" data-terminal-kbd>
               <div class="terminal-chat__keyboard-grid">
@@ -1042,8 +1031,6 @@ const createRuntime = (
   const entryForm = entryElement?.querySelector<HTMLFormElement>('[data-terminal-entry-form]');
   const entryBufferElement = entryElement?.querySelector<HTMLTextAreaElement>('[data-terminal-entry-buffer]');
   const entryStatusElement = entryElement?.querySelector<HTMLElement>('[data-terminal-entry-status]');
-  const entryPreviewElement = query<HTMLDivElement>('[data-terminal-entry-preview]');
-  const entryPreviewTextElement = query<HTMLPreElement>('[data-terminal-entry-preview-text]');
   const mobileForm = query<HTMLFormElement>('[data-terminal-mobile-form]');
   const mobileBuffer = query<HTMLTextAreaElement>('[data-terminal-mobile-buffer]');
   const mobileSendButton = query<HTMLButtonElement>('[data-terminal-mobile-send]');
@@ -1075,9 +1062,7 @@ const createRuntime = (
     !entryElement ||
     !entryForm ||
     !entryStatusElement
-    || !entryPreviewElement
-    || !entryPreviewTextElement
-    ) {
+  ) {
       throw new Error('Failed to mount the web terminal.');
     }
 
@@ -1100,8 +1085,6 @@ const createRuntime = (
     entryElement,
     entryForm,
     entryStatusElement,
-    entryPreviewElement,
-    entryPreviewTextElement,
     connectButtons,
     disconnectButtons,
     focusButton,
@@ -2013,26 +1996,7 @@ const createRuntime = (
     return Boolean(runtime.socket && runtime.socket.readyState === WebSocket.OPEN);
   }
 
-  function updateEntryPreview(value: string) {
-    const previewValue = normaliseBufferValue(value);
-    if (!previewValue) {
-      runtime.entryPreviewTextElement.textContent = '';
-      runtime.entryPreviewElement.hidden = true;
-      delete runtime.entryPreviewElement.dataset.previewState;
-      return;
-    }
-
-    runtime.entryPreviewTextElement.textContent = previewValue;
-    runtime.entryPreviewElement.hidden = false;
-    runtime.entryPreviewElement.dataset.previewState = previewValue.includes('\n')
-      ? 'multiline'
-      : 'single';
-  }
-
-  function updateEntryControls() {
-    const bufferedValue = normaliseBufferValue(runtime.captureElement.value);
-    updateEntryPreview(bufferedValue);
-  }
+  function updateEntryControls() {}
 
   function sendTextPayload(rawValue: string): boolean {
     if (!rawValue) {
