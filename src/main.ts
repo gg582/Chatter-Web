@@ -8,9 +8,17 @@ if (!root) {
 
 const teardown = mountChatter(root);
 
-const handlePageExit = () => {
+const handleBeforeUnload = () => {
   teardown();
 };
 
-window.addEventListener('beforeunload', handlePageExit);
-window.addEventListener('pagehide', handlePageExit);
+const handlePageHide = (event: PageTransitionEvent) => {
+  if (event.persisted) {
+    return;
+  }
+
+  teardown();
+};
+
+window.addEventListener('beforeunload', handleBeforeUnload);
+window.addEventListener('pagehide', handlePageHide);
