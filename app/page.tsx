@@ -22,6 +22,7 @@ export default function Home() {
   };
 
   const stageClassName = `chatter-stage${isSettingsOpen ? ' chatter-stage--settings-open' : ''}`;
+  const settingsPanelAriaHidden = isSettingsOpen ? 'false' : 'true';
 
   return (
     <div className={stageClassName} data-chatter-root ref={rootRef}>
@@ -31,6 +32,7 @@ export default function Home() {
           type="button"
           className="button"
           onClick={handleToggleSettings}
+          data-settings-toggle
           aria-expanded={isSettingsOpen}
           aria-controls="chatter-settings-panel"
         >
@@ -38,7 +40,12 @@ export default function Home() {
         </button>
       </header>
       <div className="chatter-stage__terminal" data-component="terminal" />
-      <div className="chatter-stage__overlay" id="chatter-settings-panel">
+      <div
+        className="chatter-stage__overlay"
+        id="chatter-settings-panel"
+        data-settings-panel
+        aria-hidden={settingsPanelAriaHidden}
+      >
         <section className="overlay-window overlay-window--session" data-component="session" />
         <section className="overlay-window overlay-window--utility" data-component="utility" />
         <section className="overlay-window overlay-window--cheatsheet" data-component="cheatsheet" />

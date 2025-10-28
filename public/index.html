@@ -17,41 +17,25 @@
     <link rel="stylesheet" href="./styles.css" />
   </head>
   <body>
-    <div class="chatter-app" data-chatter-root>
-      <header class="chatter-shell">
-        <div class="shell-brand">
-          <span class="shell-brand__badge">Chatter BBS</span>
-          <h1>Link your console</h1>
-          <p>Hop straight into the telnet or SSH board and keep the lightweight lounge nearby.</p>
-        </div>
-        <section class="shell-mobile-banner" data-mobile-banner>
-          <h2>Mobile lounge ready</h2>
-          <p>
-            When we detect iOS, Android, postmarketOS, UBports, or BlackBerry devices, we highlight the buffered command entry
-            beneath the terminal so you can queue lines while keystrokes, arrows, and Ctrl shortcuts land reliably over telnet
-            or SSH.
-          </p>
-        </section>
-        <nav class="shell-menu" aria-label="Lounge menu">
-          <details class="menu-item" data-menu="session" open>
-            <summary>Your session</summary>
-            <section class="menu-panel" data-component="session"></section>
-          </details>
-          <details class="menu-item" data-menu="utility">
-            <summary>Utilities</summary>
-            <section class="menu-panel" data-component="utility"></section>
-          </details>
-          <details class="menu-item" data-menu="cheatsheet">
-            <summary>Command cheatsheet</summary>
-            <section class="menu-panel" data-component="cheatsheet"></section>
-          </details>
-        </nav>
+    <div class="chatter-stage" data-chatter-root>
+      <header class="chatter-stage__menubar">
+        <div class="chatter-stage__menubar-title">Chatter BBS</div>
+        <button
+          type="button"
+          class="button"
+          data-settings-toggle
+          aria-expanded="false"
+          aria-controls="chatter-settings-panel"
+        >
+          설정 열기
+        </button>
       </header>
-      <main class="chatter-layout">
-        <section class="terminal-section">
-          <div class="panel panel--terminal" data-component="terminal"></div>
-        </section>
-      </main>
+      <div class="chatter-stage__terminal" data-component="terminal"></div>
+      <div class="chatter-stage__overlay" id="chatter-settings-panel" data-settings-panel aria-hidden="true">
+        <section class="overlay-window overlay-window--session" data-component="session"></section>
+        <section class="overlay-window overlay-window--utility" data-component="utility"></section>
+        <section class="overlay-window overlay-window--cheatsheet" data-component="cheatsheet"></section>
+      </div>
     </div>
     <script src="./env.js" defer></script>
     <script type="module" src="./src/main.js"></script>
