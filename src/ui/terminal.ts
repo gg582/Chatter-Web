@@ -362,8 +362,6 @@ type TerminalRuntime = {
   entryElement: HTMLElement;
   entryForm: HTMLFormElement;
   entryStatusElement: HTMLElement;
-  entrySendButton: HTMLButtonElement;
-  entryClearButton: HTMLButtonElement;
   entryPreviewElement: HTMLDivElement;
   entryPreviewTextElement: HTMLPreElement;
   connectButtons: HTMLButtonElement[];
@@ -821,7 +819,7 @@ const createRuntime = (
     : 'Open the ⚙️ Settings view to review connection overrides and bridge guidance.';
 
   const entryInstructions =
-    'Type commands and press Enter or Send to forward them to the bridge. Shift+Enter adds a newline.';
+    'Type commands and press Enter to forward them to the bridge. Shift+Enter adds a newline.';
 
   const entryStatusId = createEntryStatusId();
 
@@ -938,6 +936,31 @@ const createRuntime = (
     <section class="${shellClasses.join(' ')}" data-terminal-shell>
       <div class="terminal-chat__fullscreen">
         ${controlsHost ? '' : controlBarMarkup}
+        <div class="terminal-chat__viewport terminal__viewport" data-terminal-viewport>
+          <div class="terminal-chat__output terminal__output" data-terminal-output></div>
+          <div
+            class="terminal-chat__entry-preview"
+            data-terminal-entry-preview
+            hidden
+            aria-hidden="true"
+          >
+            <span class="terminal-chat__entry-preview-caret" aria-hidden="true">›</span>
+            <pre class="terminal-chat__entry-preview-text" data-terminal-entry-preview-text></pre>
+          </div>
+        </div>
+        <div class="terminal-chat__keyboard" id="${entryStatusId}-kbd" data-terminal-kbd>
+          <div class="terminal-chat__keyboard-grid">
+            <button type="button" data-terminal-kbd-key="ctrl-c" data-terminal-kbd-group="entry-buffer">Ctrl+C</button>
+            <button type="button" data-terminal-kbd-key="ctrl-z" data-terminal-kbd-group="entry-buffer">Ctrl+Z</button>
+            <button type="button" data-terminal-kbd-key="ctrl-s" data-terminal-kbd-group="entry-buffer">Ctrl+S</button>
+            <button type="button" data-terminal-kbd-key="ctrl-a" data-terminal-kbd-group="entry-buffer">Ctrl+A</button>
+            <button type="button" data-terminal-kbd-key="arrow-up" data-terminal-kbd-group="arrow-up">↑</button>
+            <button type="button" data-terminal-kbd-key="arrow-down" data-terminal-kbd-group="arrow-down">↓</button>
+            <button type="button" data-terminal-kbd-key="arrow-left" data-terminal-kbd-group="arrow-left">←</button>
+            <button type="button" data-terminal-kbd-key="arrow-right" data-terminal-kbd-group="arrow-right">→</button>
+          </div>
+          <p class="terminal-chat__keyboard-foot">Shortcuts send immediately. Keep composing in the buffer above.</p>
+        </div>
         <section class="terminal-chat__panel-section terminal-chat__panel-section--entry terminal__entry" data-terminal-entry>
                 <div class="terminal-chat__entry-head">
                   <button type="button" class="terminal-chat__focus" data-terminal-focus>Focus</button>
@@ -966,37 +989,8 @@ const createRuntime = (
                       spellcheck="false"
                     ></textarea>
                   </label>
-                  <div class="terminal-chat__entry-actions">
-                    <button type="submit" data-terminal-entry-send>Send</button>
-                    <button type="button" data-terminal-entry-clear>Clear</button>
-                  </div>
                 </form>
               </section>
-        <div class="terminal-chat__viewport terminal__viewport" data-terminal-viewport>
-          <div class="terminal-chat__output terminal__output" data-terminal-output></div>
-          <div
-            class="terminal-chat__entry-preview"
-            data-terminal-entry-preview
-            hidden
-            aria-hidden="true"
-          >
-            <span class="terminal-chat__entry-preview-caret" aria-hidden="true">›</span>
-            <pre class="terminal-chat__entry-preview-text" data-terminal-entry-preview-text></pre>
-          </div>
-        </div>
-        <div class="terminal-chat__keyboard" id="${entryStatusId}-kbd" data-terminal-kbd>
-          <div class="terminal-chat__keyboard-grid">
-            <button type="button" data-terminal-kbd-key="ctrl-c" data-terminal-kbd-group="entry-buffer">Ctrl+C</button>
-            <button type="button" data-terminal-kbd-key="ctrl-z" data-terminal-kbd-group="entry-buffer">Ctrl+Z</button>
-            <button type="button" data-terminal-kbd-key="ctrl-s" data-terminal-kbd-group="entry-buffer">Ctrl+S</button>
-            <button type="button" data-terminal-kbd-key="ctrl-a" data-terminal-kbd-group="entry-buffer">Ctrl+A</button>
-            <button type="button" data-terminal-kbd-key="arrow-up" data-terminal-kbd-group="arrow-up">↑</button>
-            <button type="button" data-terminal-kbd-key="arrow-down" data-terminal-kbd-group="arrow-down">↓</button>
-            <button type="button" data-terminal-kbd-key="arrow-left" data-terminal-kbd-group="arrow-left">←</button>
-            <button type="button" data-terminal-kbd-key="arrow-right" data-terminal-kbd-group="arrow-right">→</button>
-          </div>
-          <p class="terminal-chat__keyboard-foot">Shortcuts send immediately. Keep composing in the buffer above.</p>
-        </div>
       </div>
     </section>
   `;
@@ -1044,8 +1038,6 @@ const createRuntime = (
   const entryForm = entryElement?.querySelector<HTMLFormElement>('[data-terminal-entry-form]');
   const entryBufferElement = entryElement?.querySelector<HTMLTextAreaElement>('[data-terminal-entry-buffer]');
   const entryStatusElement = entryElement?.querySelector<HTMLElement>('[data-terminal-entry-status]');
-  const entrySendButton = entryElement?.querySelector<HTMLButtonElement>('[data-terminal-entry-send]');
-  const entryClearButton = entryElement?.querySelector<HTMLButtonElement>('[data-terminal-entry-clear]');
   const entryPreviewElement = query<HTMLDivElement>('[data-terminal-entry-preview]');
   const entryPreviewTextElement = query<HTMLPreElement>('[data-terminal-entry-preview-text]');
   const mobileForm = query<HTMLFormElement>('[data-terminal-mobile-form]');
@@ -1078,9 +1070,7 @@ const createRuntime = (
     !targetStatus ||
     !entryElement ||
     !entryForm ||
-    !entryStatusElement ||
-    !entrySendButton ||
-    !entryClearButton
+    !entryStatusElement
     || !entryPreviewElement
     || !entryPreviewTextElement
     ) {
@@ -1106,8 +1096,6 @@ const createRuntime = (
     entryElement,
     entryForm,
     entryStatusElement,
-    entrySendButton,
-    entryClearButton,
     entryPreviewElement,
     entryPreviewTextElement,
     connectButtons,
@@ -1813,7 +1801,7 @@ const createRuntime = (
           setDisconnectButtonsDisabled(false);
           focusCapture();
           updateConnectAvailability();
-          setEntryStatus('Connected. Press Enter or Send to forward the next line.', 'muted');
+          setEntryStatus('Connected. Press Enter to forward the next line.', 'muted');
           updateEntryControls();
         });
         socket.addEventListener('message', (event) => {
@@ -2039,10 +2027,6 @@ const createRuntime = (
 
   function updateEntryControls() {
     const bufferedValue = normaliseBufferValue(runtime.captureElement.value);
-    const hasBuffered = bufferedValue.length > 0;
-    const socketOpen = isSocketOpen();
-    runtime.entrySendButton.disabled = !hasBuffered || !socketOpen;
-    runtime.entryClearButton.disabled = !hasBuffered;
     updateEntryPreview(bufferedValue);
   }
 
@@ -2187,13 +2171,6 @@ const createRuntime = (
     runtime.entryForm.addEventListener('submit', (event) => {
       event.preventDefault();
       flushNextBufferedLine(false);
-    });
-
-    runtime.entryClearButton.addEventListener('click', () => {
-      runtime.captureElement.value = '';
-      setEntryStatus('Buffer cleared. Nothing queued for the bridge.', 'muted');
-      updateEntryControls();
-      focusCapture();
     });
 
     runtime.captureElement.addEventListener('input', () => {
