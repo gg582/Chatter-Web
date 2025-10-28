@@ -800,36 +800,16 @@ const createRuntime = (container: HTMLElement): TerminalRuntime => {
     delete container.dataset.mobilePlatformLabel;
   }
 
-  const entryIntro = detectedLabel
-      ? `Detected ${escapeHtml(detectedLabel)}. Use the composer below to queue commands. Tap kbd for shortcut keys.`
-      : 'Use the composer below to queue commands and tap kbd for shortcut keys.';
-
   const shellClasses = ['terminal-chat'];
   if (mobilePlatform) {
     shellClasses.push('terminal-chat--mobile');
   }
 
-  const mobileHeaderMessage = mobilePlatform
+  const settingsHint = mobilePlatform
     ? resolvedLabel
-      ? `Detected ${escapeHtml(resolvedLabel)}. Touch controls are enabled for your session.`
-      : 'Touch controls are enabled for your session.'
-    : '';
-
-  const controlBarNote = mobilePlatform
-    ? 'Use the control bar above to manage connection settings and mobile guidance.'
-    : 'Manage your connection, identity, and overrides from the control bar above.';
-
-  const conversationNoteHtml = escapeHtml(controlBarNote);
-
-  const extraMenuNotes = Array.from(
-    new Set(
-      [mobileHeaderMessage, mobilePlatform ? entryIntro : '']
-        .map((note) => (note ? note.trim() : ''))
-        .filter((note): note is string => Boolean(note))
-    )
-  )
-    .map((note) => `<p class="terminal-chat__menu-note">${escapeHtml(note)}</p>`)
-    .join('');
+      ? `Touch controls are enabled for ${escapeHtml(resolvedLabel)}. Manage additional options from the Settings view.`
+      : 'Touch controls are enabled. Manage additional options from the Settings view.'
+    : 'Open the ⚙️ Settings view to review connection overrides and bridge guidance.';
 
   const entryInstructions =
       'Type a command and press Enter or Send to forward the next line to the bridge. Shift+Enter adds a newline and the shortcut bar sends arrows or Ctrl keys instantly.';
@@ -858,8 +838,7 @@ const createRuntime = (container: HTMLElement): TerminalRuntime => {
                 <span class="terminal-chat__menu-endpoint-label">Target</span>
                 <span class="terminal-chat__endpoint-value" data-terminal-endpoint>${escapeHtml(target.description)}</span>
               </div>
-              <p class="terminal-chat__menu-note">${conversationNoteHtml}</p>
-              ${extraMenuNotes}
+              <p class="terminal-chat__menu-note">${settingsHint}</p>
               <p class="terminal-chat__menu-game terminal__game" data-terminal-game></p>
             </div>
             <div class="terminal-chat__menu-block terminal-chat__menu-block--identity" role="group" aria-label="Identity controls">
@@ -2226,10 +2205,13 @@ export const renderTerminal = (store: ChatStore, container: HTMLElement): Termin
   if (state.activeGame === 'alpha') {
     runtime.gameStatus.innerHTML =
       'Fly me to Alpha Centauri armed: connect the terminal, then follow the nav charts broadcast in the BBS feeds.';
+    runtime.gameStatus.hidden = false;
   } else if (state.activeGame) {
     runtime.gameStatus.textContent = `Running game: ${state.activeGame}. Use the terminal to control it.`;
+    runtime.gameStatus.hidden = false;
   } else {
-    runtime.gameStatus.textContent = 'No active game selected. Choose one from the Assistants panel.';
+    runtime.gameStatus.textContent = '';
+    runtime.gameStatus.hidden = true;
   }
 
   return runtime;
