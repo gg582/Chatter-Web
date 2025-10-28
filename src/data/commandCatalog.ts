@@ -12,6 +12,27 @@ export interface CommandGroup {
 
 export const commandGroups: CommandGroup[] = [
   {
+    title: 'Bridge connection',
+    summary: 'Dial the BBS by choosing a protocol, host, and port.',
+    commands: [
+      {
+        command: '/protocol <ssh|telnet>',
+        description: 'Select the connection protocol. SSH defaults to port 22 and Telnet to port 23.',
+        ui: 'Terminal → Connection settings → Protocol selector.'
+      },
+      {
+        command: '/url <hostname>',
+        description: 'Set the BBS host or IP address to dial from the bridge.',
+        ui: 'Terminal → Connection settings → Host field.'
+      },
+      {
+        command: '/port <number>',
+        description: 'Override the bridge port. SSH listens on 22 by default and Telnet on 23.',
+        ui: 'Terminal → Connection settings → Port field.'
+      }
+    ]
+  },
+  {
     title: 'Orientation & presence',
     summary: 'Get your bearings and see who is online.',
     commands: [

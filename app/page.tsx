@@ -18,26 +18,31 @@ export default function Home() {
 
   return (
     <div className="chatter-stage" data-chatter-root data-view="terminal" ref={rootRef}>
+      <header className="chatter-stage__chrome" aria-hidden="true">
+        <div className="chatter-stage__window-buttons">
+          <span className="chatter-stage__window-button" aria-hidden="true">_</span>
+          <span className="chatter-stage__window-button" aria-hidden="true">ㅁ</span>
+          <span className="chatter-stage__window-button" aria-hidden="true">X</span>
+        </div>
+      </header>
       <main className="chatter-stage__main">
         <div className="chatter-stage__viewport" data-view-root>
           <nav className="chatter-stage__nav" aria-label="View switcher">
             <button
               type="button"
-              className="chatter-stage__nav-button chatter-stage__nav-button--settings"
-              data-view-target="settings"
-              aria-label="Open settings"
-              aria-controls="chatter-settings-screen"
+              className="chatter-stage__nav-button"
+              data-view-target="terminal"
+              aria-controls="chatter-terminal-screen"
             >
-              <span aria-hidden="true">⚙️</span>
+              chat
             </button>
             <button
               type="button"
-              className="chatter-stage__nav-button chatter-stage__nav-button--home"
-              data-view-target="terminal"
-              aria-label="Return to terminal"
-              aria-controls="chatter-terminal-screen"
+              className="chatter-stage__nav-button"
+              data-view-target="settings"
+              aria-controls="chatter-settings-screen"
             >
-              <span aria-hidden="true">🏠</span>
+              settings
             </button>
           </nav>
           <section

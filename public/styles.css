@@ -83,6 +83,30 @@ summary::-webkit-details-marker {
   color: var(--terminal-text);
 }
 
+.chatter-stage__chrome {
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+  padding: 0.75rem clamp(1.25rem, 5vw, 2.5rem) 0.25rem;
+}
+
+.chatter-stage__window-buttons {
+  display: inline-flex;
+  gap: 1rem;
+  font-family: 'IBM Plex Mono', 'SFMono-Regular', Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New', monospace;
+  letter-spacing: 0.08em;
+  color: var(--terminal-muted);
+  font-size: 0.95rem;
+}
+
+.chatter-stage__window-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.75rem;
+  text-align: center;
+}
+
 .chatter-stage__taskbar {
   position: sticky;
   top: 0;
@@ -220,75 +244,69 @@ summary::-webkit-details-marker {
   overflow-y: auto;
 }
 
+
 .chatter-stage__main {
   flex: 1 1 auto;
   display: flex;
-  padding: clamp(1.25rem, 4vw, 3rem);
+  flex-direction: column;
   min-height: 0;
 }
 
 .chatter-stage__viewport {
-  position: relative;
   flex: 1 1 auto;
   display: flex;
+  flex-direction: column;
   min-height: 0;
 }
 
 .chatter-stage__nav {
-  position: absolute;
-  top: clamp(1rem, 4vw, 2rem);
-  right: clamp(1rem, 4vw, 2rem);
   display: flex;
-  gap: 0.65rem;
-  z-index: 60;
+  gap: 1.5rem;
+  align-items: center;
+  padding: 0.75rem clamp(1.25rem, 5vw, 2.5rem);
+  border-top: 1px solid var(--terminal-border);
+  border-bottom: 1px solid var(--terminal-border);
+  background: rgba(0, 0, 0, 0.85);
+  font-family: 'IBM Plex Mono', 'SFMono-Regular', Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New', monospace;
 }
 
 .chatter-stage__nav-button {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: 0.4rem;
-  background: rgba(15, 23, 42, 0.82);
-  border: 1px solid rgba(148, 163, 184, 0.42);
-  border-radius: 999px;
-  color: var(--text);
-  padding: 0.55rem 0.95rem;
-  font-size: 1.15rem;
+  appearance: none;
+  border: none;
+  background: none;
+  color: var(--terminal-muted);
+  font: inherit;
+  font-size: 0.95rem;
+  letter-spacing: 0.04em;
+  text-transform: lowercase;
+  padding: 0;
   cursor: pointer;
-  box-shadow: var(--shadow-soft);
-  backdrop-filter: blur(12px);
-  transition: transform 0.2s ease, box-shadow 0.2s ease, border-color 0.2s ease;
 }
 
 .chatter-stage__nav-button:hover,
 .chatter-stage__nav-button:focus-visible {
-  transform: translateY(-1px);
-  border-color: rgba(148, 163, 184, 0.65);
-  box-shadow: 0 18px 36px rgba(0, 0, 0, 0.55);
+  color: var(--terminal-text);
 }
 
 .chatter-stage__nav-button:focus-visible {
   outline: 2px solid var(--accent-sky);
-  outline-offset: 3px;
+  outline-offset: 4px;
 }
 
-.chatter-stage[data-view='terminal'] .chatter-stage__nav-button--home {
-  display: none;
+.chatter-stage__nav-button[aria-current='page'] {
+  color: var(--terminal-text);
+  font-weight: 600;
 }
 
-.chatter-stage[data-view='settings'] .chatter-stage__nav-button--settings {
-  display: none;
+.chatter-stage__nav-button[aria-current='page']::before {
+  content: '> ';
 }
 
 .chatter-stage__screen {
-  position: absolute;
-  inset: 0;
+  flex: 1 1 auto;
   display: none;
   flex-direction: column;
-  gap: 1.5rem;
-  padding: clamp(1.25rem, 4vw, 3rem);
   min-height: 0;
-  overflow: hidden;
 }
 
 .chatter-stage__screen.is-active {
@@ -296,39 +314,24 @@ summary::-webkit-details-marker {
 }
 
 .chatter-stage__screen--terminal {
-  padding: 0;
+  background: transparent;
 }
 
-.chatter-stage[data-view='terminal'] .terminal-chat__menu-bar {
-  display: none !important;
-}
-
-.chatter-stage[data-view='terminal'] .terminal-chat__entry-head,
-.chatter-stage[data-view='terminal'] .terminal-chat__entry-label,
-.chatter-stage[data-view='terminal'] .terminal-chat__keyboard-foot,
-.chatter-stage[data-view='terminal'] .terminal-chat__focus,
-.chatter-stage[data-view='terminal'] .chatter-shortcuts {
-  display: none !important;
-}
-
-.chatter-stage[data-view='terminal'] .terminal-chat__fullscreen {
-  gap: clamp(0.75rem, 3vw, 1.5rem);
-  padding: clamp(0.75rem, 3vw, 1.75rem);
-  padding-bottom: clamp(3rem, 12vh, 5rem);
-}
-
-.chatter-stage__screen--terminal .chatter-stage__terminal {
-  border-radius: 0;
-  border: none;
-  box-shadow: none;
+.chatter-stage__screen--terminal .terminal-chat__fullscreen {
+  flex: 1 1 auto;
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  padding: 0 clamp(1.25rem, 5vw, 2.5rem);
 }
 
 .chatter-stage__screen--terminal .chatter-shortcuts {
-  right: clamp(1rem, 4vw, 2.5rem);
+  display: none;
 }
 
 .chatter-stage__screen--settings {
   overflow-y: auto;
+  padding: clamp(1.5rem, 5vw, 3rem);
 }
 
 .settings-screen__header {
@@ -1737,22 +1740,6 @@ summary::-webkit-details-marker {
   box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.2);
 }
 
-.terminal-chat__entry-actions {
-  display: flex;
-  gap: 0.75rem;
-  flex-wrap: wrap;
-}
-
-.terminal-chat__entry-actions button[data-terminal-entry-send] {
-  background: rgba(59, 130, 246, 0.2);
-  border: 1px solid rgba(59, 130, 246, 0.4);
-}
-
-.terminal-chat__entry-actions button[data-terminal-entry-clear] {
-  background: transparent;
-  border: 1px solid rgba(148, 163, 184, 0.35);
-}
-
 .terminal-chat--mobile .terminal-chat__keyboard-grid {
   gap: 0.5rem;
 }
@@ -1770,6 +1757,198 @@ summary::-webkit-details-marker {
   .terminal-chat__menu-block {
     flex: 1 1 calc(50% - 0.5rem);
   }
+}
+
+/* Fullscreen terminal overrides */
+
+.chatter-stage__screen--terminal .terminal-chat__menu-bar {
+  position: static;
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  padding: 1rem 0;
+  border-top: 1px solid var(--terminal-border);
+  border-bottom: 1px solid var(--terminal-border);
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+}
+
+.chatter-stage__screen--terminal .terminal-chat__menu-bar::after {
+  display: none;
+}
+
+.chatter-stage__screen--terminal .terminal-chat__menu-title,
+.chatter-stage__screen--terminal .terminal-chat__menu-block-title,
+.chatter-stage__screen--terminal .terminal-chat__menu-note {
+  display: none;
+}
+
+.chatter-stage__screen--terminal .terminal-chat__menu-rail {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.chatter-stage__screen--terminal .terminal-chat__menu-block {
+  padding: 0;
+  border: none;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+  color: var(--terminal-text);
+}
+
+.chatter-stage__screen--terminal .terminal-chat__menu-block--status {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  gap: 1.5rem;
+  align-items: center;
+  border-bottom: 1px solid var(--terminal-border);
+  padding-bottom: 0.75rem;
+  order: 2;
+}
+
+.chatter-stage__screen--terminal .terminal-chat__menu-status {
+  font-size: 0.95rem;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+
+.chatter-stage__screen--terminal .terminal-chat__menu-endpoint {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  font-size: 0.85rem;
+}
+
+.chatter-stage__screen--terminal .terminal-chat__menu-actions {
+  display: flex;
+  gap: 1rem;
+}
+
+.chatter-stage__screen--terminal .terminal-chat__menu-button {
+  border-radius: 0;
+  border: 1px solid var(--terminal-border);
+  background: rgba(0, 0, 0, 0.6);
+  padding: 0.45rem 1.2rem;
+  box-shadow: none;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  font-size: 0.75rem;
+}
+
+.chatter-stage__screen--terminal .terminal-chat__menu-block--target .terminal-chat__menu-inline-fields,
+.chatter-stage__screen--terminal .terminal-chat__menu-block--identity .terminal-chat__menu-inline-fields {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(9rem, 1fr));
+  gap: 1rem;
+  align-items: end;
+}
+
+.chatter-stage__screen--terminal .terminal-chat__field {
+  gap: 0.25rem;
+}
+
+.chatter-stage__screen--terminal .terminal-chat__field-label {
+  font-family: 'IBM Plex Mono', 'SFMono-Regular', Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New', monospace;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--terminal-muted);
+  font-size: 0.75rem;
+}
+
+.chatter-stage__screen--terminal .terminal-chat__field input,
+.chatter-stage__screen--terminal .terminal-chat__field select {
+  border-radius: 0;
+  border: 1px solid var(--terminal-border);
+  background: rgba(0, 0, 0, 0.65);
+  color: var(--terminal-text);
+}
+
+.chatter-stage__screen--terminal .terminal-chat__menu-actions--target {
+  justify-content: flex-end;
+  gap: 1rem;
+}
+
+.chatter-stage__screen--terminal .terminal-chat__menu-actions--target .terminal-chat__menu-button {
+  text-transform: none;
+}
+
+.chatter-stage__screen--terminal .terminal-chat__menu-block--identity {
+  border-top: 1px solid var(--terminal-border);
+  padding-top: 0.75rem;
+  order: 1;
+}
+
+.chatter-stage__screen--terminal .terminal-chat__menu-block--target {
+  order: 1;
+}
+
+.chatter-stage__screen--terminal .terminal-chat__hint {
+  color: var(--terminal-muted);
+  font-size: 0.75rem;
+  letter-spacing: 0.04em;
+}
+
+.chatter-stage__screen--terminal .terminal-chat__menu-game {
+  grid-column: 1 / -1;
+  font-size: 0.85rem;
+  color: var(--terminal-muted);
+}
+
+.chatter-stage__screen--terminal .terminal-chat__fullscreen {
+  padding: clamp(1rem, 4vw, 1.75rem) clamp(1.25rem, 5vw, 2.5rem) clamp(2.5rem, 8vh, 3.5rem);
+  gap: 1rem;
+}
+
+.chatter-stage__screen--terminal .terminal-chat__viewport {
+  border-radius: 0;
+  background: rgba(0, 0, 0, 0.85);
+}
+
+.chatter-stage__screen--terminal .terminal-chat__output {
+  padding: clamp(1rem, 4vw, 1.75rem);
+  padding-bottom: clamp(3.5rem, 10vh, 5rem);
+}
+
+.chatter-stage__screen--terminal .terminal-chat__entry-preview {
+  left: clamp(1.25rem, 5vw, 2.5rem);
+  right: clamp(1.25rem, 5vw, 2.5rem);
+  bottom: clamp(4.5rem, 12vh, 6rem);
+  border-radius: 0;
+  border: 1px solid var(--terminal-border);
+  background: rgba(0, 0, 0, 0.8);
+}
+
+.chatter-stage__screen--terminal .terminal-chat__entry-head {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 1rem;
+  margin-bottom: 0.5rem;
+}
+
+.chatter-stage__screen--terminal .terminal-chat__entry-field {
+  margin-top: 0.75rem;
+}
+
+.chatter-stage__screen--terminal .terminal-chat__entry-label {
+  font-family: 'IBM Plex Mono', 'SFMono-Regular', Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New', monospace;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--terminal-muted);
+}
+
+.chatter-stage__screen--terminal .terminal-chat__entry-form {
+  margin-top: 0;
+}
+
+.chatter-stage__screen--terminal .terminal-chat__keyboard-foot {
+  display: none;
+}
+
+.chatter-stage__screen--terminal .terminal-chat__focus {
+  display: none;
 }
 
 @media (max-width: 720px) {
