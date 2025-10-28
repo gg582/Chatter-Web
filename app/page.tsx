@@ -17,41 +17,13 @@ export default function Home() {
   }, []);
 
   return (
-    <div className="chatter-app" data-chatter-root ref={rootRef}>
-      <header className="chatter-shell">
-        <div className="shell-brand">
-          <span className="shell-brand__badge">Chatter BBS</span>
-          <h1>Link your console</h1>
-          <p>Hop straight into the telnet or SSH board and keep the lightweight lounge nearby.</p>
-        </div>
-        <section className="shell-mobile-banner" data-mobile-banner>
-          <h2>Mobile lounge ready</h2>
-          <p>
-            When we detect iOS, Android, postmarketOS, UBports, or BlackBerry devices, we highlight the buffered command entry
-            beneath the terminal so you can queue lines while keystrokes, arrows, and Ctrl shortcuts land reliably over telnet
-            or SSH.
-          </p>
-        </section>
-        <nav className="shell-menu" aria-label="Lounge menu">
-          <details className="menu-item menu-item--flat" data-menu="session" open>
-            <summary>Your session</summary>
-            <section className="menu-panel" data-component="session" />
-          </details>
-          <details className="menu-item" data-menu="utility">
-            <summary>Utilities</summary>
-            <section className="menu-panel" data-component="utility" />
-          </details>
-          <details className="menu-item" data-menu="cheatsheet">
-            <summary>Command cheatsheet</summary>
-            <section className="menu-panel" data-component="cheatsheet" />
-          </details>
-        </nav>
-      </header>
-      <main className="chatter-layout">
-        <section className="terminal-section">
-          <div className="panel panel--terminal" data-component="terminal" />
-        </section>
-      </main>
+    <div className="chatter-stage" data-chatter-root ref={rootRef}>
+      <div className="chatter-stage__terminal" data-component="terminal" />
+      <div className="chatter-stage__overlay">
+        <section className="overlay-window overlay-window--session" data-component="session" />
+        <section className="overlay-window overlay-window--utility" data-component="utility" />
+        <section className="overlay-window overlay-window--cheatsheet" data-component="cheatsheet" />
+      </div>
     </div>
   );
 }
