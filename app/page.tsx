@@ -48,15 +48,31 @@ export default function Home() {
             </div>
             <div className="taskbar-panel__grid">
               <section className="taskbar-panel__section" data-component="session" />
+              <section
+                className="taskbar-panel__section taskbar-panel__section--utility"
+                data-component="utility"
+                aria-label="엔트리"
+              />
             </div>
           </div>
         </div>
       </header>
       <main className="chatter-stage__main">
-        <div className="chatter-stage__terminal" data-component="terminal" />
-        <div className="chatter-stage__support">
-          <section className="support-card support-card--entry" data-component="utility" aria-label="엔트리" />
-          <section className="support-card support-card--shortcuts" data-component="cheatsheet" aria-label="키 바로가기" />
+        <div className="chatter-stage__viewport">
+          <div className="chatter-stage__terminal" data-component="terminal" />
+          <details className="chatter-shortcuts" data-shortcuts>
+            <summary className="chatter-shortcuts__toggle">
+              <span className="chatter-shortcuts__icon" aria-hidden="true">
+                ⌘
+              </span>
+              키 바로가기
+            </summary>
+            <section
+              className="chatter-shortcuts__panel"
+              data-component="cheatsheet"
+              aria-label="키 바로가기"
+            />
+          </details>
         </div>
       </main>
     </div>

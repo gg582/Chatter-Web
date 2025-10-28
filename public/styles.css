@@ -201,6 +201,12 @@ summary::-webkit-details-marker {
 .taskbar-panel__grid {
   display: grid;
   gap: 1.25rem;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+}
+
+.taskbar-panel__section--utility {
+  max-height: min(55vh, 520px);
+  overflow-y: auto;
 }
 
 .taskbar-panel__section {
@@ -217,9 +223,15 @@ summary::-webkit-details-marker {
 .chatter-stage__main {
   flex: 1 1 auto;
   display: flex;
-  flex-direction: column;
-  gap: clamp(1.5rem, 3vw, 2.5rem);
   padding: clamp(1.25rem, 4vw, 3rem);
+  min-height: 0;
+}
+
+.chatter-stage__viewport {
+  position: relative;
+  flex: 1 1 auto;
+  display: flex;
+  min-height: 0;
 }
 
 .chatter-stage__terminal {
@@ -229,41 +241,72 @@ summary::-webkit-details-marker {
   border: 1px solid var(--border);
   background: var(--terminal-bg);
   box-shadow: var(--shadow-soft);
-  min-height: clamp(320px, 55vh, 640px);
   overflow: hidden;
+  min-height: 0;
 }
 
 .chatter-stage__terminal > * {
   flex: 1 1 auto;
 }
 
-.chatter-stage__support {
-  display: grid;
-  gap: clamp(1rem, 3vw, 2rem);
-  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
-}
-
-.support-card {
-  background: rgba(15, 23, 42, 0.35);
-  border: 1px solid rgba(148, 163, 184, 0.28);
-  border-radius: 24px;
-  box-shadow: var(--shadow-soft);
-  padding: clamp(1.25rem, 3vw, 1.75rem);
+.chatter-shortcuts {
+  position: absolute;
+  top: clamp(1rem, 4vw, 2.5rem);
+  right: clamp(1rem, 4vw, 2.5rem);
   display: flex;
   flex-direction: column;
-  gap: 1rem;
-  min-height: 0;
-  overflow: hidden;
+  gap: 0.75rem;
+  align-items: flex-end;
+  max-width: min(360px, 38vw);
+  z-index: 50;
 }
 
-.support-card[data-component='utility'],
-.support-card[data-component='cheatsheet'] {
-  overflow-y: auto;
-  max-height: min(460px, 45vh);
-}
-
-.support-card--shortcuts {
+.chatter-shortcuts__toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  background: rgba(15, 23, 42, 0.7);
+  border: 1px solid rgba(148, 163, 184, 0.35);
+  border-radius: 999px;
+  padding: 0.45rem 1.1rem;
+  font-size: 0.78rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: rgba(226, 232, 240, 0.85);
+  cursor: pointer;
   backdrop-filter: blur(12px);
+}
+
+.chatter-shortcuts__toggle:focus-visible {
+  outline: 2px solid var(--accent-sky);
+  outline-offset: 3px;
+}
+
+.chatter-shortcuts__toggle::-webkit-details-marker {
+  display: none;
+}
+
+.chatter-shortcuts__icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.9rem;
+}
+
+.chatter-shortcuts__panel {
+  width: min(360px, 100%);
+  background: rgba(15, 23, 42, 0.92);
+  border: 1px solid rgba(148, 163, 184, 0.38);
+  border-radius: 20px;
+  box-shadow: var(--shadow-soft);
+  padding: 1.25rem 1.5rem;
+  max-height: min(60vh, 480px);
+  overflow-y: auto;
+  backdrop-filter: blur(16px);
+}
+
+.chatter-shortcuts:not([open]) .chatter-shortcuts__panel {
+  display: none;
 }
 
 @media (max-width: 900px) {
@@ -287,19 +330,19 @@ summary::-webkit-details-marker {
     border-radius: 22px;
   }
 
-  .support-card {
-    border-radius: 20px;
+  .chatter-shortcuts {
+    top: auto;
+    bottom: clamp(1rem, 6vw, 2rem);
+    right: clamp(1rem, 6vw, 2rem);
+    max-width: min(320px, 80vw);
   }
 }
 
 @media (max-width: 640px) {
-  .chatter-stage__support {
-    grid-template-columns: 1fr;
-  }
-
-  .support-card[data-component='utility'],
-  .support-card[data-component='cheatsheet'] {
-    max-height: none;
+  .chatter-shortcuts {
+    max-width: 100%;
+    left: clamp(0.75rem, 5vw, 1.5rem);
+    right: clamp(0.75rem, 5vw, 1.5rem);
   }
 }
 

@@ -46,15 +46,25 @@
             </div>
             <div class="taskbar-panel__grid">
               <section class="taskbar-panel__section" data-component="session"></section>
+              <section
+                class="taskbar-panel__section taskbar-panel__section--utility"
+                data-component="utility"
+                aria-label="엔트리"
+              ></section>
             </div>
           </div>
         </div>
       </header>
       <main class="chatter-stage__main">
-        <div class="chatter-stage__terminal" data-component="terminal"></div>
-        <div class="chatter-stage__support">
-          <section class="support-card support-card--entry" data-component="utility" aria-label="엔트리"></section>
-          <section class="support-card support-card--shortcuts" data-component="cheatsheet" aria-label="키 바로가기"></section>
+        <div class="chatter-stage__viewport">
+          <div class="chatter-stage__terminal" data-component="terminal"></div>
+          <details class="chatter-shortcuts" data-shortcuts>
+            <summary class="chatter-shortcuts__toggle">
+              <span class="chatter-shortcuts__icon" aria-hidden="true">⌘</span>
+              키 바로가기
+            </summary>
+            <section class="chatter-shortcuts__panel" data-component="cheatsheet" aria-label="키 바로가기"></section>
+          </details>
         </div>
       </main>
     </div>
