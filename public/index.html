@@ -17,40 +17,45 @@
     <link rel="stylesheet" href="./styles.css" />
   </head>
   <body>
-    <div class="chatter-app" data-chatter-root>
-      <header class="chatter-shell">
-        <div class="shell-brand">
-          <span class="shell-brand__badge">Chatter BBS</span>
-          <h1>Link your console</h1>
-          <p>Hop straight into the telnet or SSH board and keep the lightweight lounge nearby.</p>
+    <div class="chatter-stage" data-chatter-root>
+      <header class="chatter-stage__taskbar" data-taskbar>
+        <div class="chatter-stage__taskbar-inner">
+          <button
+            type="button"
+            class="taskbar-handle"
+            data-taskbar-handle
+            aria-expanded="false"
+            aria-controls="chatter-taskbar-panel"
+          >
+            <span class="taskbar-handle__nub" aria-hidden="true"></span>
+            <span class="taskbar-handle__label">
+              <span class="taskbar-handle__icon" aria-hidden="true">▾</span>
+              작업표시줄
+            </span>
+          </button>
+          <div
+            class="chatter-stage__taskbar-panel"
+            id="chatter-taskbar-panel"
+            data-taskbar-panel
+            aria-hidden="true"
+          >
+            <div class="taskbar-panel__intro">
+              <span class="taskbar-panel__badge">Chatter BBS</span>
+              <h1>Link your console</h1>
+              <p>Hop straight into the telnet or SSH board and keep the lightweight lounge nearby.</p>
+            </div>
+            <div class="taskbar-panel__grid">
+              <section class="taskbar-panel__section" data-component="session"></section>
+            </div>
+          </div>
         </div>
-        <section class="shell-mobile-banner" data-mobile-banner>
-          <h2>Mobile lounge ready</h2>
-          <p>
-            When we detect iOS, Android, postmarketOS, UBports, or BlackBerry devices, we highlight the buffered command entry
-            beneath the terminal so you can queue lines while keystrokes, arrows, and Ctrl shortcuts land reliably over telnet
-            or SSH.
-          </p>
-        </section>
-        <nav class="shell-menu" aria-label="Lounge menu">
-          <details class="menu-item" data-menu="session" open>
-            <summary>Your session</summary>
-            <section class="menu-panel" data-component="session"></section>
-          </details>
-          <details class="menu-item" data-menu="utility">
-            <summary>Utilities</summary>
-            <section class="menu-panel" data-component="utility"></section>
-          </details>
-          <details class="menu-item" data-menu="cheatsheet">
-            <summary>Command cheatsheet</summary>
-            <section class="menu-panel" data-component="cheatsheet"></section>
-          </details>
-        </nav>
       </header>
-      <main class="chatter-layout">
-        <section class="terminal-section">
-          <div class="panel panel--terminal" data-component="terminal"></div>
-        </section>
+      <main class="chatter-stage__main">
+        <div class="chatter-stage__terminal" data-component="terminal"></div>
+        <div class="chatter-stage__support">
+          <section class="support-card support-card--entry" data-component="utility" aria-label="엔트리"></section>
+          <section class="support-card support-card--shortcuts" data-component="cheatsheet" aria-label="키 바로가기"></section>
+        </div>
       </main>
     </div>
     <script src="./env.js" defer></script>

@@ -4,6 +4,7 @@ import { renderCheatSheet } from './ui/cheatsheet.js';
 import { renderSession } from './ui/sessionCard.js';
 import { renderTerminal } from './ui/terminal.js';
 import { describeMobilePlatform, detectMobilePlatform } from './ui/helpers.js';
+import { enhanceTaskbar } from './ui/taskbar.js';
 
 export const mountChatter = (root: HTMLElement) => {
   const store = new ChatStore();
@@ -33,6 +34,8 @@ export const mountChatter = (root: HTMLElement) => {
     throw new Error('Failed to mount the Chatter UI.');
   }
 
+  const detachTaskbar = enhanceTaskbar(root);
+
   let runtime: ReturnType<typeof renderTerminal> | null = null;
   let disposed = false;
 
@@ -52,6 +55,7 @@ export const mountChatter = (root: HTMLElement) => {
     }
     disposed = true;
     runtime?.requestDisconnect('Page closing');
+    detachTaskbar();
     unsubscribe();
   };
 };
