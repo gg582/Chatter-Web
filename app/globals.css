@@ -1500,14 +1500,25 @@ summary::-webkit-details-marker {
   gap: 0;
 }
 
+.terminal-chat__entry-region {
+  display: flex;
+  flex-direction: column;
+  gap: clamp(0.85rem, 3vw, 1.4rem);
+}
+
+.terminal-chat__entry-main {
+  display: flex;
+  flex-direction: column;
+  gap: clamp(0.9rem, 2.5vw, 1.5rem);
+}
+
 .terminal-chat__entry-preview {
-  position: absolute;
-  left: clamp(1rem, 3vw, 2.25rem);
-  right: clamp(1rem, 3vw, 2.25rem);
-  bottom: clamp(8.5rem, 17vh, 11rem);
+  position: static;
   display: flex;
   gap: 0.75rem;
   align-items: flex-start;
+  align-self: stretch;
+  margin: 0;
   padding: 0.75rem 1rem;
   border-radius: 14px;
   background: rgba(15, 23, 42, 0.82);
@@ -1529,10 +1540,7 @@ summary::-webkit-details-marker {
 }
 
 .terminal-chat__keyboard {
-  position: absolute;
-  left: 50%;
-  bottom: clamp(1.25rem, 5vw, 2.25rem);
-  transform: translateX(-50%);
+  position: static;
   display: flex;
   flex-direction: column;
   gap: 0.65rem;
@@ -1541,8 +1549,9 @@ summary::-webkit-details-marker {
   border: 1px solid rgba(148, 163, 184, 0.35);
   border-radius: 20px;
   box-shadow: 0 24px 48px rgba(2, 6, 23, 0.6);
-  max-width: min(92%, 720px);
-  z-index: 25;
+  width: min(100%, 720px);
+  max-width: 100%;
+  align-self: center;
 }
 
 .terminal-chat__keyboard-grid {
@@ -1893,13 +1902,7 @@ summary::-webkit-details-marker {
     width: 100%;
   }
 
-  .terminal-chat__entry-preview {
-    left: clamp(0.75rem, 5vw, 1.5rem);
-    right: clamp(0.75rem, 5vw, 1.5rem);
-  }
-
   .terminal-chat__keyboard {
-    bottom: clamp(1rem, 5vw, 1.75rem);
     padding: 0.75rem clamp(0.85rem, 6vw, 1.5rem);
   }
 }

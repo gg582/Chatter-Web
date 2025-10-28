@@ -938,6 +938,8 @@ const createRuntime = (
         ${controlsHost ? '' : controlBarMarkup}
         <div class="terminal-chat__viewport terminal__viewport" data-terminal-viewport>
           <div class="terminal-chat__output terminal__output" data-terminal-output></div>
+        </div>
+        <div class="terminal-chat__entry-region">
           <div
             class="terminal-chat__entry-preview"
             data-terminal-entry-preview
@@ -947,50 +949,52 @@ const createRuntime = (
             <span class="terminal-chat__entry-preview-caret" aria-hidden="true">›</span>
             <pre class="terminal-chat__entry-preview-text" data-terminal-entry-preview-text></pre>
           </div>
-        </div>
-        <div class="terminal-chat__keyboard" id="${entryStatusId}-kbd" data-terminal-kbd>
-          <div class="terminal-chat__keyboard-grid">
-            <button type="button" data-terminal-kbd-key="ctrl-c" data-terminal-kbd-group="entry-buffer">Ctrl+C</button>
-            <button type="button" data-terminal-kbd-key="ctrl-z" data-terminal-kbd-group="entry-buffer">Ctrl+Z</button>
-            <button type="button" data-terminal-kbd-key="ctrl-s" data-terminal-kbd-group="entry-buffer">Ctrl+S</button>
-            <button type="button" data-terminal-kbd-key="ctrl-a" data-terminal-kbd-group="entry-buffer">Ctrl+A</button>
-            <button type="button" data-terminal-kbd-key="arrow-up" data-terminal-kbd-group="arrow-up">↑</button>
-            <button type="button" data-terminal-kbd-key="arrow-down" data-terminal-kbd-group="arrow-down">↓</button>
-            <button type="button" data-terminal-kbd-key="arrow-left" data-terminal-kbd-group="arrow-left">←</button>
-            <button type="button" data-terminal-kbd-key="arrow-right" data-terminal-kbd-group="arrow-right">→</button>
+          <div class="terminal-chat__entry-main">
+            <div class="terminal-chat__keyboard" id="${entryStatusId}-kbd" data-terminal-kbd>
+              <div class="terminal-chat__keyboard-grid">
+                <button type="button" data-terminal-kbd-key="ctrl-c" data-terminal-kbd-group="entry-buffer">Ctrl+C</button>
+                <button type="button" data-terminal-kbd-key="ctrl-z" data-terminal-kbd-group="entry-buffer">Ctrl+Z</button>
+                <button type="button" data-terminal-kbd-key="ctrl-s" data-terminal-kbd-group="entry-buffer">Ctrl+S</button>
+                <button type="button" data-terminal-kbd-key="ctrl-a" data-terminal-kbd-group="entry-buffer">Ctrl+A</button>
+                <button type="button" data-terminal-kbd-key="arrow-up" data-terminal-kbd-group="arrow-up">↑</button>
+                <button type="button" data-terminal-kbd-key="arrow-down" data-terminal-kbd-group="arrow-down">↓</button>
+                <button type="button" data-terminal-kbd-key="arrow-left" data-terminal-kbd-group="arrow-left">←</button>
+                <button type="button" data-terminal-kbd-key="arrow-right" data-terminal-kbd-group="arrow-right">→</button>
+              </div>
+              <p class="terminal-chat__keyboard-foot">Shortcuts send immediately. Keep composing in the buffer above.</p>
+            </div>
+            <section class="terminal-chat__panel-section terminal-chat__panel-section--entry terminal__entry" data-terminal-entry>
+              <div class="terminal-chat__entry-head">
+                <button type="button" class="terminal-chat__focus" data-terminal-focus>Focus</button>
+                <p
+                  id="${entryStatusId}"
+                  class="terminal-chat__entry-status terminal__entry-status"
+                  role="status"
+                  aria-live="polite"
+                  data-terminal-entry-status
+                >${escapeHtml(entryInstructions)}</p>
+              </div>
+              <form class="terminal-chat__entry-form" data-terminal-entry-form>
+                <label class="terminal-chat__entry-field">
+                  <span class="terminal-chat__entry-label">Command buffer</span>
+                  <textarea
+                    class="terminal-chat__entry-textarea terminal__capture"
+                    data-terminal-capture
+                    data-terminal-entry-buffer
+                    rows="3"
+                    placeholder=""
+                    aria-describedby="${entryStatusId}"
+                    aria-label="Command buffer"
+                    autocomplete="off"
+                    autocorrect="off"
+                    autocapitalize="off"
+                    spellcheck="false"
+                  ></textarea>
+                </label>
+              </form>
+            </section>
           </div>
-          <p class="terminal-chat__keyboard-foot">Shortcuts send immediately. Keep composing in the buffer above.</p>
         </div>
-        <section class="terminal-chat__panel-section terminal-chat__panel-section--entry terminal__entry" data-terminal-entry>
-                <div class="terminal-chat__entry-head">
-                  <button type="button" class="terminal-chat__focus" data-terminal-focus>Focus</button>
-                  <p
-                    id="${entryStatusId}"
-                    class="terminal-chat__entry-status terminal__entry-status"
-                    role="status"
-                    aria-live="polite"
-                    data-terminal-entry-status
-                  >${escapeHtml(entryInstructions)}</p>
-                </div>
-                <form class="terminal-chat__entry-form" data-terminal-entry-form>
-                  <label class="terminal-chat__entry-field">
-                    <span class="terminal-chat__entry-label">Command buffer</span>
-                    <textarea
-                      class="terminal-chat__entry-textarea terminal__capture"
-                      data-terminal-capture
-                      data-terminal-entry-buffer
-                      rows="3"
-                      placeholder=""
-                      aria-describedby="${entryStatusId}"
-                      aria-label="Command buffer"
-                      autocomplete="off"
-                      autocorrect="off"
-                      autocapitalize="off"
-                      spellcheck="false"
-                    ></textarea>
-                  </label>
-                </form>
-              </section>
       </div>
     </section>
   `;
