@@ -892,13 +892,6 @@ summary::-webkit-details-marker {
   box-shadow: 0 12px 24px rgba(15, 23, 42, 0.24);
 }
 
-.terminal-chat__floating-menu-button {
-  position: absolute;
-  top: clamp(1rem, 3vw, 1.75rem);
-  left: clamp(1rem, 4vw, 2rem);
-  z-index: 30;
-}
-
 .terminal-chat__icon-label {
   position: absolute;
   width: 1px;
@@ -910,32 +903,98 @@ summary::-webkit-details-marker {
   white-space: nowrap;
 }
 
-.terminal-chat__menu-bars {
-  width: 22px;
-  height: 2px;
-  background: currentColor;
-  border-radius: 999px;
-  position: relative;
-  display: block;
-}
-
-.terminal-chat__menu-bars::before,
-.terminal-chat__menu-bars::after {
-  content: '';
+.terminal-chat__menu-bar {
   position: absolute;
-  left: 0;
-  width: 100%;
-  height: 2px;
-  background: currentColor;
-  border-radius: 999px;
+  top: clamp(1rem, 3vw, 1.75rem);
+  left: clamp(1rem, 3vw, 2rem);
+  right: clamp(1rem, 3vw, 2rem);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: clamp(1rem, 3vw, 1.5rem);
+  padding: 0.75rem clamp(1rem, 4vw, 1.75rem);
+  border-radius: 16px;
+  background: rgba(2, 6, 23, 0.88);
+  border: 1px solid rgba(148, 163, 184, 0.35);
+  box-shadow: 0 20px 40px rgba(2, 6, 23, 0.45);
+  z-index: 30;
 }
 
-.terminal-chat__menu-bars::before {
-  top: -6px;
+.terminal-chat__menu-title {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
 }
 
-.terminal-chat__menu-bars::after {
-  top: 6px;
+.terminal-chat__menu-heading {
+  font-size: 0.95rem;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  color: #f8fafc;
+  text-transform: uppercase;
+}
+
+.terminal-chat__menu-subtitle {
+  font-size: 0.75rem;
+  color: rgba(226, 232, 240, 0.65);
+}
+
+.terminal-chat__menu-controls {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: clamp(0.75rem, 2.75vw, 1.15rem);
+  flex-wrap: wrap;
+}
+
+.terminal-chat__menu-status {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.55rem;
+  font-size: 0.85rem;
+  font-weight: 500;
+  color: rgba(226, 232, 240, 0.82);
+}
+
+.terminal-chat__menu-status-label {
+  color: inherit;
+}
+
+.terminal-chat__menu-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.65rem;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
+.terminal-chat__menu-button {
+  padding: 0.5rem 1.1rem;
+  border-radius: 12px;
+  border: 1px solid rgba(59, 130, 246, 0.4);
+  background: rgba(59, 130, 246, 0.18);
+  color: #f8fafc;
+  font-size: 0.85rem;
+  font-weight: 500;
+  transition: background 0.18s ease, color 0.18s ease, border-color 0.18s ease, box-shadow 0.18s ease;
+}
+
+.terminal-chat__menu-button--primary {
+  border-color: rgba(59, 130, 246, 0.65);
+  background: rgba(59, 130, 246, 0.32);
+  box-shadow: 0 0 0 1px rgba(59, 130, 246, 0.28);
+}
+
+.terminal-chat .terminal-chat__menu-button:not(:disabled):hover {
+  background: rgba(59, 130, 246, 0.28);
+  border-color: rgba(59, 130, 246, 0.6);
+  color: #f8fafc;
+  box-shadow: 0 0 0 1px rgba(59, 130, 246, 0.25);
+}
+
+.terminal-chat .terminal-chat__menu-button:focus-visible {
+  outline: 2px solid rgba(59, 130, 246, 0.55);
+  outline-offset: 2px;
 }
 
 .terminal-chat__fullscreen {
@@ -949,6 +1008,7 @@ summary::-webkit-details-marker {
 .terminal-chat__viewport {
   position: absolute;
   inset: 0;
+  padding-top: clamp(4.5rem, 10vw, 6.5rem);
   border: 1px solid var(--terminal-border);
   border-radius: 0;
   background: var(--terminal-bg);
@@ -1392,12 +1452,48 @@ summary::-webkit-details-marker {
   pointer-events: auto;
 }
 
-.terminal-chat--menu-open .terminal-chat__floating-menu-button {
-  opacity: 0;
-  pointer-events: none;
+.terminal-chat--menu-open .terminal-chat__menu-bar {
+  border-color: rgba(59, 130, 246, 0.45);
+  box-shadow: 0 24px 48px rgba(2, 6, 23, 0.55);
+}
+
+.terminal-chat--menu-open .terminal-chat__menu-button {
+  background: rgba(59, 130, 246, 0.35);
+  border-color: rgba(59, 130, 246, 0.75);
+  box-shadow: 0 0 0 1px rgba(59, 130, 246, 0.4);
 }
 
 @media (max-width: 720px) {
+  .terminal-chat__menu-bar {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 0.65rem;
+    padding: 0.85rem clamp(1rem, 6vw, 1.5rem);
+  }
+
+  .terminal-chat__menu-controls {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 0.75rem;
+  }
+
+  .terminal-chat__menu-status {
+    justify-content: space-between;
+    font-size: 0.8rem;
+  }
+
+  .terminal-chat__menu-actions {
+    justify-content: stretch;
+  }
+
+  .terminal-chat__menu-button {
+    width: 100%;
+  }
+
+  .terminal-chat__viewport {
+    padding-top: clamp(5.5rem, 18vw, 7.25rem);
+  }
+
   .terminal-chat__panel-inner {
     border-radius: 0;
   }

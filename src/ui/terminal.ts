@@ -355,8 +355,8 @@ type TerminalLineKind = 'info' | 'error' | 'incoming' | 'outgoing';
 
 type TerminalRuntime = {
   socket: WebSocket | null;
-  statusElement: HTMLElement;
-  indicatorElement: HTMLElement;
+  statusElements: HTMLElement[];
+  indicatorElements: HTMLElement[];
   outputElement: HTMLElement;
   captureElement: HTMLTextAreaElement;
   entryElement: HTMLElement;
@@ -366,8 +366,8 @@ type TerminalRuntime = {
   entryClearButton: HTMLButtonElement;
   entryPreviewElement: HTMLDivElement;
   entryPreviewTextElement: HTMLPreElement;
-  connectButton: HTMLButtonElement;
-  disconnectButton: HTMLButtonElement;
+  connectButtons: HTMLButtonElement[];
+  disconnectButtons: HTMLButtonElement[];
   focusButton: HTMLButtonElement;
   menuElement: HTMLElement;
   menuToggleButton: HTMLButtonElement;
@@ -820,7 +820,7 @@ const createRuntime = (container: HTMLElement): TerminalRuntime => {
     : '';
 
   const conversationNoteHtml = mobilePlatform
-    ? escapeHtml('Tap Menu for connection settings and help.')
+    ? escapeHtml('Use the menu bar for connection settings and help.')
     : entryIntro;
 
   const entryInstructions =
@@ -854,16 +854,31 @@ const createRuntime = (container: HTMLElement): TerminalRuntime => {
   container.innerHTML = `
     <section class="${shellClasses.join(' ')}" data-terminal-shell>
       <div class="terminal-chat__fullscreen">
-        <button
-          type="button"
-          class="terminal-chat__icon-button terminal-chat__floating-menu-button"
-          data-terminal-menu-toggle
-          aria-controls="${menuId}"
-          aria-expanded="false"
-        >
-          <span class="terminal-chat__icon-label">Menu</span>
-          <span class="terminal-chat__menu-bars" aria-hidden="true"></span>
-        </button>
+        <nav class="terminal-chat__menu-bar" aria-label="Terminal menu">
+          <div class="terminal-chat__menu-title">
+            <span class="terminal-chat__menu-heading">Chatter terminal</span>
+            <span class="terminal-chat__menu-subtitle">Bridge controls &amp; help</span>
+          </div>
+          <div class="terminal-chat__menu-controls">
+            <div class="terminal-chat__menu-status">
+              <span class="terminal-chat__indicator" data-terminal-indicator data-state="disconnected"></span>
+              <span class="terminal-chat__menu-status-label" data-terminal-status data-state="disconnected">Disconnected</span>
+            </div>
+            <div class="terminal-chat__menu-actions">
+              <button type="button" class="terminal-chat__menu-button" data-terminal-connect>Connect</button>
+              <button type="button" class="terminal-chat__menu-button" data-terminal-disconnect disabled>Disconnect</button>
+              <button
+                type="button"
+                class="terminal-chat__menu-button terminal-chat__menu-button--primary"
+                data-terminal-menu-toggle
+                aria-controls="${menuId}"
+                aria-expanded="false"
+              >
+                Bridge settings
+              </button>
+            </div>
+          </div>
+        </nav>
         <div class="terminal-chat__viewport terminal__viewport" data-terminal-viewport>
           <div class="terminal-chat__output terminal__output" data-terminal-output></div>
           <div
@@ -906,8 +921,8 @@ const createRuntime = (container: HTMLElement): TerminalRuntime => {
             <section class="terminal-chat__panel-section terminal-chat__panel-section--status">
               <div class="terminal-chat__status-row">
                 <div class="terminal-chat__status">
-                  <span class="terminal-chat__indicator" data-terminal-indicator></span>
-                  <span data-terminal-status>Disconnected</span>
+                  <span class="terminal-chat__indicator" data-terminal-indicator data-state="disconnected"></span>
+                  <span data-terminal-status data-state="disconnected">Disconnected</span>
                 </div>
                 <div class="terminal-chat__status-actions">
                   <button type="button" data-terminal-connect>Connect</button>
@@ -1036,11 +1051,19 @@ const createRuntime = (container: HTMLElement): TerminalRuntime => {
 
 
 
-  const statusElement = container.querySelector<HTMLElement>('[data-terminal-status]');
-  const indicatorElement = container.querySelector<HTMLElement>('[data-terminal-indicator]');
+  const statusElements = Array.from(
+    container.querySelectorAll<HTMLElement>('[data-terminal-status]')
+  );
+  const indicatorElements = Array.from(
+    container.querySelectorAll<HTMLElement>('[data-terminal-indicator]')
+  );
   const outputElement = container.querySelector<HTMLElement>('[data-terminal-output]');
-  const connectButton = container.querySelector<HTMLButtonElement>('[data-terminal-connect]');
-  const disconnectButton = container.querySelector<HTMLButtonElement>('[data-terminal-disconnect]');
+  const connectButtons = Array.from(
+    container.querySelectorAll<HTMLButtonElement>('[data-terminal-connect]')
+  );
+  const disconnectButtons = Array.from(
+    container.querySelectorAll<HTMLButtonElement>('[data-terminal-disconnect]')
+  );
   const focusButton = container.querySelector<HTMLButtonElement>('[data-terminal-focus]');
   const viewport = container.querySelector<HTMLElement>('[data-terminal-viewport]');
   const gameStatus = container.querySelector<HTMLElement>('[data-terminal-game]');
@@ -1081,12 +1104,12 @@ const createRuntime = (container: HTMLElement): TerminalRuntime => {
   }
 
   if (
-    !statusElement ||
-    !indicatorElement ||
+    statusElements.length === 0 ||
+    indicatorElements.length === 0 ||
     !outputElement ||
     !entryBufferElement ||
-    !connectButton ||
-    !disconnectButton ||
+    connectButtons.length === 0 ||
+    disconnectButtons.length === 0 ||
     !focusButton ||
     !viewport ||
     !gameStatus ||
@@ -1129,8 +1152,8 @@ const createRuntime = (container: HTMLElement): TerminalRuntime => {
 
   const runtime: TerminalRuntime = {
     socket: null,
-    statusElement,
-    indicatorElement,
+    statusElements,
+    indicatorElements,
     outputElement,
     captureElement,
     entryElement,
@@ -1140,8 +1163,8 @@ const createRuntime = (container: HTMLElement): TerminalRuntime => {
     entryClearButton,
     entryPreviewElement,
     entryPreviewTextElement,
-    connectButton,
-    disconnectButton,
+    connectButtons,
+    disconnectButtons,
     focusButton,
     menuElement,
     menuToggleButton,
@@ -1190,8 +1213,13 @@ const createRuntime = (container: HTMLElement): TerminalRuntime => {
       runtime.outputElement.scrollTop = runtime.outputElement.scrollHeight;
     },
     updateStatus: (label, state) => {
-      runtime.statusElement.textContent = label;
-      runtime.indicatorElement.setAttribute('data-state', state);
+      for (const element of runtime.statusElements) {
+        element.textContent = label;
+        element.setAttribute('data-state', state);
+      }
+      for (const indicator of runtime.indicatorElements) {
+        indicator.setAttribute('data-state', state);
+      }
     }
   };
 
@@ -1689,12 +1717,25 @@ const createRuntime = (container: HTMLElement): TerminalRuntime => {
     }
   };
 
+  const setConnectButtonsDisabled = (disabled: boolean) => {
+    for (const button of runtime.connectButtons) {
+      button.disabled = disabled;
+    }
+  };
+
+  const setDisconnectButtonsDisabled = (disabled: boolean) => {
+    for (const button of runtime.disconnectButtons) {
+      button.disabled = disabled;
+    }
+  };
+
   const updateConnectAvailability = () => {
     if (runtime.connected || runtime.connecting) {
-      runtime.connectButton.disabled = true;
+      setConnectButtonsDisabled(true);
       return;
     }
-    runtime.connectButton.disabled = !runtime.target.available || !runtime.socketUrl || !hasUsername();
+    const shouldDisable = !runtime.target.available || !runtime.socketUrl || !hasUsername();
+    setConnectButtonsDisabled(shouldDisable);
   };
   runtime.updateConnectAvailability = updateConnectAvailability;
 
@@ -1775,7 +1816,7 @@ const createRuntime = (container: HTMLElement): TerminalRuntime => {
       if (announce) {
         setMenuOpen(true);
       }
-      setEntryStatus('No server target configured. Open Menu to add connection details.', 'error');
+      setEntryStatus('No server target configured. Use the menu bar to add connection details.', 'error');
     } else if (!runtime.connected && !runtime.connecting) {
       setEntryStatus(entryInstructions, 'muted');
     }
@@ -1785,78 +1826,80 @@ const createRuntime = (container: HTMLElement): TerminalRuntime => {
 
   runtime.updateStatus('Disconnected', 'disconnected');
   refreshTarget(false);
-    if (!runtime.socketUrl) {
-      runtime.updateStatus('Bridge unavailable', 'disconnected');
-      updateConnectAvailability();
-      setEntryStatus('Bridge unavailable. Buffer stays queued until the service returns.', 'error');
-      updateEntryControls();
-    }
+  if (!runtime.socketUrl) {
+    runtime.updateStatus('Bridge unavailable', 'disconnected');
+    updateConnectAvailability();
+    setEntryStatus('Bridge unavailable. Buffer stays queued until the service returns.', 'error');
+    updateEntryControls();
+  }
 
-    connectButton.addEventListener('click', () => {
+  for (const button of connectButtons) {
+    button.addEventListener('click', () => {
       if (runtime.connected) {
         return;
       }
 
-    const { overrides, errors } = collectOverridesFromInputs();
-    if (errors.length > 0) {
-      setTargetStatusMessage(errors.join(' '), 'error');
-      return;
-    }
+      const { overrides, errors } = collectOverridesFromInputs();
+      if (errors.length > 0) {
+        setTargetStatusMessage(errors.join(' '), 'error');
+        return;
+      }
 
-    saveTargetOverrides(overrides);
-    refreshTarget(false);
+      saveTargetOverrides(overrides);
+      refreshTarget(false);
 
-    if (!runtime.target.available) {
-      setTargetStatusMessage('Cannot connect without a target host. Open the menu to add overrides.', 'error');
-      return;
-    }
+      if (!runtime.target.available) {
+        setTargetStatusMessage('Cannot connect without a target host. Use the menu bar to add overrides.', 'error');
+        return;
+      }
 
-    setMenuOpen(false);
+      setMenuOpen(false);
 
-    const socketUrlText = runtime.socketUrl;
-    if (!socketUrlText) {
-      runtime.updateStatus('Bridge unavailable', 'disconnected');
-      setEntryStatus('Bridge unavailable. Buffer stays queued until the service returns.', 'error');
+      const socketUrlText = runtime.socketUrl;
+      if (!socketUrlText) {
+        runtime.updateStatus('Bridge unavailable', 'disconnected');
+        setEntryStatus('Bridge unavailable. Buffer stays queued until the service returns.', 'error');
+        updateEntryControls();
+        return;
+      }
+      const username = runtime.usernameInput.value.trim();
+      const passwordValue = runtime.passwordInput.disabled ? '' : runtime.passwordInput.value;
+      if (!username) {
+        runtime.updateStatus('Username required', 'disconnected');
+        setEntryStatus('Enter a username before sending buffered commands.', 'error');
+        return;
+      }
+      runtime.updateStatus('Connecting…', 'connecting');
+      runtime.connecting = true;
+      setConnectButtonsDisabled(true);
+      setEntryStatus('Connecting to the bridge… buffered commands will send once ready.', 'muted');
       updateEntryControls();
-      return;
-    }
-    const username = runtime.usernameInput.value.trim();
-    const passwordValue = runtime.passwordInput.disabled ? '' : runtime.passwordInput.value;
-    if (!username) {
-      runtime.updateStatus('Username required', 'disconnected');
-      setEntryStatus('Enter a username before sending buffered commands.', 'error');
-      return;
-    }
-    runtime.updateStatus('Connecting…', 'connecting');
-    runtime.connecting = true;
-    runtime.connectButton.disabled = true;
-    setEntryStatus('Connecting to the bridge… buffered commands will send once ready.', 'muted');
-    updateEntryControls();
-    try {
+      try {
         const socketUrl = new URL(socketUrlText);
-      socketUrl.searchParams.set('protocol', runtime.target.protocol);
-      if (runtime.target.host) {
-        socketUrl.searchParams.set('host', runtime.target.host);
-      } else {
-        socketUrl.searchParams.delete('host');
-      }
-      if (runtime.target.port) {
-        socketUrl.searchParams.set('port', runtime.target.port);
-      } else {
-        socketUrl.searchParams.delete('port');
-      }
-      if (username) {
-        socketUrl.searchParams.set('username', username);
-      } else {
-        socketUrl.searchParams.delete('username');
-      }
-      if (passwordValue) {
-        socketUrl.searchParams.set('password', passwordValue);
-      } else {
-        socketUrl.searchParams.delete('password');
-      }
-      const socket = new WebSocket(socketUrl.toString());
-      socket.binaryType = 'arraybuffer';
+        socketUrl.searchParams.set('protocol', runtime.target.protocol);
+        if (runtime.target.host) {
+          socketUrl.searchParams.set('host', runtime.target.host);
+        } else {
+          socketUrl.searchParams.delete('host');
+        }
+        if (runtime.target.port) {
+          socketUrl.searchParams.set('port', runtime.target.port);
+        } else {
+          socketUrl.searchParams.delete('port');
+        }
+        if (username) {
+          socketUrl.searchParams.set('username', username);
+        } else {
+          socketUrl.searchParams.delete('username');
+        }
+        if (passwordValue) {
+          socketUrl.searchParams.set('password', passwordValue);
+        } else {
+          socketUrl.searchParams.delete('password');
+        }
+        const socket = new WebSocket(socketUrl.toString());
+        socket.binaryType = 'arraybuffer';
+
         runtime.socket = socket;
         runtime.binaryDecoder = new TextDecoder();
         socket.addEventListener('open', () => {
@@ -1865,27 +1908,27 @@ const createRuntime = (container: HTMLElement): TerminalRuntime => {
           runtime.connecting = false;
           runtime.connected = true;
           runtime.updateStatus('Connected', 'connected');
-          runtime.disconnectButton.disabled = false;
+          setDisconnectButtonsDisabled(false);
           focusCapture();
           updateConnectAvailability();
           setEntryStatus('Connected. Press Enter or Send to forward the next line.', 'muted');
           updateEntryControls();
         });
-      socket.addEventListener('message', (event) => {
-        markBridgeActivity();
-        if (typeof event.data === 'string') {
-          const pending = runtime.binaryDecoder.decode();
-          if (pending) {
-            runtime.appendLine(pending, 'incoming');
+        socket.addEventListener('message', (event) => {
+          markBridgeActivity();
+          if (typeof event.data === 'string') {
+            const pending = runtime.binaryDecoder.decode();
+            if (pending) {
+              runtime.appendLine(pending, 'incoming');
+            }
+            runtime.appendLine(event.data, 'incoming');
+          } else if (event.data instanceof ArrayBuffer) {
+            const decoded = runtime.binaryDecoder.decode(event.data, { stream: true });
+            if (decoded) {
+              runtime.appendLine(decoded, 'incoming');
+            }
           }
-          runtime.appendLine(event.data, 'incoming');
-        } else if (event.data instanceof ArrayBuffer) {
-          const decoded = runtime.binaryDecoder.decode(event.data, { stream: true });
-          if (decoded) {
-            runtime.appendLine(decoded, 'incoming');
-          }
-        }
-      });
+        });
         socket.addEventListener('close', (event) => {
           stopKeepAliveTimer();
           const remainder = runtime.binaryDecoder.decode();
@@ -1895,7 +1938,7 @@ const createRuntime = (container: HTMLElement): TerminalRuntime => {
           runtime.connecting = false;
           runtime.connected = false;
           runtime.socket = null;
-          runtime.disconnectButton.disabled = true;
+          setDisconnectButtonsDisabled(true);
           runtime.updateStatus('Disconnected', 'disconnected');
           refreshTarget(false);
           updateConnectAvailability();
@@ -1911,7 +1954,7 @@ const createRuntime = (container: HTMLElement): TerminalRuntime => {
         runtime.connecting = false;
         runtime.connected = false;
         runtime.socket = null;
-        runtime.disconnectButton.disabled = true;
+        setDisconnectButtonsDisabled(true);
         runtime.updateStatus('Connection failed', 'disconnected');
         console.error('Terminal connection failed', error);
         updateConnectAvailability();
@@ -1919,6 +1962,7 @@ const createRuntime = (container: HTMLElement): TerminalRuntime => {
         updateEntryControls();
       }
     });
+  }
 
   targetForm.addEventListener('submit', (event) => {
     event.preventDefault();
@@ -1974,7 +2018,7 @@ const createRuntime = (container: HTMLElement): TerminalRuntime => {
 
     if (socket.readyState === WebSocket.OPEN) {
       runtime.updateStatus('Disconnecting…', 'connecting');
-      runtime.disconnectButton.disabled = true;
+      setDisconnectButtonsDisabled(true);
       runtime.connected = false;
       runtime.connecting = true;
       runtime.updateConnectAvailability?.();
@@ -2017,9 +2061,11 @@ const createRuntime = (container: HTMLElement): TerminalRuntime => {
 
   runtime.requestDisconnect = requestDisconnect;
 
-  disconnectButton.addEventListener('click', () => {
-    requestDisconnect();
-  });
+  for (const button of disconnectButtons) {
+    button.addEventListener('click', () => {
+      requestDisconnect();
+    });
+  }
 
   const focusCapture = () => {
     const target = runtime.captureElement;
