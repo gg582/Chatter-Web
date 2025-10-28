@@ -47,7 +47,7 @@ export default function Home() {
             aria-label="Terminal"
           >
             <div className="chatter-stage__terminal" data-component="terminal" />
-            <details className="chatter-shortcuts" data-shortcuts>
+            <details className="chatter-shortcuts" data-shortcuts hidden>
               <summary className="chatter-shortcuts__toggle">
                 <span className="chatter-shortcuts__icon" aria-hidden="true">
                   ⌘
@@ -75,53 +75,14 @@ export default function Home() {
               </div>
             </header>
             <div className="taskbar-panel__intro">
-              <p>Use this view to manage console connections and entry behaviour.</p>
-              <section
-                className="settings-screen__summary"
-                aria-label="Terminal bridge status overview"
-              >
-                <header className="settings-screen__summary-header">
-                  <h2>Chatter terminal</h2>
-                  <p className="settings-screen__summary-subtitle">Bridge control bar</p>
-                </header>
-                <p className="settings-screen__summary-status">Disconnected</p>
-                <p>
-                  <strong>Target</strong> TELNET chat.korokorok.com:23 · custom target
-                </p>
-                <p>Manage your connection, identity, and overrides from the control bar above.</p>
-                <p>No active game selected. Choose one from the Assistants panel.</p>
-                <h3>Identity</h3>
-                <p>
-                  <strong>Username</strong>
-                </p>
-                <p>Usernames and passwords never leave the browser. They're sent directly to the terminal bridge.</p>
-                <h3>Connection settings</h3>
-                <p>Manual overrides are active in this browser. Clear the fields to enjoy the server defaults again.</p>
-                <ul className="settings-screen__summary-list">
-                  <li>
-                    <strong>Protocol</strong>
-                  </li>
-                  <li>
-                    <strong>Host</strong>
-                  </li>
-                  <li>
-                    <strong>Port</strong>
-                  </li>
-                </ul>
-                <p>
-                  Type a command and press Enter or Send to forward the next line to the bridge. Shift+Enter adds a newline and
-                  the shortcut bar sends arrows or Ctrl keys instantly.
-                </p>
-                <p className="settings-screen__summary-buffer">Buffered input</p>
-                <pre className="settings-screen__summary-buffer-visual" aria-hidden="true">^^^</pre>
-              </section>
+              <p>Manage your bridge connection and entry tools from here.</p>
             </div>
             <div className="taskbar-panel__grid settings-screen__grid">
               <section className="taskbar-panel__section" data-component="session" />
               <section
                 className="taskbar-panel__section taskbar-panel__section--utility"
                 data-component="utility"
-                aria-label="Entry"
+                aria-label="Entry tools"
               />
             </div>
           </section>
