@@ -715,18 +715,6 @@ const limitOutputLines = (output: HTMLElement, maxLines = 600) => {
   }
 };
 
-const computeViewportHeight = (windowHeight: number): number => {
-  const minimum = 260;
-  if (!Number.isFinite(windowHeight) || windowHeight <= 0) {
-    return minimum;
-  }
-
-  const suggested = Math.max(windowHeight * 0.65, minimum);
-  const available = Math.max(windowHeight - 200, minimum);
-  const capped = Math.min(suggested, available, 720);
-  return Math.max(minimum, Math.round(capped));
-};
-
 const describeKey = (event: KeyboardEvent): string => {
   if (event.ctrlKey && event.key.length === 1) {
     return `Ctrl+${event.key.toUpperCase()}`;
@@ -970,7 +958,7 @@ const createRuntime = (
                     class="terminal-chat__entry-textarea terminal__capture"
                     data-terminal-capture
                     data-terminal-entry-buffer
-                    rows="3"
+                    rows="1"
                     placeholder=""
                     aria-describedby="${entryStatusId}"
                     aria-label="Command buffer"
@@ -1076,6 +1064,61 @@ const createRuntime = (
 
   captureElement.setAttribute('aria-describedby', entryStatusIdentifier);
 
+  const parsePixelValue = (value: string | null): number => {
+    if (!value) {
+      return 0;
+    }
+    const parsed = Number.parseFloat(value);
+    return Number.isFinite(parsed) ? parsed : 0;
+  };
+
+  const resolveViewportHeight = (): number => {
+    if (typeof window === 'undefined') {
+      return 0;
+    }
+
+    const visualViewportHeight = window.visualViewport?.height;
+    if (Number.isFinite(visualViewportHeight)) {
+      return Number(visualViewportHeight);
+    }
+
+    if (Number.isFinite(window.innerHeight)) {
+      return Number(window.innerHeight);
+    }
+
+    const docElement = window.document?.documentElement;
+    if (docElement && Number.isFinite(docElement.clientHeight)) {
+      return Number(docElement.clientHeight);
+    }
+
+    return 0;
+  };
+
+  let baseEntryHeight = 0;
+
+  const measureBaseEntryHeight = (target: HTMLTextAreaElement): number => {
+    if (baseEntryHeight > 0) {
+      return baseEntryHeight;
+    }
+
+    if (typeof window === 'undefined') {
+      baseEntryHeight = target.scrollHeight;
+      return baseEntryHeight;
+    }
+
+    const computed = window.getComputedStyle(target);
+    const minHeight = parsePixelValue(computed.minHeight);
+    const lineHeight = parsePixelValue(computed.lineHeight);
+    const paddingTop = parsePixelValue(computed.paddingTop);
+    const paddingBottom = parsePixelValue(computed.paddingBottom);
+    const borderTop = parsePixelValue(computed.borderTopWidth);
+    const borderBottom = parsePixelValue(computed.borderBottomWidth);
+    const intrinsic = lineHeight + paddingTop + paddingBottom + borderTop + borderBottom;
+
+    baseEntryHeight = Math.max(minHeight, intrinsic, target.scrollHeight);
+    return baseEntryHeight;
+  };
+
   const runtime: TerminalRuntime = {
     socket: null,
     statusElements,
@@ -1140,6 +1183,50 @@ const createRuntime = (
         indicator.setAttribute('data-state', state);
       }
     }
+  };
+
+  const adjustEntryBufferHeight = () => {
+    const target = runtime.captureElement;
+
+    if (!target) {
+      return;
+    }
+
+    if (typeof window === 'undefined') {
+      target.style.height = '';
+      target.style.overflowY = 'hidden';
+      return;
+    }
+
+    const minimumHeight = measureBaseEntryHeight(target);
+    target.style.height = 'auto';
+
+    const viewportHeight = resolveViewportHeight();
+    const maxHeight = viewportHeight > 0 ? Math.max(minimumHeight * 3, viewportHeight * 0.4) : minimumHeight * 3;
+    const nextHeight = Math.min(Math.max(target.scrollHeight, minimumHeight), maxHeight);
+    target.style.height = `${nextHeight}px`;
+    target.style.overflowY = target.scrollHeight > maxHeight ? 'auto' : 'hidden';
+
+    updateViewportSizing();
+  };
+
+  let entryResizeScheduled = false;
+
+  const scheduleEntryResize = () => {
+    if (typeof window === 'undefined') {
+      adjustEntryBufferHeight();
+      return;
+    }
+
+    if (entryResizeScheduled) {
+      return;
+    }
+
+    entryResizeScheduled = true;
+    window.requestAnimationFrame(() => {
+      entryResizeScheduled = false;
+      adjustEntryBufferHeight();
+    });
   };
 
   const keyboardButtons = Array.from(
@@ -1298,42 +1385,12 @@ const createRuntime = (
       return;
     }
 
-    const viewportHeight =
-      (window.visualViewport && Number.isFinite(window.visualViewport.height)
-        ? window.visualViewport.height
-        : null) ??
-      (Number.isFinite(window.innerHeight) ? window.innerHeight : null) ??
-      (typeof document !== 'undefined' &&
-        document.documentElement &&
-        Number.isFinite(document.documentElement.clientHeight)
-          ? document.documentElement.clientHeight
-          : null) ??
-      0;
-
-    const desiredHeight = computeViewportHeight(viewportHeight);
-    let appliedHeight = Math.max(260, desiredHeight);
-
-    if (runtime.mobilePlatform) {
-      const safeViewportHeight = Math.max(viewportHeight, 0);
-      const availableForTerminal = Math.max(
-        Math.min(safeViewportHeight - 48, safeViewportHeight * 0.98),
-        360
-      );
-      const scaledHeight = Math.max(desiredHeight * 3, 540);
-      appliedHeight = Math.min(scaledHeight, availableForTerminal);
-      runtime.viewport.style.height = 'auto';
-      runtime.viewport.style.maxHeight = `${appliedHeight}px`;
-      runtime.viewport.style.minHeight = `${Math.min(appliedHeight, 540)}px`;
-      runtime.outputElement.style.height = 'auto';
-      runtime.outputElement.style.maxHeight = `${appliedHeight}px`;
-    } else {
-      runtime.viewport.style.height = `${appliedHeight}px`;
-      runtime.viewport.style.maxHeight = `${appliedHeight}px`;
-      runtime.viewport.style.minHeight = '';
-      runtime.outputElement.style.height = `${appliedHeight}px`;
-      runtime.outputElement.style.maxHeight = `${appliedHeight}px`;
-    }
-
+    runtime.viewport.style.removeProperty('height');
+    runtime.viewport.style.removeProperty('max-height');
+    runtime.viewport.style.removeProperty('min-height');
+    runtime.outputElement.style.removeProperty('height');
+    runtime.outputElement.style.removeProperty('max-height');
+    runtime.outputElement.style.removeProperty('min-height');
     runtime.outputElement.style.overflowY = 'auto';
 
     const computed = window.getComputedStyle(runtime.outputElement);
@@ -1343,17 +1400,27 @@ const createRuntime = (
     const lineHeight = Number.isFinite(lineHeightValue) && lineHeightValue > 0 ? lineHeightValue : fallbackLineHeight;
     const paddingTop = Number.parseFloat(computed.paddingTop) || 0;
     const paddingBottom = Number.parseFloat(computed.paddingBottom) || 0;
-    const measuredHeight = runtime.outputElement.clientHeight || appliedHeight;
-    const availableForLines = Math.max(measuredHeight - paddingTop - paddingBottom, lineHeight);
-    runtime.maxOutputLines = Math.max(1, Math.floor(availableForLines / lineHeight));
-    limitOutputLines(runtime.outputElement, runtime.maxOutputLines);
+    const measuredHeight = runtime.outputElement.clientHeight;
+
+    if (measuredHeight > 0) {
+      const availableForLines = Math.max(measuredHeight - paddingTop - paddingBottom, lineHeight);
+      runtime.maxOutputLines = Math.max(1, Math.floor(availableForLines / lineHeight));
+      limitOutputLines(runtime.outputElement, runtime.maxOutputLines);
+      return;
+    }
+
+    runtime.maxOutputLines = 600;
   };
 
   runtime.updateViewportSizing = updateViewportSizing;
 
   if (typeof window !== 'undefined') {
     updateViewportSizing();
-    const handleResize = () => updateViewportSizing();
+    scheduleEntryResize();
+    const handleResize = () => {
+      updateViewportSizing();
+      scheduleEntryResize();
+    };
     window.addEventListener('resize', handleResize);
     if (window.visualViewport) {
       window.visualViewport.addEventListener('resize', handleResize);
@@ -2052,6 +2119,7 @@ const createRuntime = (
     }
 
     runtime.captureElement.value = remainder;
+    scheduleEntryResize();
     try {
       const position = runtime.captureElement.value.length;
       runtime.captureElement.setSelectionRange(position, position);
@@ -2067,6 +2135,7 @@ const createRuntime = (
     }
 
     updateEntryControls();
+    scheduleEntryResize();
     return true;
   }
 
@@ -2143,10 +2212,12 @@ const createRuntime = (
 
     runtime.captureElement.addEventListener('input', () => {
       updateEntryControls();
+      scheduleEntryResize();
     });
 
     setEntryStatus(entryInstructions, 'muted');
     updateEntryControls();
+    scheduleEntryResize();
 
   runtime.usernameInput.addEventListener('input', () => {
     updateConnectAvailability();
