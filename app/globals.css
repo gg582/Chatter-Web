@@ -328,6 +328,73 @@ summary::-webkit-details-marker {
   flex: 1 1 auto;
 }
 
+.settings-screen__summary {
+  margin-top: 1.5rem;
+  padding: clamp(1rem, 3vw, 1.75rem);
+  border-radius: 20px;
+  border: 1px solid rgba(148, 163, 184, 0.25);
+  background: rgba(15, 23, 42, 0.6);
+  box-shadow: var(--shadow-soft);
+  display: grid;
+  gap: 0.75rem;
+  color: rgba(226, 232, 240, 0.88);
+}
+
+.settings-screen__summary-header {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+}
+
+.settings-screen__summary-header h2 {
+  font-size: clamp(1.1rem, 2.5vw, 1.5rem);
+  margin: 0;
+}
+
+.settings-screen__summary-subtitle {
+  font-size: 0.85rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: rgba(148, 163, 184, 0.8);
+  margin: 0;
+}
+
+.settings-screen__summary-status {
+  font-weight: 600;
+  color: rgba(248, 250, 252, 0.95);
+}
+
+.settings-screen__summary-list {
+  display: flex;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+  padding: 0;
+  margin: 0;
+  list-style: none;
+}
+
+.settings-screen__summary-list li {
+  padding: 0.25rem 0.75rem;
+  border-radius: 999px;
+  border: 1px solid rgba(94, 234, 212, 0.35);
+  background: rgba(45, 212, 191, 0.08);
+}
+
+.settings-screen__summary-buffer {
+  font-weight: 600;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: rgba(94, 234, 212, 0.9);
+}
+
+.settings-screen__summary-buffer-visual {
+  margin: 0;
+  font-size: 0.85rem;
+  line-height: 1;
+  letter-spacing: 0.2em;
+  color: rgba(148, 163, 184, 0.9);
+}
+
 .chatter-stage__terminal {
   flex: 1 1 auto;
   display: flex;
