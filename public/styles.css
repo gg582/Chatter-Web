@@ -1392,7 +1392,6 @@ summary::-webkit-details-marker {
   flex-direction: column;
   gap: clamp(1rem, 3vw, 1.6rem);
   padding: clamp(1.25rem, 4vw, 2.25rem);
-  padding-bottom: clamp(6.5rem, 18vh, 10.5rem);
   min-height: 0;
 }
 
@@ -1412,7 +1411,6 @@ summary::-webkit-details-marker {
   flex: 1 1 auto;
   min-height: 0;
   padding: clamp(1rem, 3vw, 2rem);
-  padding-bottom: clamp(7rem, 18vh, 10rem);
   font-family: 'IBM Plex Mono', 'SFMono-Regular', Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New', monospace;
   font-size: 0.92rem;
   color: var(--terminal-text);
@@ -1423,14 +1421,25 @@ summary::-webkit-details-marker {
   gap: 0;
 }
 
+.terminal-chat__entry-region {
+  display: flex;
+  flex-direction: column;
+  gap: clamp(0.85rem, 3vw, 1.4rem);
+}
+
+.terminal-chat__entry-main {
+  display: flex;
+  flex-direction: column;
+  gap: clamp(0.9rem, 2.5vw, 1.5rem);
+}
+
 .terminal-chat__entry-preview {
-  position: absolute;
-  left: clamp(1rem, 3vw, 2.25rem);
-  right: clamp(1rem, 3vw, 2.25rem);
-  bottom: clamp(8.5rem, 17vh, 11rem);
+  position: static;
   display: flex;
   gap: 0.75rem;
   align-items: flex-start;
+  align-self: stretch;
+  margin: 0;
   padding: 0.75rem 1rem;
   border-radius: 14px;
   background: rgba(15, 23, 42, 0.82);
@@ -1452,10 +1461,7 @@ summary::-webkit-details-marker {
 }
 
 .terminal-chat__keyboard {
-  position: absolute;
-  left: 50%;
-  bottom: clamp(1.25rem, 5vw, 2.25rem);
-  transform: translateX(-50%);
+  position: static;
   display: flex;
   flex-direction: column;
   gap: 0.65rem;
@@ -1464,8 +1470,9 @@ summary::-webkit-details-marker {
   border: 1px solid rgba(148, 163, 184, 0.35);
   border-radius: 20px;
   box-shadow: 0 24px 48px rgba(2, 6, 23, 0.6);
-  max-width: min(92%, 720px);
-  z-index: 25;
+  width: min(100%, 720px);
+  max-width: 100%;
+  align-self: center;
 }
 
 .terminal-chat__keyboard-grid {
@@ -1718,6 +1725,10 @@ summary::-webkit-details-marker {
   gap: 0.85rem;
 }
 
+.terminal__entry {
+  margin-top: auto;
+}
+
 .terminal-chat__entry-field {
   display: flex;
   flex-direction: column;
@@ -1751,22 +1762,6 @@ summary::-webkit-details-marker {
   border-color: rgba(59, 130, 246, 0.55);
   outline: none;
   box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.2);
-}
-
-.terminal-chat__entry-actions {
-  display: flex;
-  gap: 0.75rem;
-  flex-wrap: wrap;
-}
-
-.terminal-chat__entry-actions button[data-terminal-entry-send] {
-  background: rgba(59, 130, 246, 0.2);
-  border: 1px solid rgba(59, 130, 246, 0.4);
-}
-
-.terminal-chat__entry-actions button[data-terminal-entry-clear] {
-  background: transparent;
-  border: 1px solid rgba(148, 163, 184, 0.35);
 }
 
 .terminal-chat--mobile .terminal-chat__keyboard-grid {
@@ -1824,13 +1819,7 @@ summary::-webkit-details-marker {
     width: 100%;
   }
 
-  .terminal-chat__entry-preview {
-    left: clamp(0.75rem, 5vw, 1.5rem);
-    right: clamp(0.75rem, 5vw, 1.5rem);
-  }
-
   .terminal-chat__keyboard {
-    bottom: clamp(1rem, 5vw, 1.75rem);
     padding: 0.75rem clamp(0.85rem, 6vw, 1.5rem);
   }
 }
