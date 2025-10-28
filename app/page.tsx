@@ -1,11 +1,10 @@
 'use client';
 
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef } from 'react';
 import { mountChatter } from '../src/bootstrap';
 
 export default function Home() {
   const rootRef = useRef<HTMLDivElement | null>(null);
-  const [isSettingsOpen, setIsSettingsOpen] = useState(false);
 
   useEffect(() => {
     if (!rootRef.current) {
@@ -17,45 +16,65 @@ export default function Home() {
     };
   }, []);
 
-  const handleToggleSettings = () => {
-    setIsSettingsOpen((previous) => !previous);
-  };
-
-  const stageClassName = `chatter-stage${isSettingsOpen ? ' chatter-stage--settings-open' : ''}`;
-  const overlayClassName = `chatter-stage__overlay${isSettingsOpen ? ' chatter-stage__overlay--open' : ''}`;
-
   return (
-    <div className={stageClassName} data-chatter-root ref={rootRef}>
-      <header className="chatter-stage__menubar">
-        <div className="chatter-stage__menubar-title">Chatter BBS</div>
-        <nav className="chatter-stage__menubar-actions" aria-label="주 메뉴">
-          <details className="chatter-stage__menubar-dropdown">
-            <summary className="button button--ghost">터미널 브릿지</summary>
-            <div className="chatter-stage__menubar-dropdown-panel">
-              <section className="chatter-stage__menubar-panel" data-component="session" />
-            </div>
-          </details>
+    <div className="chatter-stage" data-chatter-root ref={rootRef}>
+      <header className="chatter-stage__taskbar" data-taskbar>
+        <div className="chatter-stage__taskbar-inner">
           <button
             type="button"
-            className="button"
-            onClick={handleToggleSettings}
-            aria-expanded={isSettingsOpen}
-            aria-controls="chatter-settings-panel"
+            className="taskbar-handle"
+            data-taskbar-handle
+            aria-expanded="false"
+            aria-controls="chatter-taskbar-panel"
           >
-            {isSettingsOpen ? '설정 닫기' : '설정 열기'}
+            <span className="taskbar-handle__nub" aria-hidden="true" />
+            <span className="taskbar-handle__label">
+              <span className="taskbar-handle__icon" aria-hidden="true">
+                ▾
+              </span>
+              작업표시줄
+            </span>
           </button>
-        </nav>
+          <div
+            className="chatter-stage__taskbar-panel"
+            id="chatter-taskbar-panel"
+            data-taskbar-panel
+            aria-hidden="true"
+          >
+            <div className="taskbar-panel__intro">
+              <span className="taskbar-panel__badge">Chatter BBS</span>
+              <h1>Link your console</h1>
+              <p>Hop straight into the telnet or SSH board and keep the lightweight lounge nearby.</p>
+            </div>
+            <div className="taskbar-panel__grid">
+              <section className="taskbar-panel__section" data-component="session" />
+              <section
+                className="taskbar-panel__section taskbar-panel__section--utility"
+                data-component="utility"
+                aria-label="엔트리"
+              />
+            </div>
+          </div>
+        </div>
       </header>
-      <div className="chatter-stage__terminal" data-component="terminal" />
-      <div
-        className={overlayClassName}
-        id="chatter-settings-panel"
-        hidden={!isSettingsOpen}
-        aria-hidden={!isSettingsOpen}
-      >
-        <section className="overlay-window overlay-window--utility" data-component="utility" />
-        <section className="overlay-window overlay-window--cheatsheet" data-component="cheatsheet" />
-      </div>
+      <main className="chatter-stage__main">
+        <div className="chatter-stage__viewport">
+          <div className="chatter-stage__terminal" data-component="terminal" />
+          <details className="chatter-shortcuts" data-shortcuts>
+            <summary className="chatter-shortcuts__toggle">
+              <span className="chatter-shortcuts__icon" aria-hidden="true">
+                ⌘
+              </span>
+              키 바로가기
+            </summary>
+            <section
+              className="chatter-shortcuts__panel"
+              data-component="cheatsheet"
+              aria-label="키 바로가기"
+            />
+          </details>
+        </div>
+      </main>
     </div>
   );
 }
