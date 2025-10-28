@@ -832,7 +832,7 @@ const createRuntime = (container: HTMLElement): TerminalRuntime => {
     .join('');
 
   const entryInstructions =
-      'Type a command and press Enter or Send to forward the next line to the bridge. Shift+Enter adds a newline and the shortcut bar sends arrows or Ctrl keys instantly.';
+    'Type commands and press Enter or Send to forward them to the bridge. Shift+Enter adds a newline.';
 
   const entryStatusId = createEntryStatusId();
 
@@ -952,14 +952,15 @@ const createRuntime = (container: HTMLElement): TerminalRuntime => {
                 </div>
                 <form class="terminal-chat__entry-form" data-terminal-entry-form>
                   <label class="terminal-chat__entry-field">
-                    <span class="terminal-chat__entry-label">Buffered input</span>
+                    <span class="terminal-chat__entry-label">Command buffer</span>
                     <textarea
                       class="terminal-chat__entry-textarea terminal__capture"
                       data-terminal-capture
                       data-terminal-entry-buffer
                       rows="3"
-                      placeholder="${escapeHtml(entryInstructions)}"
+                      placeholder=""
                       aria-describedby="${entryStatusId}"
+                      aria-label="Command buffer"
                       autocomplete="off"
                       autocorrect="off"
                       autocapitalize="off"
