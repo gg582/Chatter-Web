@@ -1320,21 +1320,121 @@ const createRuntime = (
     }
   };
 
-  const handleOutputWheel = (event: WheelEvent) => {
-    if (event.deltaY < 0) {
-      runtime.autoScrollLocked = true;
+  const resolveOutputLineHeight = (() => {
+    let cached = 0;
+    return (): number => {
+      if (cached > 0) {
+        return cached;
+      }
+
+      if (typeof window === 'undefined') {
+        cached = 24;
+        return cached;
+      }
+
+      const computed = window.getComputedStyle(runtime.outputElement);
+      const lineHeight = parsePixelValue(computed.lineHeight);
+      cached = lineHeight > 0 ? lineHeight : 24;
+      return cached;
+    };
+  })();
+
+  const normaliseWheelDelta = (event: WheelEvent): { deltaX: number; deltaY: number } => {
+    const { deltaMode } = event;
+    let deltaX = event.deltaX;
+    let deltaY = event.deltaY;
+
+    if (deltaMode === WheelEvent.DOM_DELTA_LINE) {
+      const amount = resolveOutputLineHeight();
+      deltaX *= amount;
+      deltaY *= amount;
+    } else if (deltaMode === WheelEvent.DOM_DELTA_PAGE) {
+      const viewportSize = runtime.outputElement.clientHeight || resolveOutputLineHeight() * 12;
+      deltaX *= viewportSize;
+      deltaY *= viewportSize;
     }
+
+    return { deltaX, deltaY };
+  };
+
+  const applyWheelScrollToOutput = (event: WheelEvent): boolean => {
+    const output = runtime.outputElement;
+    const { deltaX, deltaY } = normaliseWheelDelta(event);
+
+    if (deltaX === 0 && deltaY === 0) {
+      return false;
+    }
+
+    let moved = false;
+
+    if (deltaY !== 0) {
+      const previous = output.scrollTop;
+      output.scrollTop += deltaY;
+      moved ||= output.scrollTop !== previous;
+    }
+
+    if (deltaX !== 0) {
+      const previous = output.scrollLeft;
+      output.scrollLeft += deltaX;
+      moved ||= output.scrollLeft !== previous;
+    }
+
+    return moved;
+  };
+
+  const scheduleScrollLockUpdate = () => {
     if (typeof window !== 'undefined' && typeof window.requestAnimationFrame === 'function') {
       window.requestAnimationFrame(() => {
         updateScrollLockState();
       });
       return;
     }
+
     updateScrollLockState();
+  };
+
+  const handleOutputWheel = (event: WheelEvent) => {
+    if (event.deltaY < 0) {
+      runtime.autoScrollLocked = true;
+    }
+
+    scheduleScrollLockUpdate();
+  };
+
+  const handleContainerWheel = (event: WheelEvent) => {
+    if (!(event.target instanceof Element)) {
+      return;
+    }
+
+    if (!container.contains(event.target)) {
+      return;
+    }
+
+    if (event.target.closest('[data-terminal-output]')) {
+      return;
+    }
+
+    if (event.target.closest('textarea, input, select, [data-scroll-lock-ignore]')) {
+      return;
+    }
+
+    const scrolled = applyWheelScrollToOutput(event);
+
+    if (!scrolled) {
+      return;
+    }
+
+    if (event.deltaY < 0) {
+      runtime.autoScrollLocked = true;
+    }
+
+    event.preventDefault();
+    scheduleScrollLockUpdate();
   };
 
   runtime.outputElement.addEventListener('scroll', handleOutputScroll, { passive: true });
   runtime.outputElement.addEventListener('wheel', handleOutputWheel, { passive: true });
+  container.addEventListener('wheel', handleContainerWheel, { passive: false });
 
   updateScrollLockState();
   scrollOutputToBottom(true);
