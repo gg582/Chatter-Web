@@ -1250,6 +1250,9 @@ const createRuntime = (
     }
 
   const captureElement = entryBufferElement;
+  if ('enterKeyHint' in captureElement) {
+    captureElement.enterKeyHint = 'send';
+  }
   let entryStatusIdentifier = entryStatusElement.id.trim();
 
   if (!entryStatusIdentifier) {
@@ -2361,7 +2364,16 @@ const createRuntime = (
   });
 
   function setEntryStatus(message: string, tone: 'default' | 'muted' | 'error' = 'default') {
-    runtime.entryStatusElement.textContent = message;
+    let displayMessage = message;
+    if (runtime.mobilePlatform && displayMessage) {
+      const lower = displayMessage.toLowerCase();
+      const captchaIndex = lower.indexOf('captcha');
+      if (captchaIndex > 0) {
+        displayMessage = displayMessage.slice(captchaIndex).replace(/^\s+/, '');
+      }
+    }
+
+    runtime.entryStatusElement.textContent = displayMessage;
     runtime.entryStatusElement.classList.remove('terminal__entry-status--muted', 'terminal__entry-status--error');
     if (tone === 'muted') {
       runtime.entryStatusElement.classList.add('terminal__entry-status--muted');
@@ -2574,6 +2586,25 @@ const createRuntime = (
         }
         event.preventDefault();
       }
+    });
+
+    runtime.captureElement.addEventListener('beforeinput', (event) => {
+      if (!runtime.mobilePlatform) {
+        return;
+      }
+      const inputEvent = event as InputEvent;
+      if (typeof inputEvent.inputType !== 'string') {
+        return;
+      }
+      if (inputEvent.isComposing) {
+        return;
+      }
+      if (inputEvent.inputType !== 'insertLineBreak') {
+        return;
+      }
+
+      event.preventDefault();
+      flushNextBufferedLine(true);
     });
 
     runtime.entryForm.addEventListener('submit', (event) => {
