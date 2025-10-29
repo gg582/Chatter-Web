@@ -90,6 +90,169 @@ p {
   color: var(--text-soft);
 }
 
+.chatter-gate {
+  min-height: 100dvh;
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: clamp(2rem, 6vw, 4rem);
+  background: var(--terminal-bg);
+  color: var(--terminal-text);
+}
+
+.chatter-gate__panel {
+  width: min(100%, 560px);
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+  padding: clamp(2rem, 6vw, 3rem);
+  border-radius: 24px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  box-shadow: var(--shadow-soft);
+}
+
+.chatter-gate__header {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.chatter-gate__badge {
+  align-self: flex-start;
+  padding: 0.25rem 0.75rem;
+  border-radius: 999px;
+  background: rgba(56, 189, 248, 0.16);
+  color: var(--accent-sky);
+  font-size: 0.75rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  font-weight: 600;
+}
+
+.chatter-gate__title {
+  font-size: clamp(1.85rem, 3.5vw, 2.35rem);
+}
+
+.chatter-gate__subtitle {
+  color: var(--text-soft);
+}
+
+.chatter-gate__status {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.75rem;
+  font-size: 0.95rem;
+  color: var(--text-soft);
+}
+
+.chatter-gate__indicator {
+  width: 12px;
+  height: 12px;
+  border-radius: 999px;
+  background: var(--danger);
+  box-shadow: 0 0 0 4px rgba(239, 68, 68, 0.2);
+  transition: background 0.3s ease, box-shadow 0.3s ease;
+}
+
+.chatter-gate[data-state='connected'] .chatter-gate__indicator {
+  background: var(--success);
+  box-shadow: 0 0 0 4px rgba(34, 197, 94, 0.25);
+}
+
+.chatter-gate[data-state='connected'] .chatter-gate__status-label {
+  color: var(--success);
+}
+
+.chatter-gate__form {
+  display: flex;
+  flex-direction: column;
+  gap: 1.25rem;
+}
+
+.chatter-gate__field-grid {
+  display: grid;
+  gap: 1rem;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+}
+
+.chatter-gate__field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+}
+
+.chatter-gate__field--wide {
+  grid-column: span 2;
+}
+
+.chatter-gate__field-label {
+  font-size: 0.85rem;
+  color: var(--text-soft);
+  letter-spacing: 0.01em;
+}
+
+.chatter-gate__input {
+  width: 100%;
+  border-radius: 12px;
+  border: 1px solid var(--border);
+  background: rgba(15, 23, 42, 0.35);
+  color: var(--text);
+  padding: 0.65rem 0.85rem;
+  font-size: 1rem;
+  transition: border 0.2s ease, box-shadow 0.2s ease;
+}
+
+.chatter-gate__input:focus-visible {
+  outline: none;
+  border-color: var(--accent-sky);
+  box-shadow: 0 0 0 3px rgba(56, 189, 248, 0.25);
+}
+
+.chatter-gate__input::placeholder {
+  color: var(--text-faint);
+}
+
+.chatter-gate__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+}
+
+.chatter-gate__button {
+  flex: 1 1 160px;
+  min-width: 140px;
+}
+
+.chatter-gate__feedback {
+  min-height: 1.5rem;
+  font-size: 0.9rem;
+  color: var(--text-faint);
+}
+
+.chatter-gate__feedback[data-tone='error'] {
+  color: var(--danger);
+}
+
+.chatter-gate__feedback[data-tone='success'] {
+  color: var(--success);
+}
+
+@media (max-width: 640px) {
+  .chatter-gate__panel {
+    padding: clamp(1.5rem, 8vw, 2.25rem);
+  }
+
+  .chatter-gate__field-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .chatter-gate__field--wide {
+    grid-column: span 1;
+  }
+}
+
 a {
   color: var(--accent-sky);
   text-decoration: none;
@@ -296,7 +459,7 @@ summary::-webkit-details-marker {
   position: relative;
   flex: 1 1 auto;
   display: flex;
-  min-height: 0;
+  min-height: 100dvh;
 }
 
 .chatter-stage__nav {
@@ -361,7 +524,7 @@ summary::-webkit-details-marker {
   flex-direction: column;
   gap: 1.5rem;
   padding: clamp(1.25rem, 4vw, 3rem);
-  min-height: 0;
+  min-height: 100dvh;
   overflow: hidden;
 }
 
@@ -396,7 +559,7 @@ summary::-webkit-details-marker {
   border: none;
   box-shadow: none;
   background: var(--terminal-bg);
-  min-height: 100%;
+  min-height: 100dvh;
 }
 
 .chatter-stage__screen--terminal .chatter-shortcuts {
@@ -430,7 +593,7 @@ summary::-webkit-details-marker {
   background: var(--terminal-bg);
   box-shadow: var(--shadow-soft);
   overflow: hidden;
-  min-height: 0;
+  min-height: 100%;
 }
 
 .chatter-stage__terminal > * {

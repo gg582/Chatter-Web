@@ -22,8 +22,10 @@ export default function Home() {
         <div className="chatter-gate__panel">
           <header className="chatter-gate__header">
             <span className="chatter-gate__badge">Chatter BBS</span>
-            <h1 className="chatter-gate__title">Connect to the lounge</h1>
-            <p className="chatter-gate__subtitle">Dial the bridge to continue to the full experience.</p>
+            <h1 className="chatter-gate__title">Bridge sign-in</h1>
+            <p className="chatter-gate__subtitle">
+              Provide the bridge details below and press connect to continue.
+            </p>
           </header>
           <div className="chatter-gate__status">
             <span className="chatter-gate__indicator" data-login-status-indicator aria-hidden="true" />
@@ -31,24 +33,82 @@ export default function Home() {
               Disconnected
             </span>
           </div>
-          <div className="chatter-gate__actions">
-            <button
-              type="button"
-              className="button chatter-gate__button"
-              data-login-connect
-              data-login-focus
-            >
-              Connect
-            </button>
-            <button
-              type="button"
-              className="button button--ghost chatter-gate__button"
-              data-login-disconnect
-              disabled
-            >
-              Disconnect
-            </button>
-          </div>
+          <form className="chatter-gate__form" data-login-form>
+            <div className="chatter-gate__field-grid">
+              <label className="chatter-gate__field">
+                <span className="chatter-gate__field-label">Protocol</span>
+                <select className="chatter-gate__input" data-login-protocol required>
+                  <option value="ssh">SSH</option>
+                  <option value="telnet">Telnet</option>
+                </select>
+              </label>
+              <label className="chatter-gate__field chatter-gate__field--wide">
+                <span className="chatter-gate__field-label">Address</span>
+                <input
+                  className="chatter-gate__input"
+                  type="text"
+                  placeholder="bbs.example.com"
+                  data-login-host
+                  data-login-focus
+                  required
+                  autoComplete="off"
+                  autoCapitalize="none"
+                  spellCheck={false}
+                />
+              </label>
+              <label className="chatter-gate__field">
+                <span className="chatter-gate__field-label">Port</span>
+                <input
+                  className="chatter-gate__input"
+                  type="number"
+                  min={1}
+                  max={65535}
+                  placeholder="22"
+                  data-login-port
+                  required
+                  inputMode="numeric"
+                />
+              </label>
+              <label className="chatter-gate__field">
+                <span className="chatter-gate__field-label">Username</span>
+                <input
+                  className="chatter-gate__input"
+                  type="text"
+                  placeholder="Handle"
+                  data-login-username
+                  required
+                  autoComplete="username"
+                  autoCapitalize="none"
+                  spellCheck={false}
+                />
+              </label>
+              <label className="chatter-gate__field">
+                <span className="chatter-gate__field-label">Password (admins only)</span>
+                <input
+                  className="chatter-gate__input"
+                  type="password"
+                  placeholder="Optional"
+                  data-login-password
+                  autoComplete="current-password"
+                  autoCapitalize="none"
+                  spellCheck={false}
+                />
+              </label>
+            </div>
+            <div className="chatter-gate__actions">
+              <button type="submit" className="button chatter-gate__button" data-login-connect>
+                Connect
+              </button>
+              <button
+                type="button"
+                className="button button--ghost chatter-gate__button"
+                data-login-disconnect
+                disabled
+              >
+                Disconnect
+              </button>
+            </div>
+          </form>
           <p className="chatter-gate__feedback" data-login-feedback role="status" aria-live="polite" />
         </div>
       </section>
@@ -60,30 +120,30 @@ export default function Home() {
         hidden
         aria-hidden="true"
       >
-      <main className="chatter-stage__main">
-        <div className="chatter-stage__viewport" data-view-root>
-          <nav className="chatter-stage__nav" aria-label="View switcher">
-            <div className="chatter-stage__nav-cluster">
+        <main className="chatter-stage__main">
+          <div className="chatter-stage__viewport" data-view-root>
+            <nav className="chatter-stage__nav" aria-label="View switcher">
+              <div className="chatter-stage__nav-cluster">
+                <button
+                  type="button"
+                  className="chatter-stage__nav-button chatter-stage__nav-button--settings"
+                  data-view-target="settings"
+                  aria-label="Open settings"
+                  aria-controls="chatter-settings-screen"
+                >
+                  <span aria-hidden="true">⚙️</span>
+                </button>
+              </div>
               <button
                 type="button"
-                className="chatter-stage__nav-button chatter-stage__nav-button--settings"
-                data-view-target="settings"
-                aria-label="Open settings"
-                aria-controls="chatter-settings-screen"
+                className="chatter-stage__nav-button chatter-stage__nav-button--home"
+                data-view-target="terminal"
+                aria-label="Return to terminal"
+                aria-controls="chatter-terminal-screen"
               >
-                <span aria-hidden="true">⚙️</span>
+                <span aria-hidden="true">🏠</span>
               </button>
-            </div>
-            <button
-              type="button"
-              className="chatter-stage__nav-button chatter-stage__nav-button--home"
-              data-view-target="terminal"
-              aria-label="Return to terminal"
-              aria-controls="chatter-terminal-screen"
-            >
-              <span aria-hidden="true">🏠</span>
-            </button>
-          </nav>
+            </nav>
           <section
             className="chatter-stage__screen chatter-stage__screen--terminal"
             id="chatter-terminal-screen"

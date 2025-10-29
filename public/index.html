@@ -21,26 +21,91 @@
       <div class="chatter-gate__panel">
         <header class="chatter-gate__header">
           <span class="chatter-gate__badge">Chatter BBS</span>
-          <h1 class="chatter-gate__title">Connect to the lounge</h1>
-          <p class="chatter-gate__subtitle">Dial the bridge to continue to the full experience.</p>
+          <h1 class="chatter-gate__title">Bridge sign-in</h1>
+          <p class="chatter-gate__subtitle">
+            Provide the bridge details below and press connect to continue.
+          </p>
         </header>
         <div class="chatter-gate__status">
           <span class="chatter-gate__indicator" data-login-status-indicator aria-hidden="true"></span>
           <span class="chatter-gate__status-label" data-login-status>Disconnected</span>
         </div>
-        <div class="chatter-gate__actions">
-          <button type="button" class="button chatter-gate__button" data-login-connect data-login-focus>
-            Connect
-          </button>
-          <button
-            type="button"
-            class="button button--ghost chatter-gate__button"
-            data-login-disconnect
-            disabled
-          >
-            Disconnect
-          </button>
-        </div>
+        <form class="chatter-gate__form" data-login-form>
+          <div class="chatter-gate__field-grid">
+            <label class="chatter-gate__field">
+              <span class="chatter-gate__field-label">Protocol</span>
+              <select class="chatter-gate__input" data-login-protocol required>
+                <option value="ssh">SSH</option>
+                <option value="telnet">Telnet</option>
+              </select>
+            </label>
+            <label class="chatter-gate__field chatter-gate__field--wide">
+              <span class="chatter-gate__field-label">Address</span>
+              <input
+                class="chatter-gate__input"
+                type="text"
+                placeholder="bbs.example.com"
+                data-login-host
+                data-login-focus
+                required
+                autocomplete="off"
+                autocapitalize="none"
+                spellcheck="false"
+              />
+            </label>
+            <label class="chatter-gate__field">
+              <span class="chatter-gate__field-label">Port</span>
+              <input
+                class="chatter-gate__input"
+                type="number"
+                min="1"
+                max="65535"
+                placeholder="22"
+                data-login-port
+                required
+                inputmode="numeric"
+              />
+            </label>
+            <label class="chatter-gate__field">
+              <span class="chatter-gate__field-label">Username</span>
+              <input
+                class="chatter-gate__input"
+                type="text"
+                placeholder="Handle"
+                data-login-username
+                required
+                autocomplete="username"
+                autocapitalize="none"
+                spellcheck="false"
+              />
+            </label>
+            <label class="chatter-gate__field">
+              <span class="chatter-gate__field-label">Password (admins only)</span>
+              <input
+                class="chatter-gate__input"
+                type="password"
+                placeholder="Optional"
+                data-login-password
+                autocomplete="current-password"
+                autocapitalize="none"
+                spellcheck="false"
+              />
+            </label>
+          </div>
+          <div class="chatter-gate__actions">
+            <button type="submit" class="button chatter-gate__button" data-login-connect>
+              Connect
+            </button>
+            <button
+              type="button"
+              class="button button--ghost chatter-gate__button"
+              data-login-disconnect
+              disabled
+            >
+              Disconnect
+            </button>
+          </div>
+        </form>
         <p class="chatter-gate__feedback" data-login-feedback role="status" aria-live="polite"></p>
       </div>
     </section>
