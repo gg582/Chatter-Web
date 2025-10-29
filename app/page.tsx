@@ -20,7 +20,7 @@ export default function Home() {
     <div className="chatter-stage" data-chatter-root data-view="terminal" ref={rootRef}>
       <main className="chatter-stage__main">
         <div className="chatter-stage__viewport" data-view-root>
-          <nav className="chatter-stage__nav" aria-label="View switcher and theme">
+          <nav className="chatter-stage__nav" aria-label="View switcher">
             <div className="chatter-stage__nav-cluster">
               <button
                 type="button"
@@ -31,30 +31,6 @@ export default function Home() {
               >
                 <span aria-hidden="true">⚙️</span>
               </button>
-              <div className="chatter-stage__nav-theme-group" role="group" aria-label="Theme selection">
-                <button
-                  type="button"
-                  className="chatter-stage__nav-button chatter-stage__nav-button--theme"
-                  data-action="set-theme"
-                  data-theme="dark"
-                  aria-label="Use dark mode"
-                  aria-pressed="false"
-                  title="Use dark mode"
-                >
-                  <span aria-hidden="true">🌙</span>
-                </button>
-                <button
-                  type="button"
-                  className="chatter-stage__nav-button chatter-stage__nav-button--theme"
-                  data-action="set-theme"
-                  data-theme="light"
-                  aria-label="Use light mode"
-                  aria-pressed="false"
-                  title="Use light mode"
-                >
-                  <span aria-hidden="true">☀️</span>
-                </button>
-              </div>
             </div>
             <button
               type="button"

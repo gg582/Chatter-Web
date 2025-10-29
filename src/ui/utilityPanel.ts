@@ -1,5 +1,4 @@
 import { ChatStore } from '../state/chatStore.js';
-import { escapeHtml } from './helpers.js';
 
 type CommandEntry = {
   command: string;
@@ -100,17 +99,23 @@ const commandEntries: CommandEntry[] = [
   { command: 'suspend!', description: 'suspend the active game (Ctrl+Z while playing)' }
 ];
 
-const renderCommandList = () =>
-  commandEntries
-    .map(
-      (entry) => `
-        <li class="cheatsheet__item">
-          <code>${escapeHtml(entry.command)}</code>
-          <span>${escapeHtml(entry.description)}</span>
-        </li>
-      `
-    )
-    .join('');
+const buildCommandListFragment = () => {
+  const fragment = document.createDocumentFragment();
+  for (const entry of commandEntries) {
+    const item = document.createElement('li');
+    item.className = 'cheatsheet__item';
+
+    const codeElement = document.createElement('code');
+    codeElement.textContent = entry.command;
+
+    const descriptionElement = document.createElement('span');
+    descriptionElement.textContent = entry.description;
+
+    item.append(codeElement, descriptionElement);
+    fragment.append(item);
+  }
+  return fragment;
+};
 
 export const renderUtilityPanel = (_store: ChatStore, container: HTMLElement) => {
   container.innerHTML = `
@@ -132,11 +137,13 @@ export const renderUtilityPanel = (_store: ChatStore, container: HTMLElement) =>
           </p>
         </header>
         <p class="utility-section__note">Scroll anywhere in this panel with your mouse wheel—no extra focus needed.</p>
-        <ul class="cheatsheet__list">
-          ${renderCommandList()}
-        </ul>
+        <ul class="cheatsheet__list" data-command-list></ul>
         <p class="utility-section__note">Regular messages are shared with everyone.</p>
       </section>
     </div>
   `;
+  const list = container.querySelector<HTMLUListElement>('[data-command-list]');
+  if (list) {
+    list.append(buildCommandListFragment());
+  }
 };
