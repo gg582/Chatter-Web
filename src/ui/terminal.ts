@@ -1357,9 +1357,8 @@ const createRuntime = (
     return { deltaX, deltaY };
   };
 
-  const applyWheelScrollToOutput = (event: WheelEvent): boolean => {
+  const applyWheelScrollToOutput = (deltaX: number, deltaY: number): boolean => {
     const output = runtime.outputElement;
-    const { deltaX, deltaY } = normaliseWheelDelta(event);
 
     if (deltaX === 0 && deltaY === 0) {
       return false;
@@ -1382,6 +1381,99 @@ const createRuntime = (
     return moved;
   };
 
+  const isScrollableOverflow = (value: string): boolean =>
+    value === 'auto' || value === 'scroll' || value === 'overlay';
+
+  const elementCanScroll = (
+    element: HTMLElement,
+    deltaX: number,
+    deltaY: number
+  ): boolean => {
+    if (typeof window === 'undefined' || typeof window.getComputedStyle !== 'function') {
+      return false;
+    }
+
+    const computed = window.getComputedStyle(element);
+
+    if (deltaY !== 0 && isScrollableOverflow(computed.overflowY)) {
+      const maxScrollTop = element.scrollHeight - element.clientHeight;
+      if (maxScrollTop > 0) {
+        if (deltaY < 0 && element.scrollTop > 0) {
+          return true;
+        }
+        if (deltaY > 0 && Math.ceil(element.scrollTop + element.clientHeight) < element.scrollHeight) {
+          return true;
+        }
+      }
+    }
+
+    if (deltaX !== 0 && isScrollableOverflow(computed.overflowX)) {
+      const maxScrollLeft = element.scrollWidth - element.clientWidth;
+      if (maxScrollLeft > 0) {
+        if (deltaX < 0 && element.scrollLeft > 0) {
+          return true;
+        }
+        if (deltaX > 0 && Math.ceil(element.scrollLeft + element.clientWidth) < element.scrollWidth) {
+          return true;
+        }
+      }
+    }
+
+    return false;
+  };
+
+  const shouldAllowDescendantScroll = (
+    event: WheelEvent,
+    deltaX: number,
+    deltaY: number
+  ): boolean => {
+    if (typeof event.composedPath === 'function') {
+      const path = event.composedPath();
+      for (const node of path) {
+        if (!(node instanceof HTMLElement)) {
+          continue;
+        }
+
+        if (!container.contains(node)) {
+          continue;
+        }
+
+        if (node === runtime.outputElement) {
+          break;
+        }
+
+        if (node.hasAttribute('data-scroll-lock-ignore')) {
+          return true;
+        }
+
+        if (elementCanScroll(node, deltaX, deltaY)) {
+          return true;
+        }
+      }
+
+      return false;
+    }
+
+    let current: EventTarget | null = event.target;
+    while (current instanceof HTMLElement && container.contains(current)) {
+      if (current === runtime.outputElement) {
+        break;
+      }
+
+      if (current.hasAttribute('data-scroll-lock-ignore')) {
+        return true;
+      }
+
+      if (elementCanScroll(current, deltaX, deltaY)) {
+        return true;
+      }
+
+      current = current.parentElement;
+    }
+
+    return false;
+  };
+
   const scheduleScrollLockUpdate = () => {
     if (typeof window !== 'undefined' && typeof window.requestAnimationFrame === 'function') {
       window.requestAnimationFrame(() => {
@@ -1394,7 +1486,8 @@ const createRuntime = (
   };
 
   const handleOutputWheel = (event: WheelEvent) => {
-    if (event.deltaY < 0) {
+    const { deltaY } = normaliseWheelDelta(event);
+    if (deltaY < 0) {
       runtime.autoScrollLocked = true;
     }
 
@@ -1402,29 +1495,40 @@ const createRuntime = (
   };
 
   const handleContainerWheel = (event: WheelEvent) => {
-    if (!(event.target instanceof Element)) {
+    const pathTargets =
+      typeof event.composedPath === 'function' ? event.composedPath() : undefined;
+    if (pathTargets) {
+      if (!pathTargets.includes(container)) {
+        return;
+      }
+    } else if (!(event.target instanceof Node) || !container.contains(event.target)) {
       return;
     }
 
-    if (!container.contains(event.target)) {
+    if (
+      event.target instanceof Element &&
+      event.target.closest('select, [data-scroll-lock-ignore]')
+    ) {
       return;
     }
 
-    if (event.target.closest('[data-terminal-output]')) {
+    const { deltaX, deltaY } = normaliseWheelDelta(event);
+
+    if (deltaX === 0 && deltaY === 0) {
       return;
     }
 
-    if (event.target.closest('textarea, input, select, [data-scroll-lock-ignore]')) {
+    if (shouldAllowDescendantScroll(event, deltaX, deltaY)) {
       return;
     }
 
-    const scrolled = applyWheelScrollToOutput(event);
+    const scrolled = applyWheelScrollToOutput(deltaX, deltaY);
 
     if (!scrolled) {
       return;
     }
 
-    if (event.deltaY < 0) {
+    if (deltaY < 0) {
       runtime.autoScrollLocked = true;
     }
 
