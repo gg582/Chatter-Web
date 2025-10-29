@@ -31,17 +31,30 @@ export default function Home() {
               >
                 <span aria-hidden="true">⚙️</span>
               </button>
-              <button
-                type="button"
-                className="chatter-stage__nav-button chatter-stage__nav-button--theme"
-                data-action="toggle-theme"
-                aria-label="Switch to light mode"
-                aria-pressed="false"
-              >
-                <span aria-hidden="true" data-theme-icon>
-                  ☀️
-                </span>
-              </button>
+              <div className="chatter-stage__nav-theme-group" role="group" aria-label="Theme selection">
+                <button
+                  type="button"
+                  className="chatter-stage__nav-button chatter-stage__nav-button--theme"
+                  data-action="set-theme"
+                  data-theme="dark"
+                  aria-label="Use dark mode"
+                  aria-pressed="false"
+                  title="Use dark mode"
+                >
+                  <span aria-hidden="true">🌙</span>
+                </button>
+                <button
+                  type="button"
+                  className="chatter-stage__nav-button chatter-stage__nav-button--theme"
+                  data-action="set-theme"
+                  data-theme="light"
+                  aria-label="Use light mode"
+                  aria-pressed="false"
+                  title="Use light mode"
+                >
+                  <span aria-hidden="true">☀️</span>
+                </button>
+              </div>
             </div>
             <button
               type="button"

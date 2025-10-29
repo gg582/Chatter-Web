@@ -295,13 +295,23 @@ summary::-webkit-details-marker {
   top: clamp(1rem, 4vw, 2rem);
   right: clamp(1rem, 4vw, 2rem);
   display: flex;
+  align-items: flex-start;
   gap: 0.4rem;
   z-index: 60;
 }
 
 .chatter-stage__nav-cluster {
   display: flex;
-  gap: 0.25rem;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 0.45rem;
+}
+
+.chatter-stage__nav-theme-group {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+  align-items: stretch;
 }
 
 .chatter-stage__nav-button {
@@ -334,10 +344,16 @@ summary::-webkit-details-marker {
 }
 
 .chatter-stage__nav-button--theme {
-  padding: 0.35rem 0.5rem;
-  min-width: 2rem;
-  font-size: 1rem;
+  padding: 0.35rem 0.6rem;
+  min-width: 2.25rem;
+  font-size: 0.95rem;
   line-height: 1;
+}
+
+.chatter-stage__nav-button--theme[aria-pressed='true'],
+.chatter-stage__nav-button--theme.is-active {
+  border-color: var(--accent-sky);
+  box-shadow: 0 0 0 1px rgba(56, 189, 248, 0.65);
 }
 
 .chatter-stage[data-view='terminal'] .chatter-stage__nav-button--home {
@@ -1066,6 +1082,7 @@ summary::-webkit-details-marker {
 
 .utility-section--commands .cheatsheet__item span {
   word-break: break-word;
+  overflow-wrap: anywhere;
 }
 
 .utility-section__lead {

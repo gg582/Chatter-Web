@@ -35,8 +35,19 @@ const removeStoredTheme = () => {
 };
 
 export const setupThemeToggle = (root: HTMLElement): ThemeToggleRuntime => {
-  const button = root.querySelector<HTMLButtonElement>('[data-action="toggle-theme"]');
-  if (!button) {
+  const themeButtons = Array.from(
+    root.querySelectorAll<HTMLButtonElement>('[data-action="set-theme"]')
+  )
+    .map((button) => {
+      const theme = button.dataset.theme ?? null;
+      if (!isThemeName(theme)) {
+        return null;
+      }
+      return { button, theme } as const;
+    })
+    .filter((entry): entry is { button: HTMLButtonElement; theme: ThemeName } => entry !== null);
+
+  if (themeButtons.length === 0) {
     return {
       dispose: () => {},
     };
@@ -45,8 +56,19 @@ export const setupThemeToggle = (root: HTMLElement): ThemeToggleRuntime => {
   const prefersLightMediaQuery = window.matchMedia('(prefers-color-scheme: light)');
   const getPreferredTheme = (): ThemeName => (prefersLightMediaQuery.matches ? 'light' : 'dark');
 
-  let current: ThemeName = 'dark';
   let hasExplicitChoice = false;
+
+  const updateButtonStates = (theme: ThemeName) => {
+    themeButtons.forEach(({ button, theme: buttonTheme }) => {
+      const isActive = buttonTheme === theme;
+      button.setAttribute('aria-pressed', isActive ? 'true' : 'false');
+      button.classList.toggle('is-active', isActive);
+      const baseLabel = buttonTheme === 'light' ? 'Use light mode' : 'Use dark mode';
+      const statusLabel = buttonTheme === 'light' ? 'Light mode' : 'Dark mode';
+      button.setAttribute('aria-label', isActive ? `${statusLabel} (active)` : baseLabel);
+      button.title = baseLabel;
+    });
+  };
 
   const applyTheme = (theme: ThemeName, options: { persist?: boolean } = {}) => {
     const { persist = false } = options;
@@ -54,25 +76,16 @@ export const setupThemeToggle = (root: HTMLElement): ThemeToggleRuntime => {
       hasExplicitChoice = true;
       setStoredTheme(theme);
     }
-    current = theme;
     document.documentElement.dataset.theme = theme;
     root.dataset.theme = theme;
+
+    updateButtonStates(theme);
 
     root.dispatchEvent(
       new CustomEvent('chatter:theme-change', {
         detail: { theme }
       })
     );
-
-    if (button) {
-      const nextLabel = theme === 'light' ? 'Switch to dark mode' : 'Switch to light mode';
-      const nextIcon = theme === 'light' ? '🌙' : '☀️';
-      button.setAttribute('aria-label', nextLabel);
-      button.setAttribute('aria-pressed', theme === 'light' ? 'true' : 'false');
-      button.dataset.themeState = theme;
-      button.textContent = nextIcon;
-      button.title = nextLabel;
-    }
   };
 
   const storedTheme = getStoredTheme();
@@ -83,12 +96,21 @@ export const setupThemeToggle = (root: HTMLElement): ThemeToggleRuntime => {
     applyTheme(getPreferredTheme());
   }
 
-  const handleToggleClick = () => {
-    const nextTheme: ThemeName = current === 'dark' ? 'light' : 'dark';
-    applyTheme(nextTheme, { persist: true });
+  const handleThemeButtonClick = (event: Event) => {
+    const target = event.currentTarget as HTMLButtonElement | null;
+    if (!target) {
+      return;
+    }
+    const entry = themeButtons.find((item) => item.button === target);
+    if (!entry) {
+      return;
+    }
+    applyTheme(entry.theme, { persist: true });
   };
 
-  button.addEventListener('click', handleToggleClick);
+  themeButtons.forEach(({ button }) => {
+    button.addEventListener('click', handleThemeButtonClick);
+  });
 
   const handleSystemPreferenceChange = (event: MediaQueryListEvent) => {
     if (hasExplicitChoice) {
@@ -123,7 +145,9 @@ export const setupThemeToggle = (root: HTMLElement): ThemeToggleRuntime => {
 
   return {
     dispose: () => {
-      button.removeEventListener('click', handleToggleClick);
+      themeButtons.forEach(({ button }) => {
+        button.removeEventListener('click', handleThemeButtonClick);
+      });
       prefersLightMediaQuery.removeEventListener('change', handleSystemPreferenceChange);
       window.removeEventListener('storage', handleStorage);
     },

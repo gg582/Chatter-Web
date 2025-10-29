@@ -126,8 +126,12 @@ export const renderUtilityPanel = (_store: ChatStore, container: HTMLElement) =>
       <section class="utility-section utility-section--wide utility-section--commands">
         <header>
           <h3>Command reference</h3>
-          <p>Scroll anywhere in this panel with your mouse wheel—no extra focus needed.</p>
+          <p>
+            Available commands below omit the leading slash. Swap to <code>/mode command</code> to type them
+            directly, or fire a quick command from chat with <code>/desired_command</code>.
+          </p>
         </header>
+        <p class="utility-section__note">Scroll anywhere in this panel with your mouse wheel—no extra focus needed.</p>
         <ul class="cheatsheet__list">
           ${renderCommandList()}
         </ul>
