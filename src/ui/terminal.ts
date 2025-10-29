@@ -412,6 +412,9 @@ const resolveSocketUrl = (container: HTMLElement): string | null => {
 };
 
 const SCROLL_LOCK_EPSILON = 4;
+const INTRO_MARKER = 'Connection established.';
+const INTRO_CAPTURE_LIMIT = 16000;
+const TOUCH_ARROW_THRESHOLD_PX = 120;
 
 const keySequences: Record<string, string> = {
   Enter: '\r',
@@ -440,10 +443,10 @@ const onScreenShortcuts: Record<
     inputGroup: string;
   }
 > = {
-  'ctrl-c': { payload: '\u0003', label: 'Ctrl+C', inputGroup: ENTRY_INPUT_GROUP },
-  'ctrl-z': { payload: '\u001a', label: 'Ctrl+Z', inputGroup: ENTRY_INPUT_GROUP },
-  'ctrl-s': { payload: '\u0013', label: 'Ctrl+S', inputGroup: ENTRY_INPUT_GROUP },
-  'ctrl-a': { payload: '\u0001', label: 'Ctrl+A', inputGroup: ENTRY_INPUT_GROUP },
+  'ctrl-c': { payload: '\u0003', label: 'Copy', inputGroup: ENTRY_INPUT_GROUP },
+  'ctrl-z': { payload: '\u001a', label: 'Undo', inputGroup: ENTRY_INPUT_GROUP },
+  'ctrl-s': { payload: '\u0013', label: 'Save', inputGroup: ENTRY_INPUT_GROUP },
+  'ctrl-a': { payload: '\u0001', label: 'Select all', inputGroup: ENTRY_INPUT_GROUP },
   'arrow-up': { payload: keySequences.ArrowUp, label: 'Arrow up', inputGroup: 'arrow-up' },
   'arrow-down': { payload: keySequences.ArrowDown, label: 'Arrow down', inputGroup: 'arrow-down' },
   'arrow-left': { payload: keySequences.ArrowLeft, label: 'Arrow left', inputGroup: 'arrow-left' },
@@ -497,6 +500,8 @@ type TerminalRuntime = {
     lines: string[];
     currentLine: string;
   } | null;
+  introSilenced: boolean;
+  introBuffer: string;
   maxOutputLines: number;
   autoScrollLocked: boolean;
   pendingAutoScroll: boolean;
@@ -1124,10 +1129,10 @@ const createRuntime = (
           <div class="terminal-chat__entry-main">
             <div class="terminal-chat__keyboard" id="${entryStatusId}-kbd" data-terminal-kbd>
               <div class="terminal-chat__keyboard-grid">
-                <button type="button" data-terminal-kbd-key="ctrl-c" data-terminal-kbd-group="entry-buffer">Ctrl+C</button>
-                <button type="button" data-terminal-kbd-key="ctrl-z" data-terminal-kbd-group="entry-buffer">Ctrl+Z</button>
-                <button type="button" data-terminal-kbd-key="ctrl-s" data-terminal-kbd-group="entry-buffer">Ctrl+S</button>
-                <button type="button" data-terminal-kbd-key="ctrl-a" data-terminal-kbd-group="entry-buffer">Ctrl+A</button>
+                <button type="button" data-terminal-kbd-key="ctrl-c" data-terminal-kbd-group="entry-buffer">Copy</button>
+                <button type="button" data-terminal-kbd-key="ctrl-z" data-terminal-kbd-group="entry-buffer">Undo</button>
+                <button type="button" data-terminal-kbd-key="ctrl-s" data-terminal-kbd-group="entry-buffer">Save</button>
+                <button type="button" data-terminal-kbd-key="ctrl-a" data-terminal-kbd-group="entry-buffer">Select all</button>
                 <button type="button" data-terminal-kbd-key="arrow-up" data-terminal-kbd-group="arrow-up">↑</button>
                 <button type="button" data-terminal-kbd-key="arrow-down" data-terminal-kbd-group="arrow-down">↓</button>
                 <button type="button" data-terminal-kbd-key="arrow-left" data-terminal-kbd-group="arrow-left">←</button>
@@ -1352,6 +1357,8 @@ const createRuntime = (
     incomingBuffer: '',
     incomingLineElement: null,
     asciiArtBlock: null,
+    introSilenced: true,
+    introBuffer: '',
     maxOutputLines: 600,
     autoScrollLocked: false,
     pendingAutoScroll: false,
@@ -1360,7 +1367,7 @@ const createRuntime = (
     requestDisconnect: () => false,
     appendLine: (text: string, kind: TerminalLineKind = 'info') => {
       if (kind === 'incoming') {
-        processIncomingChunk(text);
+        deliverIncomingPayload(text);
         return;
       }
 
@@ -1465,6 +1472,104 @@ const createRuntime = (
 
   runtime.outputElement.addEventListener('wheel', handleManualScrollIntent, { passive: true });
   runtime.outputElement.addEventListener('touchmove', handleManualScrollIntent, { passive: true });
+
+  if (runtime.mobilePlatform) {
+    let trackingTouch = false;
+    let lastTouchX = 0;
+    let lastTouchY = 0;
+    let accumX = 0;
+    let accumY = 0;
+
+    const sendArrowCommand = (key: 'ArrowUp' | 'ArrowDown' | 'ArrowLeft' | 'ArrowRight') => {
+      const payload = keySequences[key];
+      if (!payload) {
+        return false;
+      }
+      return sendTextPayload(payload);
+    };
+
+    const resetTouchTracking = () => {
+      trackingTouch = false;
+      accumX = 0;
+      accumY = 0;
+    };
+
+    const handleArrowTouchStart = (event: TouchEvent) => {
+      if (event.touches.length !== 1) {
+        resetTouchTracking();
+        return;
+      }
+      const touch = event.touches[0];
+      trackingTouch = true;
+      lastTouchX = touch.clientX;
+      lastTouchY = touch.clientY;
+      accumX = 0;
+      accumY = 0;
+    };
+
+    const applyAxisDispatch = (
+      accumulator: number,
+      positiveKey: 'ArrowUp' | 'ArrowDown' | 'ArrowLeft' | 'ArrowRight',
+      negativeKey: 'ArrowUp' | 'ArrowDown' | 'ArrowLeft' | 'ArrowRight'
+    ) => {
+      let consumed = false;
+      while (accumulator >= TOUCH_ARROW_THRESHOLD_PX) {
+        if (!sendArrowCommand(positiveKey)) {
+          break;
+        }
+        accumulator -= TOUCH_ARROW_THRESHOLD_PX;
+        consumed = true;
+      }
+      while (accumulator <= -TOUCH_ARROW_THRESHOLD_PX) {
+        if (!sendArrowCommand(negativeKey)) {
+          break;
+        }
+        accumulator += TOUCH_ARROW_THRESHOLD_PX;
+        consumed = true;
+      }
+      return { accumulator, consumed };
+    };
+
+    const handleArrowTouchMove = (event: TouchEvent) => {
+      if (!trackingTouch || event.touches.length !== 1) {
+        return;
+      }
+
+      const touch = event.touches[0];
+      const deltaX = lastTouchX - touch.clientX;
+      const deltaY = lastTouchY - touch.clientY;
+      lastTouchX = touch.clientX;
+      lastTouchY = touch.clientY;
+      accumX += deltaX;
+      accumY += deltaY;
+
+      let consumed = false;
+      const vertical = applyAxisDispatch(accumY, 'ArrowUp', 'ArrowDown');
+      accumY = vertical.accumulator;
+      consumed = consumed || vertical.consumed;
+
+      const horizontal = applyAxisDispatch(accumX, 'ArrowLeft', 'ArrowRight');
+      accumX = horizontal.accumulator;
+      consumed = consumed || horizontal.consumed;
+
+      if (consumed) {
+        try {
+          event.preventDefault();
+        } catch (error) {
+          // ignore preventDefault failures on passive listeners fallback
+        }
+      }
+    };
+
+    const handleArrowTouchEnd = () => {
+      resetTouchTracking();
+    };
+
+    runtime.outputElement.addEventListener('touchstart', handleArrowTouchStart, { passive: true });
+    runtime.outputElement.addEventListener('touchmove', handleArrowTouchMove, { passive: false });
+    runtime.outputElement.addEventListener('touchend', handleArrowTouchEnd, { passive: true });
+    runtime.outputElement.addEventListener('touchcancel', handleArrowTouchEnd, { passive: true });
+  }
 
   updateScrollLockState();
   scrollOutputToBottom(true);
@@ -1797,6 +1902,30 @@ const createRuntime = (
 
     appendAsciiArtLine(line);
   };
+
+  function deliverIncomingPayload(chunk: string) {
+    if (!chunk) {
+      return;
+    }
+
+    if (runtime.introSilenced) {
+      runtime.introBuffer += chunk;
+      if (runtime.introBuffer.length > INTRO_CAPTURE_LIMIT) {
+        runtime.introBuffer = runtime.introBuffer.slice(-INTRO_CAPTURE_LIMIT);
+      }
+      const markerIndex = runtime.introBuffer.indexOf(INTRO_MARKER);
+      if (markerIndex === -1) {
+        return;
+      }
+      const output = runtime.introBuffer.slice(markerIndex);
+      runtime.introBuffer = '';
+      runtime.introSilenced = false;
+      processIncomingChunk(output);
+      return;
+    }
+
+    processIncomingChunk(chunk);
+  }
 
   const handleRegularLineCommit = (line: string, element: HTMLPreElement | null) => {
     if (!shouldStartAsciiArtBlock(line)) {
@@ -2162,6 +2291,8 @@ const createRuntime = (
 
         runtime.socket = socket;
         runtime.binaryDecoder = new TextDecoder();
+        runtime.introSilenced = true;
+        runtime.introBuffer = '';
         socket.addEventListener('open', () => {
           markBridgeActivity();
           ensureKeepAliveTimer();
@@ -2199,6 +2330,8 @@ const createRuntime = (
           runtime.connecting = false;
           runtime.connected = false;
           runtime.socket = null;
+          runtime.introSilenced = true;
+          runtime.introBuffer = '';
           setDisconnectButtonsDisabled(true);
           runtime.updateStatus('Disconnected', 'disconnected');
           refreshTarget(false);
@@ -2210,6 +2343,8 @@ const createRuntime = (
         socket.addEventListener('error', () => {
           stopKeepAliveTimer();
           runtime.updateStatus('Connection error', 'disconnected');
+          runtime.introSilenced = true;
+          runtime.introBuffer = '';
           setEntryStatus('Bridge error. Commands will resume after reconnecting.', 'error');
         });
       } catch (error) {
