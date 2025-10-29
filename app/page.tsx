@@ -21,15 +21,17 @@ export default function Home() {
       <main className="chatter-stage__main">
         <div className="chatter-stage__viewport" data-view-root>
           <nav className="chatter-stage__nav" aria-label="View switcher">
-            <button
-              type="button"
-              className="chatter-stage__nav-button chatter-stage__nav-button--settings"
-              data-view-target="settings"
-              aria-label="Open settings"
-              aria-controls="chatter-settings-screen"
-            >
-              <span aria-hidden="true">⚙️</span>
-            </button>
+            <div className="chatter-stage__nav-cluster">
+              <button
+                type="button"
+                className="chatter-stage__nav-button chatter-stage__nav-button--settings"
+                data-view-target="settings"
+                aria-label="Open settings"
+                aria-controls="chatter-settings-screen"
+              >
+                <span aria-hidden="true">⚙️</span>
+              </button>
+            </div>
             <button
               type="button"
               className="chatter-stage__nav-button chatter-stage__nav-button--home"
