@@ -362,12 +362,16 @@ export const setupLoginGate = (stage: HTMLElement, store: ChatStore) => {
     if (usernameInput) {
       const storedUsername = stored.username?.trim();
       const defaultUsername = runtimeDefaults.username.trim();
+      const existingValue = usernameInput.value.trim();
       if (storedUsername) {
         usernameInput.value = storedUsername;
         return;
       }
       if (defaultUsername) {
         usernameInput.value = defaultUsername;
+        return;
+      }
+      if (existingValue) {
         return;
       }
       const state = store.snapshot();

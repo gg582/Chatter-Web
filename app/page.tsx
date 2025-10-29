@@ -1,10 +1,12 @@
 'use client';
 
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { mountChatter } from '../src/bootstrap';
+import { pickRandomNickname } from '../src/data/nicknames';
 
 export default function Home() {
   const rootRef = useRef<HTMLDivElement | null>(null);
+  const [loginNickname] = useState(() => pickRandomNickname());
 
   useEffect(() => {
     if (!rootRef.current) {
@@ -80,6 +82,7 @@ export default function Home() {
                   type="text"
                   placeholder="Handle"
                   data-login-username
+                  defaultValue={loginNickname}
                   required
                   autoComplete="username"
                   autoCapitalize="none"
