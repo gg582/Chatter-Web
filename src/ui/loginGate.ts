@@ -140,6 +140,7 @@ export const setupLoginGate = (stage: HTMLElement, store: ChatStore) => {
   const hostInput = container.querySelector<HTMLInputElement>('[data-login-host]');
   const portInput = container.querySelector<HTMLInputElement>('[data-login-port]');
   const usernameInput = container.querySelector<HTMLInputElement>('[data-login-username]');
+  const passwordInput = container.querySelector<HTMLInputElement>('[data-login-password]');
   const connectButton = container.querySelector<HTMLButtonElement>('[data-login-connect]');
   const statusLabel = container.querySelector<HTMLElement>('[data-login-status]');
   const feedbackElement = container.querySelector<HTMLElement>('[data-login-feedback]');
@@ -176,6 +177,28 @@ export const setupLoginGate = (stage: HTMLElement, store: ChatStore) => {
     return parsed;
   };
 
+  type FormDetails = {
+    protocol: 'telnet' | 'ssh';
+    host: string;
+    port: string;
+    username: string;
+    password: string;
+  };
+
+  const readFormDetails = (): FormDetails | null => {
+    if (!protocolSelect || !hostInput || !portInput || !usernameInput) {
+      return null;
+    }
+
+    const protocol = normaliseProtocolName(protocolSelect.value.trim().toLowerCase());
+    const host = hostInput.value.trim();
+    const port = portInput.value.trim();
+    const username = usernameInput.value.trim();
+    const password = passwordInput?.value ?? '';
+
+    return { protocol, host, port, username, password };
+  };
+
   const isFormValid = (): boolean => {
     if (!protocolSelect || !hostInput || !portInput || !usernameInput) {
       return false;
@@ -190,6 +213,105 @@ export const setupLoginGate = (stage: HTMLElement, store: ChatStore) => {
       return false;
     }
     return parsePortValue() !== null;
+  };
+
+  const storeTerminalOverrides = (details: FormDetails) => {
+    if (typeof window === 'undefined') {
+      return;
+    }
+
+    const payload: Record<string, string> = {};
+    const { protocol, host, port } = details;
+
+    if (protocol === 'ssh' || protocol === 'telnet') {
+      payload.protocol = protocol;
+    }
+
+    if (host) {
+      payload.host = host;
+    }
+
+    if (port) {
+      payload.port = port;
+    }
+
+    const storageKey = 'chatter-terminal-target';
+    const keys = Object.keys(payload);
+    try {
+      if (keys.length === 0) {
+        window.localStorage?.removeItem(storageKey);
+      } else {
+        window.localStorage?.setItem(storageKey, JSON.stringify(payload));
+      }
+    } catch (error) {
+      console.warn('Failed to persist terminal overrides', error);
+    }
+  };
+
+  const applyDetailsToTerminal = (details: FormDetails): boolean => {
+    const { protocol, host, port, username, password } = details;
+
+    const terminalProtocol = stage.querySelector<HTMLSelectElement>('[data-terminal-protocol]');
+    const terminalHost = stage.querySelector<HTMLInputElement>('[data-terminal-host]');
+    const terminalPort = stage.querySelector<HTMLInputElement>('[data-terminal-port]');
+    const terminalUsername = stage.querySelector<HTMLInputElement>('[data-terminal-username]');
+    const terminalPassword = stage.querySelector<HTMLInputElement>('[data-terminal-password]');
+
+    if (!terminalProtocol || !terminalHost || !terminalPort || !terminalUsername) {
+      return false;
+    }
+
+    if (terminalProtocol.value !== protocol) {
+      terminalProtocol.value = protocol;
+      terminalProtocol.dispatchEvent(new Event('change', { bubbles: true }));
+    }
+
+    terminalHost.value = host;
+    terminalHost.dispatchEvent(new Event('input', { bubbles: true }));
+
+    terminalPort.value = port;
+    terminalPort.dispatchEvent(new Event('input', { bubbles: true }));
+
+    terminalUsername.value = username;
+    terminalUsername.dispatchEvent(new Event('input', { bubbles: true }));
+
+    if (terminalPassword) {
+      if (protocol === 'ssh') {
+        terminalPassword.disabled = false;
+        terminalPassword.value = password;
+        terminalPassword.dispatchEvent(new Event('input', { bubbles: true }));
+      } else {
+        terminalPassword.value = '';
+        terminalPassword.disabled = true;
+      }
+    }
+
+    return true;
+  };
+
+  const scheduleTerminalConnect = (details: FormDetails) => {
+    if (typeof window === 'undefined') {
+      return;
+    }
+
+    let attempts = 0;
+    const maxAttempts = 6;
+
+    const tryConnect = () => {
+      attempts += 1;
+      const applied = applyDetailsToTerminal(details);
+      const connectButton = stage.querySelector<HTMLButtonElement>('[data-terminal-connect]');
+      let clicked = false;
+      if (applied && connectButton && !connectButton.disabled) {
+        connectButton.click();
+        clicked = true;
+      }
+      if (!clicked && attempts < maxAttempts) {
+        window.setTimeout(tryConnect, 120);
+      }
+    };
+
+    window.setTimeout(tryConnect, 0);
   };
 
   if (hostInput) {
@@ -328,13 +450,21 @@ export const setupLoginGate = (stage: HTMLElement, store: ChatStore) => {
       return;
     }
 
+    const details = readFormDetails();
+    if (!details) {
+      setFeedback('Provide complete bridge details before connecting.', 'error', true);
+      return;
+    }
+
     const result = store.resumeSession();
     if (!result.ok) {
       setFeedback(result.error ?? 'Unable to resume session.', 'error', true);
       return;
     }
     persistCredentials();
-    setFeedback(result.message ?? 'Session restored.', 'success', true);
+    storeTerminalOverrides(details);
+    scheduleTerminalConnect(details);
+    setFeedback('Bridge connection requested. Complete the captcha to enter the lounge.', 'success', true);
   };
 
   const handleFormSubmit = (event: Event) => {
