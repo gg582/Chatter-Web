@@ -1,3 +1,4 @@
+import { pickRandomNickname } from '../data/nicknames.js';
 import type { ChatStore } from '../state/chatStore.js';
 
 type FeedbackTone = 'info' | 'success' | 'error';
@@ -359,10 +360,53 @@ export const setupLoginGate = (stage: HTMLElement, store: ChatStore) => {
       }
     }
     if (usernameInput) {
-      const usernameValue = stored.username ?? runtimeDefaults.username;
-      if (usernameValue) {
-        usernameInput.value = usernameValue;
+      const storedUsername = stored.username?.trim();
+      const defaultUsername = runtimeDefaults.username.trim();
+      const existingValue = usernameInput.value.trim();
+      if (storedUsername) {
+        usernameInput.value = storedUsername;
+        return;
       }
+      if (defaultUsername) {
+        usernameInput.value = defaultUsername;
+        return;
+      }
+      if (existingValue) {
+        return;
+      }
+      const state = store.snapshot();
+      const taken = new Set<string>();
+      if (typeof state?.currentUser?.username === 'string') {
+        const trimmed = state.currentUser.username.trim();
+        if (trimmed) {
+          taken.add(trimmed);
+        }
+      }
+      if (state && typeof state === 'object') {
+        const profileEntries = state.profiles ?? {};
+        for (const profile of Object.values(profileEntries)) {
+          if (profile && typeof profile === 'object' && 'username' in profile) {
+            const candidate = (profile as { username?: string }).username;
+            if (typeof candidate === 'string') {
+              const trimmed = candidate.trim();
+              if (trimmed) {
+                taken.add(trimmed);
+              }
+            }
+          }
+        }
+        if (Array.isArray(state.connectedUsers)) {
+          for (const handle of state.connectedUsers) {
+            if (typeof handle === 'string') {
+              const trimmed = handle.trim();
+              if (trimmed) {
+                taken.add(trimmed);
+              }
+            }
+          }
+        }
+      }
+      usernameInput.value = pickRandomNickname(taken);
     }
   };
 

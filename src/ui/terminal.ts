@@ -313,7 +313,9 @@ const resolveTarget = (): TerminalTarget => {
   const configuredPortDefault =
     typeof config?.bbsPortDefault === 'string' ? config.bbsPortDefault.trim() : '';
   const defaultPort = configuredPort || configuredPortDefault;
-  const defaultUsername = typeof config?.bbsSshUser === 'string' ? config.bbsSshUser.trim() : '';
+  const configuredDefaultUsername =
+    typeof config?.bbsSshUser === 'string' ? config.bbsSshUser.trim() : '';
+  const defaultUsername = configuredDefaultUsername;
   const configuredHostPlaceholder =
     typeof config?.bbsHostPlaceholder === 'string' ? config.bbsHostPlaceholder.trim() : '';
 
