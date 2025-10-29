@@ -1,4 +1,5 @@
 import { ChatStore } from '../state/chatStore.js';
+import { pickRandomNickname } from '../data/nicknames.js';
 import { describeMobilePlatform, detectMobilePlatform, escapeHtml, isMobilePlatform } from './helpers.js';
 import type { MobilePlatform } from './helpers.js';
 
@@ -198,6 +199,15 @@ const stripIpv6Brackets = (value: string) =>
 
 const stripZoneId = (value: string) => (value.includes('%') ? value.split('%', 1)[0] : value);
 
+let cachedDefaultUsername: string | null = null;
+
+const resolveDefaultUsername = () => {
+  if (!cachedDefaultUsername) {
+    cachedDefaultUsername = pickRandomNickname();
+  }
+  return cachedDefaultUsername;
+};
+
 const palettesRequiringDarkText = new Set([
   'moe',
   'adwaita',
@@ -313,7 +323,9 @@ const resolveTarget = (): TerminalTarget => {
   const configuredPortDefault =
     typeof config?.bbsPortDefault === 'string' ? config.bbsPortDefault.trim() : '';
   const defaultPort = configuredPort || configuredPortDefault;
-  const defaultUsername = typeof config?.bbsSshUser === 'string' ? config.bbsSshUser.trim() : '';
+  const configuredDefaultUsername =
+    typeof config?.bbsSshUser === 'string' ? config.bbsSshUser.trim() : '';
+  const defaultUsername = configuredDefaultUsername || resolveDefaultUsername();
   const configuredHostPlaceholder =
     typeof config?.bbsHostPlaceholder === 'string' ? config.bbsHostPlaceholder.trim() : '';
 

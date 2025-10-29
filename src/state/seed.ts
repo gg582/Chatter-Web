@@ -1,4 +1,5 @@
 import { DEFAULT_OPERATING_SYSTEM } from '../data/operatingSystems.js';
+import { pickRandomNickname } from '../data/nicknames.js';
 import type {
   AttachmentEntry,
   AttachmentKind,
@@ -15,8 +16,10 @@ const createMediaLibrary = (): Record<AttachmentKind, AttachmentEntry[]> => ({
   file: []
 });
 
+const guestHandle = pickRandomNickname();
+
 const guestProfile: UserProfile = {
-  username: 'guest',
+  username: guestHandle,
   os: DEFAULT_OPERATING_SYSTEM,
   status: 'Ready to dial in from the web.'
 };
