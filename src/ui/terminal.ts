@@ -450,6 +450,9 @@ const onScreenShortcuts: Record<
   'arrow-right': { payload: keySequences.ArrowRight, label: 'Arrow right', inputGroup: 'arrow-right' }
 };
 
+const ARROW_KEY_NAMES = new Set(['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight']);
+const ARROW_SHORTCUT_KEYS = new Set(['arrow-up', 'arrow-down', 'arrow-left', 'arrow-right']);
+
 let entryStatusIdCounter = 0;
 
 const createEntryStatusId = () => {
@@ -1401,6 +1404,22 @@ const createRuntime = (
     }
   };
 
+  const resetOutputScroll = () => {
+    runtime.autoScrollLocked = false;
+    runtime.pendingAutoScroll = false;
+
+    const applyScroll = () => {
+      scrollOutputToBottom(true);
+    };
+
+    if (typeof window === 'undefined' || typeof window.requestAnimationFrame !== 'function') {
+      applyScroll();
+      return;
+    }
+
+    window.requestAnimationFrame(applyScroll);
+  };
+
   const handleOutputScroll = () => {
     const wasLocked = runtime.autoScrollLocked;
     updateScrollLockState();
@@ -1574,16 +1593,49 @@ const createRuntime = (
     updateScrollLockState();
   };
 
-  const handleOutputWheel = (event: WheelEvent) => {
-    const { deltaY } = normaliseWheelDelta(event);
+  const applyWheelEventToOutput = (event: WheelEvent): boolean => {
+    if (event.defaultPrevented) {
+      return false;
+    }
+
+    const { deltaX, deltaY } = normaliseWheelDelta(event);
+
+    if (deltaX === 0 && deltaY === 0) {
+      return false;
+    }
+
+    if (shouldAllowDescendantScroll(event, deltaX, deltaY)) {
+      return false;
+    }
+
+    const scrolled = applyWheelScrollToOutput(deltaX, deltaY);
+
+    if (!scrolled) {
+      if (deltaY < 0) {
+        runtime.autoScrollLocked = true;
+        scheduleScrollLockUpdate();
+      }
+      return false;
+    }
+
     if (deltaY < 0) {
       runtime.autoScrollLocked = true;
     }
 
+    event.preventDefault();
     scheduleScrollLockUpdate();
+    return true;
+  };
+
+  const handleOutputWheel = (event: WheelEvent) => {
+    applyWheelEventToOutput(event);
   };
 
   const handleContainerWheel = (event: WheelEvent) => {
+    if (event.defaultPrevented) {
+      return;
+    }
+
     const pathTargets =
       typeof event.composedPath === 'function' ? event.composedPath() : undefined;
     if (pathTargets) {
@@ -1601,32 +1653,11 @@ const createRuntime = (
       return;
     }
 
-    const { deltaX, deltaY } = normaliseWheelDelta(event);
-
-    if (deltaX === 0 && deltaY === 0) {
-      return;
-    }
-
-    if (shouldAllowDescendantScroll(event, deltaX, deltaY)) {
-      return;
-    }
-
-    const scrolled = applyWheelScrollToOutput(deltaX, deltaY);
-
-    if (!scrolled) {
-      return;
-    }
-
-    if (deltaY < 0) {
-      runtime.autoScrollLocked = true;
-    }
-
-    event.preventDefault();
-    scheduleScrollLockUpdate();
+    applyWheelEventToOutput(event);
   };
 
   runtime.outputElement.addEventListener('scroll', handleOutputScroll, { passive: true });
-  runtime.outputElement.addEventListener('wheel', handleOutputWheel, { passive: true });
+  runtime.outputElement.addEventListener('wheel', handleOutputWheel, { passive: false });
   container.addEventListener('wheel', handleContainerWheel, { passive: false });
 
   updateScrollLockState();
@@ -1787,6 +1818,9 @@ const createRuntime = (
       const sent = sendTextPayload(shortcut.payload);
       if (sent) {
         setEntryStatus(`${shortcut.label} sent to the bridge.`, 'muted');
+        if (ARROW_SHORTCUT_KEYS.has(shortcutKey)) {
+          resetOutputScroll();
+        }
         if (inputGroup === ENTRY_INPUT_GROUP) {
           focusCapture();
         } else if (typeof button.focus === 'function') {
@@ -2732,6 +2766,9 @@ const createRuntime = (
       }
 
       if (sendTextPayload(payload)) {
+        if (ARROW_KEY_NAMES.has(event.key)) {
+          resetOutputScroll();
+        }
         event.preventDefault();
       }
     });
