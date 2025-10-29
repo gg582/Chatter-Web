@@ -9,6 +9,63 @@ type StoredCredentials = {
   username: string;
 };
 
+type RuntimeDefaults = {
+  protocol: 'telnet' | 'ssh';
+  host: string;
+  port: string;
+  username: string;
+  placeholders: { host: string; port: string };
+};
+
+const normaliseProtocolName = (value: string | undefined): 'telnet' | 'ssh' =>
+  value === 'telnet' ? 'telnet' : 'ssh';
+
+const readRuntimeConfig = () => {
+  if (typeof window === 'undefined') {
+    return undefined;
+  }
+  return window.__CHATTER_CONFIG__;
+};
+
+const resolveRuntimeDefaults = (): RuntimeDefaults => {
+  const config = readRuntimeConfig();
+
+  const protocol = normaliseProtocolName(
+    typeof config?.bbsProtocol === 'string' ? config.bbsProtocol.trim().toLowerCase() : undefined
+  );
+
+  const configuredHost = typeof config?.bbsHost === 'string' ? config.bbsHost.trim() : '';
+  const configuredHostDefault =
+    typeof config?.bbsHostDefault === 'string' ? config.bbsHostDefault.trim() : '';
+  const host = configuredHost || configuredHostDefault;
+
+  const configuredPort = typeof config?.bbsPort === 'string' ? config.bbsPort.trim() : '';
+  const configuredPortDefault =
+    typeof config?.bbsPortDefault === 'string' ? config.bbsPortDefault.trim() : '';
+  const port = configuredPort || configuredPortDefault;
+
+  const username = typeof config?.bbsSshUser === 'string' ? config.bbsSshUser.trim() : '';
+
+  const hostPlaceholder =
+    (typeof config?.bbsHostPlaceholder === 'string' ? config.bbsHostPlaceholder.trim() : '') ||
+    host ||
+    'bbs.example.com';
+
+  const fallbackPortPlaceholder = protocol === 'telnet' ? '23' : '22';
+  const portPlaceholder = port || fallbackPortPlaceholder;
+
+  return {
+    protocol,
+    host,
+    port,
+    username,
+    placeholders: {
+      host: hostPlaceholder,
+      port: portPlaceholder
+    }
+  };
+};
+
 const CREDENTIALS_STORAGE_KEY = 'chatter.login.credentials';
 
 const readStoredCredentials = (): Partial<StoredCredentials> => {
@@ -88,6 +145,8 @@ export const setupLoginGate = (stage: HTMLElement, store: ChatStore) => {
   const feedbackElement = container.querySelector<HTMLElement>('[data-login-feedback]');
   const focusTarget = container.querySelector<HTMLElement>('[data-login-focus]') ?? connectButton;
 
+  const runtimeDefaults = resolveRuntimeDefaults();
+
   let lastSessionActive = store.snapshot().sessionActive;
   let currentSessionActive = lastSessionActive;
   let suppressTransitionMessage = false;
@@ -133,11 +192,23 @@ export const setupLoginGate = (stage: HTMLElement, store: ChatStore) => {
     return parsePortValue() !== null;
   };
 
+  if (hostInput) {
+    hostInput.placeholder = runtimeDefaults.placeholders.host;
+  }
+
+  if (portInput) {
+    portInput.placeholder = runtimeDefaults.placeholders.port;
+  }
+
   const syncPortPlaceholder = () => {
     if (!protocolSelect || !portInput) {
       return;
     }
     if (portInput.value.trim()) {
+      return;
+    }
+    if (runtimeDefaults.port) {
+      portInput.placeholder = runtimeDefaults.port;
       return;
     }
     const protocol = protocolSelect.value.trim().toLowerCase();
@@ -146,20 +217,30 @@ export const setupLoginGate = (stage: HTMLElement, store: ChatStore) => {
 
   const applyStoredCredentials = () => {
     const stored = readStoredCredentials();
-    if (protocolSelect && stored.protocol) {
-      const option = Array.from(protocolSelect.options).find((entry) => entry.value === stored.protocol);
+    if (protocolSelect) {
+      const protocolValue = stored.protocol ?? runtimeDefaults.protocol;
+      const option = Array.from(protocolSelect.options).find((entry) => entry.value === protocolValue);
       if (option) {
         protocolSelect.value = option.value;
       }
     }
-    if (hostInput && stored.host) {
-      hostInput.value = stored.host;
+    if (hostInput) {
+      const hostValue = stored.host ?? runtimeDefaults.host;
+      if (hostValue) {
+        hostInput.value = hostValue;
+      }
     }
-    if (portInput && stored.port) {
-      portInput.value = stored.port;
+    if (portInput) {
+      const portValue = stored.port ?? runtimeDefaults.port;
+      if (portValue) {
+        portInput.value = portValue;
+      }
     }
-    if (usernameInput && stored.username) {
-      usernameInput.value = stored.username;
+    if (usernameInput) {
+      const usernameValue = stored.username ?? runtimeDefaults.username;
+      if (usernameValue) {
+        usernameInput.value = usernameValue;
+      }
     }
   };
 
