@@ -467,6 +467,7 @@ type TerminalRuntime = {
   statusElements: HTMLElement[];
   indicatorElements: HTMLElement[];
   outputElement: HTMLElement;
+  scrollContainer: HTMLElement;
   captureElement: HTMLTextAreaElement;
   entryElement: HTMLElement;
   entryForm: HTMLFormElement;
@@ -1119,52 +1120,52 @@ const createRuntime = (
         ${controlsHost ? '' : controlBarMarkup}
         <div class="terminal-chat__viewport terminal__viewport" data-terminal-viewport>
           <div class="terminal-chat__output terminal__output" data-terminal-output></div>
-        </div>
-        <div class="terminal-chat__entry-region">
-          <div class="terminal-chat__entry-main">
-            <div class="terminal-chat__keyboard" id="${entryStatusId}-kbd" data-terminal-kbd>
-              <div class="terminal-chat__keyboard-grid">
-                <button type="button" data-terminal-kbd-key="ctrl-c" data-terminal-kbd-group="entry-buffer">Ctrl+C</button>
-                <button type="button" data-terminal-kbd-key="ctrl-z" data-terminal-kbd-group="entry-buffer">Ctrl+Z</button>
-                <button type="button" data-terminal-kbd-key="ctrl-s" data-terminal-kbd-group="entry-buffer">Ctrl+S</button>
-                <button type="button" data-terminal-kbd-key="ctrl-a" data-terminal-kbd-group="entry-buffer">Ctrl+A</button>
-                <button type="button" data-terminal-kbd-key="arrow-up" data-terminal-kbd-group="arrow-up">↑</button>
-                <button type="button" data-terminal-kbd-key="arrow-down" data-terminal-kbd-group="arrow-down">↓</button>
-                <button type="button" data-terminal-kbd-key="arrow-left" data-terminal-kbd-group="arrow-left">←</button>
-                <button type="button" data-terminal-kbd-key="arrow-right" data-terminal-kbd-group="arrow-right">→</button>
+          <div class="terminal-chat__entry-region">
+            <div class="terminal-chat__entry-main">
+              <div class="terminal-chat__keyboard" id="${entryStatusId}-kbd" data-terminal-kbd>
+                <div class="terminal-chat__keyboard-grid">
+                  <button type="button" data-terminal-kbd-key="ctrl-c" data-terminal-kbd-group="entry-buffer">Ctrl+C</button>
+                  <button type="button" data-terminal-kbd-key="ctrl-z" data-terminal-kbd-group="entry-buffer">Ctrl+Z</button>
+                  <button type="button" data-terminal-kbd-key="ctrl-s" data-terminal-kbd-group="entry-buffer">Ctrl+S</button>
+                  <button type="button" data-terminal-kbd-key="ctrl-a" data-terminal-kbd-group="entry-buffer">Ctrl+A</button>
+                  <button type="button" data-terminal-kbd-key="arrow-up" data-terminal-kbd-group="arrow-up">↑</button>
+                  <button type="button" data-terminal-kbd-key="arrow-down" data-terminal-kbd-group="arrow-down">↓</button>
+                  <button type="button" data-terminal-kbd-key="arrow-left" data-terminal-kbd-group="arrow-left">←</button>
+                  <button type="button" data-terminal-kbd-key="arrow-right" data-terminal-kbd-group="arrow-right">→</button>
+                </div>
+                <p class="terminal-chat__keyboard-foot">Shortcuts send immediately. Keep composing in the buffer above.</p>
               </div>
-              <p class="terminal-chat__keyboard-foot">Shortcuts send immediately. Keep composing in the buffer above.</p>
+              <section class="terminal-chat__panel-section terminal-chat__panel-section--entry terminal__entry" data-terminal-entry>
+                <div class="terminal-chat__entry-head">
+                  <button type="button" class="terminal-chat__focus" data-terminal-focus>Focus</button>
+                  <p
+                    id="${entryStatusId}"
+                    class="terminal-chat__entry-status terminal__entry-status"
+                    role="status"
+                    aria-live="polite"
+                    data-terminal-entry-status
+                  >${escapeHtml(entryInstructions)}</p>
+                </div>
+                <form class="terminal-chat__entry-form" data-terminal-entry-form>
+                  <label class="terminal-chat__entry-field">
+                    <span class="terminal-chat__entry-label">Command buffer</span>
+                    <textarea
+                      class="terminal-chat__entry-textarea terminal__capture"
+                      data-terminal-capture
+                      data-terminal-entry-buffer
+                      rows="1"
+                      placeholder=""
+                      aria-describedby="${entryStatusId}"
+                      aria-label="Command buffer"
+                      autocomplete="off"
+                      autocorrect="off"
+                      autocapitalize="off"
+                      spellcheck="false"
+                    ></textarea>
+                  </label>
+                </form>
+              </section>
             </div>
-            <section class="terminal-chat__panel-section terminal-chat__panel-section--entry terminal__entry" data-terminal-entry>
-              <div class="terminal-chat__entry-head">
-                <button type="button" class="terminal-chat__focus" data-terminal-focus>Focus</button>
-                <p
-                  id="${entryStatusId}"
-                  class="terminal-chat__entry-status terminal__entry-status"
-                  role="status"
-                  aria-live="polite"
-                  data-terminal-entry-status
-                >${escapeHtml(entryInstructions)}</p>
-              </div>
-              <form class="terminal-chat__entry-form" data-terminal-entry-form>
-                <label class="terminal-chat__entry-field">
-                  <span class="terminal-chat__entry-label">Command buffer</span>
-                  <textarea
-                    class="terminal-chat__entry-textarea terminal__capture"
-                    data-terminal-capture
-                    data-terminal-entry-buffer
-                    rows="1"
-                    placeholder=""
-                    aria-describedby="${entryStatusId}"
-                    aria-label="Command buffer"
-                    autocomplete="off"
-                    autocorrect="off"
-                    autocapitalize="off"
-                    spellcheck="false"
-                  ></textarea>
-                </label>
-              </form>
-            </section>
           </div>
         </div>
       </div>
@@ -1322,6 +1323,7 @@ const createRuntime = (
     statusElements,
     indicatorElements,
     outputElement,
+    scrollContainer: viewport,
     captureElement,
     entryElement,
     entryForm,
@@ -1389,14 +1391,14 @@ const createRuntime = (
   };
 
   updateScrollLockState = () => {
-    const { scrollHeight, scrollTop, clientHeight } = runtime.outputElement;
+    const { scrollHeight, scrollTop, clientHeight } = runtime.scrollContainer;
     const distanceToBottom = scrollHeight - (scrollTop + clientHeight);
     runtime.autoScrollLocked = distanceToBottom > SCROLL_LOCK_EPSILON;
   };
 
   scrollOutputToBottom = (force = false) => {
     if (force || !runtime.autoScrollLocked) {
-      runtime.outputElement.scrollTop = runtime.outputElement.scrollHeight;
+      runtime.scrollContainer.scrollTop = runtime.scrollContainer.scrollHeight;
       runtime.pendingAutoScroll = false;
       updateScrollLockState();
     } else {
@@ -1447,218 +1449,21 @@ const createRuntime = (
     };
   })();
 
-  const normaliseWheelDelta = (event: WheelEvent): { deltaX: number; deltaY: number } => {
-    const { deltaMode } = event;
-    let deltaX = event.deltaX;
-    let deltaY = event.deltaY;
+  runtime.scrollContainer.addEventListener('scroll', handleOutputScroll, { passive: true });
 
-    if (deltaMode === WheelEvent.DOM_DELTA_LINE) {
-      const amount = resolveOutputLineHeight();
-      deltaX *= amount;
-      deltaY *= amount;
-    } else if (deltaMode === WheelEvent.DOM_DELTA_PAGE) {
-      const viewportSize = runtime.outputElement.clientHeight || resolveOutputLineHeight() * 12;
-      deltaX *= viewportSize;
-      deltaY *= viewportSize;
-    }
-
-    return { deltaX, deltaY };
-  };
-
-  const applyWheelScrollToOutput = (deltaX: number, deltaY: number): boolean => {
-    const output = runtime.outputElement;
-
-    if (deltaX === 0 && deltaY === 0) {
-      return false;
-    }
-
-    let moved = false;
-
-    if (deltaY !== 0) {
-      const previous = output.scrollTop;
-      output.scrollTop += deltaY;
-      moved ||= output.scrollTop !== previous;
-    }
-
-    if (deltaX !== 0) {
-      const previous = output.scrollLeft;
-      output.scrollLeft += deltaX;
-      moved ||= output.scrollLeft !== previous;
-    }
-
-    return moved;
-  };
-
-  const isScrollableOverflow = (value: string): boolean =>
-    value === 'auto' || value === 'scroll' || value === 'overlay';
-
-  const elementCanScroll = (
-    element: HTMLElement,
-    deltaX: number,
-    deltaY: number
-  ): boolean => {
-    if (typeof window === 'undefined' || typeof window.getComputedStyle !== 'function') {
-      return false;
-    }
-
-    const computed = window.getComputedStyle(element);
-
-    if (deltaY !== 0 && isScrollableOverflow(computed.overflowY)) {
-      const maxScrollTop = element.scrollHeight - element.clientHeight;
-      if (maxScrollTop > 0) {
-        if (deltaY < 0 && element.scrollTop > 0) {
-          return true;
-        }
-        if (deltaY > 0 && Math.ceil(element.scrollTop + element.clientHeight) < element.scrollHeight) {
-          return true;
-        }
-      }
-    }
-
-    if (deltaX !== 0 && isScrollableOverflow(computed.overflowX)) {
-      const maxScrollLeft = element.scrollWidth - element.clientWidth;
-      if (maxScrollLeft > 0) {
-        if (deltaX < 0 && element.scrollLeft > 0) {
-          return true;
-        }
-        if (deltaX > 0 && Math.ceil(element.scrollLeft + element.clientWidth) < element.scrollWidth) {
-          return true;
-        }
-      }
-    }
-
-    return false;
-  };
-
-  const shouldAllowDescendantScroll = (
-    event: WheelEvent,
-    deltaX: number,
-    deltaY: number
-  ): boolean => {
-    if (typeof event.composedPath === 'function') {
-      const path = event.composedPath();
-      for (const node of path) {
-        if (!(node instanceof HTMLElement)) {
-          continue;
-        }
-
-        if (!container.contains(node)) {
-          continue;
-        }
-
-        if (node === runtime.outputElement) {
-          break;
-        }
-
-        if (node.hasAttribute('data-scroll-lock-ignore')) {
-          return true;
-        }
-
-        if (elementCanScroll(node, deltaX, deltaY)) {
-          return true;
-        }
-      }
-
-      return false;
-    }
-
-    let current: EventTarget | null = event.target;
-    while (current instanceof HTMLElement && container.contains(current)) {
-      if (current === runtime.outputElement) {
-        break;
-      }
-
-      if (current.hasAttribute('data-scroll-lock-ignore')) {
-        return true;
-      }
-
-      if (elementCanScroll(current, deltaX, deltaY)) {
-        return true;
-      }
-
-      current = current.parentElement;
-    }
-
-    return false;
-  };
-
-  const scheduleScrollLockUpdate = () => {
-    if (typeof window !== 'undefined' && typeof window.requestAnimationFrame === 'function') {
-      window.requestAnimationFrame(() => {
-        updateScrollLockState();
-      });
+  const handleManualScrollIntent = () => {
+    if (typeof window === 'undefined' || typeof window.requestAnimationFrame !== 'function') {
+      updateScrollLockState();
       return;
     }
 
-    updateScrollLockState();
+    window.requestAnimationFrame(() => {
+      updateScrollLockState();
+    });
   };
 
-  const applyWheelEventToOutput = (event: WheelEvent): boolean => {
-    if (event.defaultPrevented) {
-      return false;
-    }
-
-    const { deltaX, deltaY } = normaliseWheelDelta(event);
-
-    if (deltaX === 0 && deltaY === 0) {
-      return false;
-    }
-
-    if (shouldAllowDescendantScroll(event, deltaX, deltaY)) {
-      return false;
-    }
-
-    const scrolled = applyWheelScrollToOutput(deltaX, deltaY);
-
-    if (!scrolled) {
-      if (deltaY < 0) {
-        runtime.autoScrollLocked = true;
-        scheduleScrollLockUpdate();
-      }
-      return false;
-    }
-
-    if (deltaY < 0) {
-      runtime.autoScrollLocked = true;
-    }
-
-    event.preventDefault();
-    scheduleScrollLockUpdate();
-    return true;
-  };
-
-  const handleOutputWheel = (event: WheelEvent) => {
-    applyWheelEventToOutput(event);
-  };
-
-  const handleContainerWheel = (event: WheelEvent) => {
-    if (event.defaultPrevented) {
-      return;
-    }
-
-    const pathTargets =
-      typeof event.composedPath === 'function' ? event.composedPath() : undefined;
-    if (pathTargets) {
-      if (!pathTargets.includes(container)) {
-        return;
-      }
-    } else if (!(event.target instanceof Node) || !container.contains(event.target)) {
-      return;
-    }
-
-    if (
-      event.target instanceof Element &&
-      event.target.closest('select, [data-scroll-lock-ignore]')
-    ) {
-      return;
-    }
-
-    applyWheelEventToOutput(event);
-  };
-
-  runtime.outputElement.addEventListener('scroll', handleOutputScroll, { passive: true });
-  runtime.outputElement.addEventListener('wheel', handleOutputWheel, { passive: false });
-  container.addEventListener('wheel', handleContainerWheel, { passive: false });
+  runtime.scrollContainer.addEventListener('wheel', handleManualScrollIntent, { passive: true });
+  runtime.scrollContainer.addEventListener('touchmove', handleManualScrollIntent, { passive: true });
 
   updateScrollLockState();
   scrollOutputToBottom(true);
@@ -1869,19 +1674,22 @@ const createRuntime = (
     runtime.viewport.style.removeProperty('height');
     runtime.viewport.style.removeProperty('max-height');
     runtime.viewport.style.removeProperty('min-height');
+    runtime.viewport.style.overflowY = 'auto';
+
     runtime.outputElement.style.removeProperty('height');
     runtime.outputElement.style.removeProperty('max-height');
     runtime.outputElement.style.removeProperty('min-height');
-    runtime.outputElement.style.overflowY = 'auto';
+    runtime.outputElement.style.overflowY = 'visible';
 
-    const computed = window.getComputedStyle(runtime.outputElement);
-    const lineHeightValue = Number.parseFloat(computed.lineHeight);
-    const fontSizeValue = Number.parseFloat(computed.fontSize);
+    const outputStyle = window.getComputedStyle(runtime.outputElement);
+    const viewportStyle = window.getComputedStyle(runtime.scrollContainer);
+    const lineHeightValue = Number.parseFloat(outputStyle.lineHeight);
+    const fontSizeValue = Number.parseFloat(outputStyle.fontSize);
     const fallbackLineHeight = Number.isFinite(fontSizeValue) ? fontSizeValue * 1.45 : 18;
     const lineHeight = Number.isFinite(lineHeightValue) && lineHeightValue > 0 ? lineHeightValue : fallbackLineHeight;
-    const paddingTop = Number.parseFloat(computed.paddingTop) || 0;
-    const paddingBottom = Number.parseFloat(computed.paddingBottom) || 0;
-    const measuredHeight = runtime.outputElement.clientHeight;
+    const paddingTop = Number.parseFloat(viewportStyle.paddingTop) || 0;
+    const paddingBottom = Number.parseFloat(viewportStyle.paddingBottom) || 0;
+    const measuredHeight = runtime.scrollContainer.clientHeight;
 
     if (measuredHeight > 0) {
       const availableForLines = Math.max(measuredHeight - paddingTop - paddingBottom, lineHeight);
