@@ -1,10 +1,11 @@
 import { ChatStore } from './state/chatStore.js';
-import { renderUtilityPanel } from './ui/utilityPanel.js';
 import { renderCheatSheet } from './ui/cheatsheet.js';
 import { renderSession } from './ui/sessionCard.js';
 import { renderTerminal } from './ui/terminal.js';
 import { setupThemeToggle } from './ui/themeToggle.js';
 import { describeMobilePlatform, detectMobilePlatform } from './ui/helpers.js';
+import { renderUtilityPanel } from './ui/utilityPanel.js';
+import { setupLoginGate } from './ui/loginGate.js';
 type ViewName = 'terminal' | 'settings';
 
 const isViewName = (value: string | undefined): value is ViewName =>
@@ -73,6 +74,7 @@ const setupViewSwitcher = (root: HTMLElement) => {
 
 export const mountChatter = (root: HTMLElement) => {
   const store = new ChatStore();
+  const loginGate = setupLoginGate(root, store);
 
   const mobilePlatform = detectMobilePlatform();
   if (mobilePlatform) {
@@ -137,5 +139,6 @@ export const mountChatter = (root: HTMLElement) => {
     detachViewSwitcher();
     themeToggle.dispose();
     unsubscribe();
+    loginGate.dispose();
   };
 };
