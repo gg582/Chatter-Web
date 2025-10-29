@@ -94,23 +94,24 @@ p {
   min-height: 100dvh;
   width: 100%;
   display: flex;
-  align-items: center;
   justify-content: center;
-  padding: clamp(2rem, 6vw, 4rem);
-  background: var(--terminal-bg);
+  padding: clamp(2.5rem, 8vw, 5rem) clamp(1.5rem, 6vw, 4rem);
+  background: radial-gradient(circle at top, rgba(56, 189, 248, 0.14), transparent 55%),
+    linear-gradient(180deg, rgba(15, 23, 42, 0.94) 0%, rgba(2, 6, 23, 0.98) 60%, #010314 100%);
   color: var(--terminal-text);
 }
 
 .chatter-gate__panel {
-  width: min(100%, 560px);
+  width: min(100%, 480px);
   display: flex;
   flex-direction: column;
-  gap: 1.5rem;
-  padding: clamp(2rem, 6vw, 3rem);
-  border-radius: 24px;
-  background: var(--surface);
-  border: 1px solid var(--border);
-  box-shadow: var(--shadow-soft);
+  gap: 1.75rem;
+  padding: clamp(2.25rem, 7vw, 3.25rem);
+  border-radius: 28px;
+  background: rgba(12, 19, 33, 0.75);
+  border: 1px solid rgba(148, 163, 184, 0.25);
+  box-shadow: 0 30px 60px rgba(15, 23, 42, 0.45);
+  backdrop-filter: blur(18px);
 }
 
 .chatter-gate__header {
@@ -165,26 +166,36 @@ p {
   color: var(--success);
 }
 
+
 .chatter-gate__form {
   display: flex;
   flex-direction: column;
-  gap: 1.25rem;
+  gap: 1.5rem;
 }
 
-.chatter-gate__field-grid {
-  display: grid;
+.chatter-gate__fieldset {
+  display: flex;
+  flex-direction: column;
   gap: 1rem;
-  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  padding: 1.25rem 1.5rem;
+  border-radius: 20px;
+  background: rgba(15, 23, 42, 0.6);
+  border: 1px solid rgba(148, 163, 184, 0.2);
+  box-shadow: inset 0 0 0 1px rgba(15, 23, 42, 0.4);
+}
+
+.chatter-gate__fieldset-label {
+  font-size: 0.75rem;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: rgba(148, 163, 184, 0.8);
+  font-weight: 600;
 }
 
 .chatter-gate__field {
   display: flex;
   flex-direction: column;
   gap: 0.4rem;
-}
-
-.chatter-gate__field--wide {
-  grid-column: span 2;
 }
 
 .chatter-gate__field-label {
@@ -195,18 +206,18 @@ p {
 
 .chatter-gate__input {
   width: 100%;
-  border-radius: 12px;
-  border: 1px solid var(--border);
-  background: rgba(15, 23, 42, 0.35);
+  border-radius: 14px;
+  border: 1px solid rgba(148, 163, 184, 0.35);
+  background: rgba(8, 11, 22, 0.9);
   color: var(--text);
-  padding: 0.65rem 0.85rem;
+  padding: 0.75rem 0.95rem;
   font-size: 1rem;
   transition: border 0.2s ease, box-shadow 0.2s ease;
 }
 
 .chatter-gate__input:focus-visible {
   outline: none;
-  border-color: var(--accent-sky);
+  border-color: rgba(56, 189, 248, 0.85);
   box-shadow: 0 0 0 3px rgba(56, 189, 248, 0.25);
 }
 
@@ -216,13 +227,15 @@ p {
 
 .chatter-gate__actions {
   display: flex;
-  flex-wrap: wrap;
+  flex-direction: column;
   gap: 0.75rem;
 }
 
 .chatter-gate__button {
-  flex: 1 1 160px;
-  min-width: 140px;
+  width: 100%;
+  min-height: 3.25rem;
+  font-size: 1.05rem;
+  box-shadow: 0 15px 30px rgba(56, 189, 248, 0.22);
 }
 
 .chatter-gate__feedback {
@@ -240,16 +253,17 @@ p {
 }
 
 @media (max-width: 640px) {
+  .chatter-gate {
+    padding: clamp(2rem, 8vw, 3rem) clamp(1rem, 5vw, 2rem);
+  }
+
   .chatter-gate__panel {
-    padding: clamp(1.5rem, 8vw, 2.25rem);
+    padding: clamp(1.75rem, 7vw, 2.25rem);
+    gap: 1.5rem;
   }
 
-  .chatter-gate__field-grid {
-    grid-template-columns: 1fr;
-  }
-
-  .chatter-gate__field--wide {
-    grid-column: span 1;
+  .chatter-gate__fieldset {
+    padding: 1.1rem 1.25rem;
   }
 }
 

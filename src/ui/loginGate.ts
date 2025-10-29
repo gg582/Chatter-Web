@@ -84,7 +84,6 @@ export const setupLoginGate = (stage: HTMLElement, store: ChatStore) => {
   const portInput = container.querySelector<HTMLInputElement>('[data-login-port]');
   const usernameInput = container.querySelector<HTMLInputElement>('[data-login-username]');
   const connectButton = container.querySelector<HTMLButtonElement>('[data-login-connect]');
-  const disconnectButton = container.querySelector<HTMLButtonElement>('[data-login-disconnect]');
   const statusLabel = container.querySelector<HTMLElement>('[data-login-status]');
   const feedbackElement = container.querySelector<HTMLElement>('[data-login-feedback]');
   const focusTarget = container.querySelector<HTMLElement>('[data-login-focus]') ?? connectButton;
@@ -214,10 +213,6 @@ export const setupLoginGate = (stage: HTMLElement, store: ChatStore) => {
 
     updateConnectAvailability();
 
-    if (disconnectButton) {
-      disconnectButton.disabled = !sessionActive;
-    }
-
     if (!sessionActive && focusTarget && lastSessionActive !== sessionActive) {
       focusTarget.focus({ preventScroll: true });
     }
@@ -261,17 +256,6 @@ export const setupLoginGate = (stage: HTMLElement, store: ChatStore) => {
     setFeedback(result.message ?? 'Session restored.', 'success', true);
   };
 
-  const handleDisconnect = () => {
-    const result = store.endSession();
-    if (!result.ok) {
-      setFeedback(result.error ?? 'Session already closed.', 'error', true);
-      return;
-    }
-    setFeedback(result.message ?? 'Session ended.', 'info', true);
-  };
-
-  disconnectButton?.addEventListener('click', handleDisconnect);
-
   const handleFormSubmit = (event: Event) => {
     event.preventDefault();
     handleConnect();
@@ -303,7 +287,6 @@ export const setupLoginGate = (stage: HTMLElement, store: ChatStore) => {
 
   return {
     dispose: () => {
-      disconnectButton?.removeEventListener('click', handleDisconnect);
       form?.removeEventListener('submit', handleFormSubmit);
       protocolSelect?.removeEventListener('change', handleProtocolChange);
       hostInput?.removeEventListener('input', handleFormInputChange);

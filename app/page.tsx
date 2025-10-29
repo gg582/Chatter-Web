@@ -34,7 +34,8 @@ export default function Home() {
             </span>
           </div>
           <form className="chatter-gate__form" data-login-form>
-            <div className="chatter-gate__field-grid">
+            <div className="chatter-gate__fieldset">
+              <span className="chatter-gate__fieldset-label">Connection</span>
               <label className="chatter-gate__field">
                 <span className="chatter-gate__field-label">Protocol</span>
                 <select className="chatter-gate__input" data-login-protocol required>
@@ -42,7 +43,7 @@ export default function Home() {
                   <option value="telnet">Telnet</option>
                 </select>
               </label>
-              <label className="chatter-gate__field chatter-gate__field--wide">
+              <label className="chatter-gate__field">
                 <span className="chatter-gate__field-label">Address</span>
                 <input
                   className="chatter-gate__input"
@@ -69,6 +70,9 @@ export default function Home() {
                   inputMode="numeric"
                 />
               </label>
+            </div>
+            <div className="chatter-gate__fieldset">
+              <span className="chatter-gate__fieldset-label">Identity</span>
               <label className="chatter-gate__field">
                 <span className="chatter-gate__field-label">Username</span>
                 <input
@@ -98,14 +102,6 @@ export default function Home() {
             <div className="chatter-gate__actions">
               <button type="submit" className="button chatter-gate__button" data-login-connect>
                 Connect
-              </button>
-              <button
-                type="button"
-                className="button button--ghost chatter-gate__button"
-                data-login-disconnect
-                disabled
-              >
-                Disconnect
               </button>
             </div>
           </form>
