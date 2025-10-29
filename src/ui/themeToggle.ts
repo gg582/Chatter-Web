@@ -7,19 +7,21 @@ type ThemeToggleRuntime = {
 const isThemeName = (value: string | null | undefined): value is ThemeName =>
   value === 'dark' || value === 'light';
 
+const coerceThemePreference = (theme: ThemeName): ThemeName => (theme === 'light' ? 'dark' : theme);
+
 const resolveInitialTheme = (
   root: HTMLElement,
   mediaQuery: MediaQueryList | null,
   documentElement: HTMLElement
 ): ThemeName => {
   if (isThemeName(root.dataset.theme)) {
-    return root.dataset.theme;
+    return coerceThemePreference(root.dataset.theme);
   }
   if (isThemeName(documentElement.dataset.theme)) {
-    return documentElement.dataset.theme;
+    return coerceThemePreference(documentElement.dataset.theme);
   }
   if (mediaQuery && mediaQuery.matches) {
-    return 'light';
+    return 'dark';
   }
   return 'dark';
 };
@@ -32,15 +34,16 @@ export const setupThemeToggle = (root: HTMLElement): ThemeToggleRuntime => {
   let currentTheme = resolveInitialTheme(root, prefersLightMediaQuery, documentElement);
 
   const applyTheme = (theme: ThemeName) => {
-    if (theme === currentTheme) {
+    const coercedTheme = coerceThemePreference(theme);
+    if (coercedTheme === currentTheme) {
       return;
     }
-    currentTheme = theme;
-    documentElement.dataset.theme = theme;
-    root.dataset.theme = theme;
+    currentTheme = coercedTheme;
+    documentElement.dataset.theme = coercedTheme;
+    root.dataset.theme = coercedTheme;
     root.dispatchEvent(
       new CustomEvent('chatter:theme-change', {
-        detail: { theme }
+        detail: { theme: coercedTheme }
       })
     );
   };
