@@ -5,6 +5,7 @@ import type { MobilePlatform } from './helpers.js';
 const runtimeMap = new WeakMap<HTMLElement, TerminalRuntime>();
 const textEncoder = new TextEncoder();
 const TARGET_STORAGE_KEY = 'chatter-terminal-target';
+const IDENTITY_STORAGE_KEY = 'chatter-terminal-identity';
 
 const parseServiceDomain = (
   value: string
@@ -31,6 +32,91 @@ type TargetOverrides = {
 
 const normaliseProtocolName = (value: string | undefined): 'telnet' | 'ssh' =>
   value === 'telnet' ? 'telnet' : 'ssh';
+
+type StoredIdentityEntry = {
+  username: string;
+};
+
+const readStoredIdentities = (): Record<string, StoredIdentityEntry> => {
+  if (typeof window === 'undefined' || typeof window.localStorage === 'undefined') {
+    return {};
+  }
+
+  try {
+    const raw = window.localStorage.getItem(IDENTITY_STORAGE_KEY);
+    if (!raw) {
+      return {};
+    }
+
+    const parsed = JSON.parse(raw) as unknown;
+    if (!parsed || typeof parsed !== 'object') {
+      return {};
+    }
+
+    const result: Record<string, StoredIdentityEntry> = {};
+    for (const [key, value] of Object.entries(parsed)) {
+      if (!key || typeof value !== 'object' || value === null) {
+        continue;
+      }
+      const username = (value as { username?: unknown }).username;
+      if (typeof username === 'string' && username.trim()) {
+        result[key] = { username: username.trim() };
+      }
+    }
+    return result;
+  } catch (error) {
+    console.warn('Failed to read terminal identity overrides', error);
+    return {};
+  }
+};
+
+const writeStoredIdentities = (entries: Record<string, StoredIdentityEntry>) => {
+  if (typeof window === 'undefined' || typeof window.localStorage === 'undefined') {
+    return;
+  }
+
+  const keys = Object.keys(entries);
+  if (keys.length === 0) {
+    window.localStorage.removeItem(IDENTITY_STORAGE_KEY);
+    return;
+  }
+
+  try {
+    window.localStorage.setItem(IDENTITY_STORAGE_KEY, JSON.stringify(entries));
+  } catch (error) {
+    console.warn('Failed to persist terminal identity overrides', error);
+  }
+};
+
+const readStoredUsername = (key: string): string => {
+  if (!key) {
+    return '';
+  }
+
+  const entries = readStoredIdentities();
+  const entry = entries[key];
+  return typeof entry?.username === 'string' ? entry.username : '';
+};
+
+const writeStoredUsername = (key: string, username: string) => {
+  if (!key) {
+    return;
+  }
+
+  const trimmed = username.trim();
+  const entries = readStoredIdentities();
+
+  if (!trimmed) {
+    if (key in entries) {
+      delete entries[key];
+      writeStoredIdentities(entries);
+    }
+    return;
+  }
+
+  entries[key] = { username: trimmed };
+  writeStoredIdentities(entries);
+};
 
 const loadTargetOverrides = (): TargetOverrides => {
   if (typeof window === 'undefined' || typeof window.localStorage === 'undefined') {
@@ -271,6 +357,18 @@ const resolveTarget = (): TerminalTarget => {
   };
 };
 
+const deriveIdentityKey = (target: TerminalTarget): string | null => {
+  const protocol = target.protocol || target.defaults.protocol;
+  const host = target.host || target.defaults.host;
+  if (!host) {
+    return null;
+  }
+
+  const port = target.port || target.defaults.port;
+  const portSuffix = port ? `:${port}` : '';
+  return `${protocol ?? 'ssh'}://${host}${portSuffix}`;
+};
+
 const resolveSocketUrl = (container: HTMLElement): string | null => {
   if (typeof window === 'undefined') {
     return null;
@@ -306,6 +404,8 @@ const resolveSocketUrl = (container: HTMLElement): string | null => {
 
   return base.toString();
 };
+
+const SCROLL_LOCK_EPSILON = 4;
 
 const keySequences: Record<string, string> = {
   Enter: '\r',
@@ -388,6 +488,10 @@ type TerminalRuntime = {
     currentLine: string;
   } | null;
   maxOutputLines: number;
+  autoScrollLocked: boolean;
+  pendingAutoScroll: boolean;
+  identityKey: string | null;
+  lastStoredUsername: string;
   appendLine: (text: string, kind?: TerminalLineKind) => void;
   updateStatus: (label: string, state: 'disconnected' | 'connecting' | 'connected') => void;
   updateConnectAvailability?: () => void;
@@ -1119,6 +1223,9 @@ const createRuntime = (
     return baseEntryHeight;
   };
 
+  let scrollOutputToBottom: (force?: boolean) => void = () => {};
+  let updateScrollLockState: () => void = () => {};
+
   const runtime: TerminalRuntime = {
     socket: null,
     statusElements,
@@ -1151,6 +1258,10 @@ const createRuntime = (
     incomingLineElement: null,
     asciiArtBlock: null,
     maxOutputLines: 600,
+    autoScrollLocked: false,
+    pendingAutoScroll: false,
+    identityKey: null,
+    lastStoredUsername: '',
     requestDisconnect: () => false,
     appendLine: (text: string, kind: TerminalLineKind = 'info') => {
       if (kind === 'incoming') {
@@ -1172,7 +1283,7 @@ const createRuntime = (
         runtime.incomingLineElement = null;
         runtime.incomingBuffer = '';
       }
-      runtime.outputElement.scrollTop = runtime.outputElement.scrollHeight;
+      scrollOutputToBottom();
     },
     updateStatus: (label, state) => {
       for (const element of runtime.statusElements) {
@@ -1184,6 +1295,49 @@ const createRuntime = (
       }
     }
   };
+
+  updateScrollLockState = () => {
+    const { scrollHeight, scrollTop, clientHeight } = runtime.outputElement;
+    const distanceToBottom = scrollHeight - (scrollTop + clientHeight);
+    runtime.autoScrollLocked = distanceToBottom > SCROLL_LOCK_EPSILON;
+  };
+
+  scrollOutputToBottom = (force = false) => {
+    if (force || !runtime.autoScrollLocked) {
+      runtime.outputElement.scrollTop = runtime.outputElement.scrollHeight;
+      runtime.pendingAutoScroll = false;
+      updateScrollLockState();
+    } else {
+      runtime.pendingAutoScroll = true;
+    }
+  };
+
+  const handleOutputScroll = () => {
+    const wasLocked = runtime.autoScrollLocked;
+    updateScrollLockState();
+    if (wasLocked && !runtime.autoScrollLocked && runtime.pendingAutoScroll) {
+      scrollOutputToBottom(true);
+    }
+  };
+
+  const handleOutputWheel = (event: WheelEvent) => {
+    if (event.deltaY < 0) {
+      runtime.autoScrollLocked = true;
+    }
+    if (typeof window !== 'undefined' && typeof window.requestAnimationFrame === 'function') {
+      window.requestAnimationFrame(() => {
+        updateScrollLockState();
+      });
+      return;
+    }
+    updateScrollLockState();
+  };
+
+  runtime.outputElement.addEventListener('scroll', handleOutputScroll, { passive: true });
+  runtime.outputElement.addEventListener('wheel', handleOutputWheel, { passive: true });
+
+  updateScrollLockState();
+  scrollOutputToBottom(true);
 
   const adjustEntryBufferHeight = () => {
     const target = runtime.captureElement;
@@ -1592,7 +1746,7 @@ const createRuntime = (
 
     runtime.incomingBuffer = buffer;
     runtime.incomingLineElement = lineElement;
-    runtime.outputElement.scrollTop = runtime.outputElement.scrollHeight;
+    scrollOutputToBottom();
   }
 
   const collectOverridesFromInputs = (): { overrides: TargetOverrides; errors: string[] } => {
@@ -1645,12 +1799,41 @@ const createRuntime = (
         ? 'Enter your SSH username'
         : 'Enter your BBS handle';
     runtime.usernameInput.placeholder = placeholder;
+    const identityKey = deriveIdentityKey(runtime.target);
+    const currentValue = runtime.usernameInput.value.trim();
+    runtime.identityKey = identityKey;
+
+    const storedUsername = identityKey ? readStoredUsername(identityKey) : '';
+    runtime.lastStoredUsername = storedUsername;
+    if (identityKey && storedUsername && (!currentValue || currentValue === runtime.target.defaultUsername)) {
+      runtime.usernameInput.value = storedUsername;
+      return;
+    }
+
+    if (!identityKey) {
+      runtime.lastStoredUsername = '';
+    }
+
     if (!runtime.usernameInput.value.trim() && runtime.target.defaultUsername) {
       runtime.usernameInput.value = runtime.target.defaultUsername;
     }
   };
 
   const hasUsername = () => runtime.usernameInput.value.trim().length > 0;
+
+  const persistIdentity = () => {
+    const key = runtime.identityKey ?? deriveIdentityKey(runtime.target);
+    if (!key) {
+      return;
+    }
+    runtime.identityKey = key;
+    const trimmed = runtime.usernameInput.value.trim();
+    if (trimmed === runtime.lastStoredUsername) {
+      return;
+    }
+    writeStoredUsername(key, runtime.usernameInput.value);
+    runtime.lastStoredUsername = trimmed;
+  };
 
   const syncPasswordField = () => {
     if (runtime.target.protocol === 'ssh') {
@@ -2221,6 +2404,7 @@ const createRuntime = (
 
   runtime.usernameInput.addEventListener('input', () => {
     updateConnectAvailability();
+    persistIdentity();
   });
 
   return runtime;
