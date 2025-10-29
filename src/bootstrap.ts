@@ -3,6 +3,7 @@ import { renderUtilityPanel } from './ui/utilityPanel.js';
 import { renderCheatSheet } from './ui/cheatsheet.js';
 import { renderSession } from './ui/sessionCard.js';
 import { renderTerminal } from './ui/terminal.js';
+import { setupThemeToggle } from './ui/themeToggle.js';
 import { describeMobilePlatform, detectMobilePlatform } from './ui/helpers.js';
 type ViewName = 'terminal' | 'settings';
 
@@ -108,12 +109,16 @@ export const mountChatter = (root: HTMLElement) => {
   }
 
   const detachViewSwitcher = setupViewSwitcher(root);
+  const themeToggle = setupThemeToggle(root);
 
   let runtime: ReturnType<typeof renderTerminal> | null = null;
   let disposed = false;
 
   const render = () => {
-    runtime = renderTerminal(store, terminalElement, { controlsHost: bridgeControlsElement });
+    runtime = renderTerminal(store, terminalElement, {
+      controlsHost: bridgeControlsElement,
+      themeHost: root
+    });
     renderSession(store, sessionElement, root);
     renderUtilityPanel(store, utilityElement);
     renderCheatSheet(cheatsheetElement);
@@ -127,8 +132,10 @@ export const mountChatter = (root: HTMLElement) => {
       return;
     }
     disposed = true;
+    runtime?.disposeResources?.();
     runtime?.requestDisconnect('Page closing');
     detachViewSwitcher();
+    themeToggle.dispose();
     unsubscribe();
   };
 };
