@@ -307,6 +307,8 @@ const resolveSocketUrl = (container: HTMLElement): string | null => {
   return base.toString();
 };
 
+const SCROLL_LOCK_EPSILON = 4;
+
 const keySequences: Record<string, string> = {
   Enter: '\r',
   Backspace: '\u007f',
@@ -388,6 +390,8 @@ type TerminalRuntime = {
     currentLine: string;
   } | null;
   maxOutputLines: number;
+  autoScrollLocked: boolean;
+  pendingAutoScroll: boolean;
   appendLine: (text: string, kind?: TerminalLineKind) => void;
   updateStatus: (label: string, state: 'disconnected' | 'connecting' | 'connected') => void;
   updateConnectAvailability?: () => void;
@@ -1119,6 +1123,9 @@ const createRuntime = (
     return baseEntryHeight;
   };
 
+  let scrollOutputToBottom: (force?: boolean) => void = () => {};
+  let updateScrollLockState: () => void = () => {};
+
   const runtime: TerminalRuntime = {
     socket: null,
     statusElements,
@@ -1151,6 +1158,8 @@ const createRuntime = (
     incomingLineElement: null,
     asciiArtBlock: null,
     maxOutputLines: 600,
+    autoScrollLocked: false,
+    pendingAutoScroll: false,
     requestDisconnect: () => false,
     appendLine: (text: string, kind: TerminalLineKind = 'info') => {
       if (kind === 'incoming') {
@@ -1172,7 +1181,7 @@ const createRuntime = (
         runtime.incomingLineElement = null;
         runtime.incomingBuffer = '';
       }
-      runtime.outputElement.scrollTop = runtime.outputElement.scrollHeight;
+      scrollOutputToBottom();
     },
     updateStatus: (label, state) => {
       for (const element of runtime.statusElements) {
@@ -1184,6 +1193,35 @@ const createRuntime = (
       }
     }
   };
+
+  updateScrollLockState = () => {
+    const { scrollHeight, scrollTop, clientHeight } = runtime.outputElement;
+    const distanceToBottom = scrollHeight - (scrollTop + clientHeight);
+    runtime.autoScrollLocked = distanceToBottom > SCROLL_LOCK_EPSILON;
+  };
+
+  scrollOutputToBottom = (force = false) => {
+    if (force || !runtime.autoScrollLocked) {
+      runtime.outputElement.scrollTop = runtime.outputElement.scrollHeight;
+      runtime.pendingAutoScroll = false;
+      updateScrollLockState();
+    } else {
+      runtime.pendingAutoScroll = true;
+    }
+  };
+
+  const handleOutputScroll = () => {
+    const wasLocked = runtime.autoScrollLocked;
+    updateScrollLockState();
+    if (wasLocked && !runtime.autoScrollLocked && runtime.pendingAutoScroll) {
+      scrollOutputToBottom(true);
+    }
+  };
+
+  runtime.outputElement.addEventListener('scroll', handleOutputScroll, { passive: true });
+
+  updateScrollLockState();
+  scrollOutputToBottom(true);
 
   const adjustEntryBufferHeight = () => {
     const target = runtime.captureElement;
@@ -1592,7 +1630,7 @@ const createRuntime = (
 
     runtime.incomingBuffer = buffer;
     runtime.incomingLineElement = lineElement;
-    runtime.outputElement.scrollTop = runtime.outputElement.scrollHeight;
+    scrollOutputToBottom();
   }
 
   const collectOverridesFromInputs = (): { overrides: TargetOverrides; errors: string[] } => {
