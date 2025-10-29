@@ -295,8 +295,13 @@ summary::-webkit-details-marker {
   top: clamp(1rem, 4vw, 2rem);
   right: clamp(1rem, 4vw, 2rem);
   display: flex;
-  gap: 0.65rem;
+  gap: 0.4rem;
   z-index: 60;
+}
+
+.chatter-stage__nav-cluster {
+  display: flex;
+  gap: 0.25rem;
 }
 
 .chatter-stage__nav-button {
@@ -329,9 +334,9 @@ summary::-webkit-details-marker {
 }
 
 .chatter-stage__nav-button--theme {
-  padding: 0.45rem 0.6rem;
-  min-width: 2.35rem;
-  font-size: 1.05rem;
+  padding: 0.35rem 0.5rem;
+  min-width: 2rem;
+  font-size: 1rem;
   line-height: 1;
 }
 
@@ -1103,22 +1108,43 @@ summary::-webkit-details-marker {
 }
 
 .utility-sections--wide {
-  display: flex;
-  flex-direction: column;
+  display: grid;
   gap: 1.5rem;
-  align-items: center;
+  width: 100%;
+  justify-items: stretch;
+  align-items: stretch;
+  grid-template-columns: minmax(0, 1fr);
+}
+
+@media (min-width: 1024px) {
+  .utility-sections--wide {
+    grid-template-columns: minmax(260px, 1fr) minmax(0, 3fr);
+    column-gap: clamp(1.5rem, 4vw, 2.75rem);
+  }
 }
 
 .utility-section--wide {
   width: 100%;
-  max-width: 960px;
+  max-width: none;
   align-self: stretch;
 }
 
 .utility-section--wide .cheatsheet__list {
   display: grid;
   gap: 0.75rem;
-  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+}
+
+.utility-section--commands {
+  height: 100%;
+}
+
+.utility-section--commands .cheatsheet__list {
+  grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+}
+
+.utility-section--commands .cheatsheet__item span {
+  word-break: break-word;
 }
 
 .utility-section__lead {
