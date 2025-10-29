@@ -5,6 +5,7 @@ import type { MobilePlatform } from './helpers.js';
 const runtimeMap = new WeakMap<HTMLElement, TerminalRuntime>();
 const textEncoder = new TextEncoder();
 const TARGET_STORAGE_KEY = 'chatter-terminal-target';
+const IDENTITY_STORAGE_KEY = 'chatter-terminal-identity';
 
 const parseServiceDomain = (
   value: string
@@ -31,6 +32,91 @@ type TargetOverrides = {
 
 const normaliseProtocolName = (value: string | undefined): 'telnet' | 'ssh' =>
   value === 'telnet' ? 'telnet' : 'ssh';
+
+type StoredIdentityEntry = {
+  username: string;
+};
+
+const readStoredIdentities = (): Record<string, StoredIdentityEntry> => {
+  if (typeof window === 'undefined' || typeof window.localStorage === 'undefined') {
+    return {};
+  }
+
+  try {
+    const raw = window.localStorage.getItem(IDENTITY_STORAGE_KEY);
+    if (!raw) {
+      return {};
+    }
+
+    const parsed = JSON.parse(raw) as unknown;
+    if (!parsed || typeof parsed !== 'object') {
+      return {};
+    }
+
+    const result: Record<string, StoredIdentityEntry> = {};
+    for (const [key, value] of Object.entries(parsed)) {
+      if (!key || typeof value !== 'object' || value === null) {
+        continue;
+      }
+      const username = (value as { username?: unknown }).username;
+      if (typeof username === 'string' && username.trim()) {
+        result[key] = { username: username.trim() };
+      }
+    }
+    return result;
+  } catch (error) {
+    console.warn('Failed to read terminal identity overrides', error);
+    return {};
+  }
+};
+
+const writeStoredIdentities = (entries: Record<string, StoredIdentityEntry>) => {
+  if (typeof window === 'undefined' || typeof window.localStorage === 'undefined') {
+    return;
+  }
+
+  const keys = Object.keys(entries);
+  if (keys.length === 0) {
+    window.localStorage.removeItem(IDENTITY_STORAGE_KEY);
+    return;
+  }
+
+  try {
+    window.localStorage.setItem(IDENTITY_STORAGE_KEY, JSON.stringify(entries));
+  } catch (error) {
+    console.warn('Failed to persist terminal identity overrides', error);
+  }
+};
+
+const readStoredUsername = (key: string): string => {
+  if (!key) {
+    return '';
+  }
+
+  const entries = readStoredIdentities();
+  const entry = entries[key];
+  return typeof entry?.username === 'string' ? entry.username : '';
+};
+
+const writeStoredUsername = (key: string, username: string) => {
+  if (!key) {
+    return;
+  }
+
+  const trimmed = username.trim();
+  const entries = readStoredIdentities();
+
+  if (!trimmed) {
+    if (key in entries) {
+      delete entries[key];
+      writeStoredIdentities(entries);
+    }
+    return;
+  }
+
+  entries[key] = { username: trimmed };
+  writeStoredIdentities(entries);
+};
 
 const loadTargetOverrides = (): TargetOverrides => {
   if (typeof window === 'undefined' || typeof window.localStorage === 'undefined') {
@@ -271,6 +357,18 @@ const resolveTarget = (): TerminalTarget => {
   };
 };
 
+const deriveIdentityKey = (target: TerminalTarget): string | null => {
+  const protocol = target.protocol || target.defaults.protocol;
+  const host = target.host || target.defaults.host;
+  if (!host) {
+    return null;
+  }
+
+  const port = target.port || target.defaults.port;
+  const portSuffix = port ? `:${port}` : '';
+  return `${protocol ?? 'ssh'}://${host}${portSuffix}`;
+};
+
 const resolveSocketUrl = (container: HTMLElement): string | null => {
   if (typeof window === 'undefined') {
     return null;
@@ -306,6 +404,8 @@ const resolveSocketUrl = (container: HTMLElement): string | null => {
 
   return base.toString();
 };
+
+const SCROLL_LOCK_EPSILON = 4;
 
 const keySequences: Record<string, string> = {
   Enter: '\r',
@@ -388,6 +488,10 @@ type TerminalRuntime = {
     currentLine: string;
   } | null;
   maxOutputLines: number;
+  autoScrollLocked: boolean;
+  pendingAutoScroll: boolean;
+  identityKey: string | null;
+  lastStoredUsername: string;
   appendLine: (text: string, kind?: TerminalLineKind) => void;
   updateStatus: (label: string, state: 'disconnected' | 'connecting' | 'connected') => void;
   updateConnectAvailability?: () => void;
@@ -1119,6 +1223,9 @@ const createRuntime = (
     return baseEntryHeight;
   };
 
+  let scrollOutputToBottom: (force?: boolean) => void = () => {};
+  let updateScrollLockState: () => void = () => {};
+
   const runtime: TerminalRuntime = {
     socket: null,
     statusElements,
@@ -1151,6 +1258,10 @@ const createRuntime = (
     incomingLineElement: null,
     asciiArtBlock: null,
     maxOutputLines: 600,
+    autoScrollLocked: false,
+    pendingAutoScroll: false,
+    identityKey: null,
+    lastStoredUsername: '',
     requestDisconnect: () => false,
     appendLine: (text: string, kind: TerminalLineKind = 'info') => {
       if (kind === 'incoming') {
@@ -1172,7 +1283,7 @@ const createRuntime = (
         runtime.incomingLineElement = null;
         runtime.incomingBuffer = '';
       }
-      runtime.outputElement.scrollTop = runtime.outputElement.scrollHeight;
+      scrollOutputToBottom();
     },
     updateStatus: (label, state) => {
       for (const element of runtime.statusElements) {
@@ -1184,6 +1295,253 @@ const createRuntime = (
       }
     }
   };
+
+  updateScrollLockState = () => {
+    const { scrollHeight, scrollTop, clientHeight } = runtime.outputElement;
+    const distanceToBottom = scrollHeight - (scrollTop + clientHeight);
+    runtime.autoScrollLocked = distanceToBottom > SCROLL_LOCK_EPSILON;
+  };
+
+  scrollOutputToBottom = (force = false) => {
+    if (force || !runtime.autoScrollLocked) {
+      runtime.outputElement.scrollTop = runtime.outputElement.scrollHeight;
+      runtime.pendingAutoScroll = false;
+      updateScrollLockState();
+    } else {
+      runtime.pendingAutoScroll = true;
+    }
+  };
+
+  const handleOutputScroll = () => {
+    const wasLocked = runtime.autoScrollLocked;
+    updateScrollLockState();
+    if (wasLocked && !runtime.autoScrollLocked && runtime.pendingAutoScroll) {
+      scrollOutputToBottom(true);
+    }
+  };
+
+  const resolveOutputLineHeight = (() => {
+    let cached = 0;
+    return (): number => {
+      if (cached > 0) {
+        return cached;
+      }
+
+      if (typeof window === 'undefined') {
+        cached = 24;
+        return cached;
+      }
+
+      const computed = window.getComputedStyle(runtime.outputElement);
+      const lineHeight = parsePixelValue(computed.lineHeight);
+      cached = lineHeight > 0 ? lineHeight : 24;
+      return cached;
+    };
+  })();
+
+  const normaliseWheelDelta = (event: WheelEvent): { deltaX: number; deltaY: number } => {
+    const { deltaMode } = event;
+    let deltaX = event.deltaX;
+    let deltaY = event.deltaY;
+
+    if (deltaMode === WheelEvent.DOM_DELTA_LINE) {
+      const amount = resolveOutputLineHeight();
+      deltaX *= amount;
+      deltaY *= amount;
+    } else if (deltaMode === WheelEvent.DOM_DELTA_PAGE) {
+      const viewportSize = runtime.outputElement.clientHeight || resolveOutputLineHeight() * 12;
+      deltaX *= viewportSize;
+      deltaY *= viewportSize;
+    }
+
+    return { deltaX, deltaY };
+  };
+
+  const applyWheelScrollToOutput = (deltaX: number, deltaY: number): boolean => {
+    const output = runtime.outputElement;
+
+    if (deltaX === 0 && deltaY === 0) {
+      return false;
+    }
+
+    let moved = false;
+
+    if (deltaY !== 0) {
+      const previous = output.scrollTop;
+      output.scrollTop += deltaY;
+      moved ||= output.scrollTop !== previous;
+    }
+
+    if (deltaX !== 0) {
+      const previous = output.scrollLeft;
+      output.scrollLeft += deltaX;
+      moved ||= output.scrollLeft !== previous;
+    }
+
+    return moved;
+  };
+
+  const isScrollableOverflow = (value: string): boolean =>
+    value === 'auto' || value === 'scroll' || value === 'overlay';
+
+  const elementCanScroll = (
+    element: HTMLElement,
+    deltaX: number,
+    deltaY: number
+  ): boolean => {
+    if (typeof window === 'undefined' || typeof window.getComputedStyle !== 'function') {
+      return false;
+    }
+
+    const computed = window.getComputedStyle(element);
+
+    if (deltaY !== 0 && isScrollableOverflow(computed.overflowY)) {
+      const maxScrollTop = element.scrollHeight - element.clientHeight;
+      if (maxScrollTop > 0) {
+        if (deltaY < 0 && element.scrollTop > 0) {
+          return true;
+        }
+        if (deltaY > 0 && Math.ceil(element.scrollTop + element.clientHeight) < element.scrollHeight) {
+          return true;
+        }
+      }
+    }
+
+    if (deltaX !== 0 && isScrollableOverflow(computed.overflowX)) {
+      const maxScrollLeft = element.scrollWidth - element.clientWidth;
+      if (maxScrollLeft > 0) {
+        if (deltaX < 0 && element.scrollLeft > 0) {
+          return true;
+        }
+        if (deltaX > 0 && Math.ceil(element.scrollLeft + element.clientWidth) < element.scrollWidth) {
+          return true;
+        }
+      }
+    }
+
+    return false;
+  };
+
+  const shouldAllowDescendantScroll = (
+    event: WheelEvent,
+    deltaX: number,
+    deltaY: number
+  ): boolean => {
+    if (typeof event.composedPath === 'function') {
+      const path = event.composedPath();
+      for (const node of path) {
+        if (!(node instanceof HTMLElement)) {
+          continue;
+        }
+
+        if (!container.contains(node)) {
+          continue;
+        }
+
+        if (node === runtime.outputElement) {
+          break;
+        }
+
+        if (node.hasAttribute('data-scroll-lock-ignore')) {
+          return true;
+        }
+
+        if (elementCanScroll(node, deltaX, deltaY)) {
+          return true;
+        }
+      }
+
+      return false;
+    }
+
+    let current: EventTarget | null = event.target;
+    while (current instanceof HTMLElement && container.contains(current)) {
+      if (current === runtime.outputElement) {
+        break;
+      }
+
+      if (current.hasAttribute('data-scroll-lock-ignore')) {
+        return true;
+      }
+
+      if (elementCanScroll(current, deltaX, deltaY)) {
+        return true;
+      }
+
+      current = current.parentElement;
+    }
+
+    return false;
+  };
+
+  const scheduleScrollLockUpdate = () => {
+    if (typeof window !== 'undefined' && typeof window.requestAnimationFrame === 'function') {
+      window.requestAnimationFrame(() => {
+        updateScrollLockState();
+      });
+      return;
+    }
+
+    updateScrollLockState();
+  };
+
+  const handleOutputWheel = (event: WheelEvent) => {
+    const { deltaY } = normaliseWheelDelta(event);
+    if (deltaY < 0) {
+      runtime.autoScrollLocked = true;
+    }
+
+    scheduleScrollLockUpdate();
+  };
+
+  const handleContainerWheel = (event: WheelEvent) => {
+    const pathTargets =
+      typeof event.composedPath === 'function' ? event.composedPath() : undefined;
+    if (pathTargets) {
+      if (!pathTargets.includes(container)) {
+        return;
+      }
+    } else if (!(event.target instanceof Node) || !container.contains(event.target)) {
+      return;
+    }
+
+    if (
+      event.target instanceof Element &&
+      event.target.closest('select, [data-scroll-lock-ignore]')
+    ) {
+      return;
+    }
+
+    const { deltaX, deltaY } = normaliseWheelDelta(event);
+
+    if (deltaX === 0 && deltaY === 0) {
+      return;
+    }
+
+    if (shouldAllowDescendantScroll(event, deltaX, deltaY)) {
+      return;
+    }
+
+    const scrolled = applyWheelScrollToOutput(deltaX, deltaY);
+
+    if (!scrolled) {
+      return;
+    }
+
+    if (deltaY < 0) {
+      runtime.autoScrollLocked = true;
+    }
+
+    event.preventDefault();
+    scheduleScrollLockUpdate();
+  };
+
+  runtime.outputElement.addEventListener('scroll', handleOutputScroll, { passive: true });
+  runtime.outputElement.addEventListener('wheel', handleOutputWheel, { passive: true });
+  container.addEventListener('wheel', handleContainerWheel, { passive: false });
+
+  updateScrollLockState();
+  scrollOutputToBottom(true);
 
   const adjustEntryBufferHeight = () => {
     const target = runtime.captureElement;
@@ -1592,7 +1950,7 @@ const createRuntime = (
 
     runtime.incomingBuffer = buffer;
     runtime.incomingLineElement = lineElement;
-    runtime.outputElement.scrollTop = runtime.outputElement.scrollHeight;
+    scrollOutputToBottom();
   }
 
   const collectOverridesFromInputs = (): { overrides: TargetOverrides; errors: string[] } => {
@@ -1645,12 +2003,41 @@ const createRuntime = (
         ? 'Enter your SSH username'
         : 'Enter your BBS handle';
     runtime.usernameInput.placeholder = placeholder;
+    const identityKey = deriveIdentityKey(runtime.target);
+    const currentValue = runtime.usernameInput.value.trim();
+    runtime.identityKey = identityKey;
+
+    const storedUsername = identityKey ? readStoredUsername(identityKey) : '';
+    runtime.lastStoredUsername = storedUsername;
+    if (identityKey && storedUsername && (!currentValue || currentValue === runtime.target.defaultUsername)) {
+      runtime.usernameInput.value = storedUsername;
+      return;
+    }
+
+    if (!identityKey) {
+      runtime.lastStoredUsername = '';
+    }
+
     if (!runtime.usernameInput.value.trim() && runtime.target.defaultUsername) {
       runtime.usernameInput.value = runtime.target.defaultUsername;
     }
   };
 
   const hasUsername = () => runtime.usernameInput.value.trim().length > 0;
+
+  const persistIdentity = () => {
+    const key = runtime.identityKey ?? deriveIdentityKey(runtime.target);
+    if (!key) {
+      return;
+    }
+    runtime.identityKey = key;
+    const trimmed = runtime.usernameInput.value.trim();
+    if (trimmed === runtime.lastStoredUsername) {
+      return;
+    }
+    writeStoredUsername(key, runtime.usernameInput.value);
+    runtime.lastStoredUsername = trimmed;
+  };
 
   const syncPasswordField = () => {
     if (runtime.target.protocol === 'ssh') {
@@ -2221,6 +2608,7 @@ const createRuntime = (
 
   runtime.usernameInput.addEventListener('input', () => {
     updateConnectAvailability();
+    persistIdentity();
   });
 
   return runtime;
