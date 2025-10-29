@@ -115,7 +115,10 @@ export const mountChatter = (root: HTMLElement) => {
   let disposed = false;
 
   const render = () => {
-    runtime = renderTerminal(store, terminalElement, { controlsHost: bridgeControlsElement });
+    runtime = renderTerminal(store, terminalElement, {
+      controlsHost: bridgeControlsElement,
+      themeHost: root
+    });
     renderSession(store, sessionElement, root);
     renderUtilityPanel(store, utilityElement);
     renderCheatSheet(cheatsheetElement);
@@ -129,6 +132,7 @@ export const mountChatter = (root: HTMLElement) => {
       return;
     }
     disposed = true;
+    runtime?.disposeResources?.();
     runtime?.requestDisconnect('Page closing');
     detachViewSwitcher();
     themeToggle.dispose();

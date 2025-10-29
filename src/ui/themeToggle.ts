@@ -58,6 +58,12 @@ export const setupThemeToggle = (root: HTMLElement): ThemeToggleRuntime => {
     document.documentElement.dataset.theme = theme;
     root.dataset.theme = theme;
 
+    root.dispatchEvent(
+      new CustomEvent('chatter:theme-change', {
+        detail: { theme }
+      })
+    );
+
     if (button) {
       const nextLabel = theme === 'light' ? 'Switch to dark mode' : 'Switch to light mode';
       const nextIcon = theme === 'light' ? '🌙' : '☀️';
