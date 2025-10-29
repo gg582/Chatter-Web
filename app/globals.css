@@ -38,9 +38,9 @@
   --border-strong: rgba(15, 23, 42, 0.18);
   --shadow-soft: 0 16px 40px rgba(15, 23, 42, 0.1);
   --shadow-strong: 0 24px 60px rgba(15, 23, 42, 0.15);
-  --text: #0f172a;
-  --text-soft: rgba(15, 23, 42, 0.78);
-  --text-faint: rgba(15, 23, 42, 0.56);
+  --text: #000000;
+  --text-soft: #000000;
+  --text-faint: rgba(0, 0, 0, 0.56);
   --accent-lime: #65a30d;
   --accent-pink: #f97316;
   --accent-sky: #0284c7;
@@ -53,8 +53,8 @@
   --terminal-bg: #f1f5f9;
   --terminal-panel: rgba(255, 255, 255, 0.92);
   --terminal-border: rgba(15, 23, 42, 0.12);
-  --terminal-text: #0f172a;
-  --terminal-muted: rgba(15, 23, 42, 0.58);
+  --terminal-text: #000000;
+  --terminal-muted: rgba(0, 0, 0, 0.58);
 }
 
 * {
@@ -2043,11 +2043,11 @@ summary::-webkit-details-marker {
 }
 
 [data-light-palette-override='true'] .terminal__output {
-  color: #0f172a !important;
+  color: #000000 !important;
 }
 
 [data-light-palette-override='true'] .terminal__output .terminal__segment {
-  color: #0f172a !important;
+  color: #000000 !important;
 }
 
 [data-palette-force-dark-text='true'] .terminal__output {
