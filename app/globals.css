@@ -43,7 +43,7 @@
   --text-faint: rgba(0, 0, 0, 0.56);
   --accent-lime: #65a30d;
   --accent-pink: #f97316;
-  --accent-sky: #0284c7;
+  --accent-sky: #1e3a8a;
   --warning: #ca8a04;
   --danger: #dc2626;
   --success: #16a34a;
@@ -91,7 +91,7 @@ p {
 }
 
 a {
-  color: #38bdf8;
+  color: var(--accent-sky);
   text-decoration: none;
 }
 
@@ -101,7 +101,7 @@ a:focus-visible {
 }
 
 :root[data-theme='light'] a {
-  color: #1d4ed8;
+  color: var(--accent-sky);
 }
 
 :root[data-theme='light'] a:hover,
@@ -990,7 +990,7 @@ summary::-webkit-details-marker {
   padding: 0.2rem 0.55rem;
   border-radius: 999px;
   background: rgba(56, 189, 248, 0.25);
-  color: #38bdf8;
+  color: var(--accent-sky);
 }
 
 .session-panel {
@@ -1017,7 +1017,7 @@ summary::-webkit-details-marker {
   letter-spacing: 0.08em;
   font-weight: 600;
   text-transform: uppercase;
-  color: #38bdf8;
+  color: var(--accent-sky);
 }
 
 .session-panel__titles {
@@ -1250,7 +1250,7 @@ summary::-webkit-details-marker {
 .cheatsheet__item code {
   font-family: 'IBM Plex Mono', 'SFMono-Regular', Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New', monospace;
   font-size: 0.82rem;
-  color: #38bdf8;
+  color: var(--accent-sky);
 }
 
 .cheatsheet-terminal {
@@ -1293,7 +1293,7 @@ summary::-webkit-details-marker {
 }
 
 .cheatsheet-terminal__prompt {
-  color: #38bdf8;
+  color: var(--accent-sky);
   margin-right: 0.45rem;
 }
 
@@ -1601,6 +1601,7 @@ summary::-webkit-details-marker {
   border: none;
   border-radius: 0;
   background: transparent;
+  max-height: max(320px, calc(100vh - 12rem));
 }
 
 .terminal-chat__output {
