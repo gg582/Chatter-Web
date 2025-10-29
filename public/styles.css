@@ -1926,6 +1926,24 @@ summary::-webkit-details-marker {
   align-items: stretch;
 }
 
+[data-light-palette-override='true'] .terminal__output {
+  color: #0f172a !important;
+}
+
+[data-light-palette-override='true'] .terminal__output .terminal__segment {
+  color: #0f172a !important;
+}
+
+[data-light-palette-override='true'] .terminal__output .terminal__segment--background::before {
+  background: rgba(15, 23, 42, 0.12) !important;
+}
+
+[data-light-palette-override='true']
+  .terminal__output
+  .terminal__line--trailing-background::after {
+  background: rgba(15, 23, 42, 0.08) !important;
+}
+
 .terminal__entry-status--muted {
   color: rgba(59, 130, 246, 0.75);
 }

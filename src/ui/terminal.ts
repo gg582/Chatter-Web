@@ -475,6 +475,7 @@ type TerminalRuntime = {
   passwordInput: HTMLInputElement;
   passwordField: HTMLElement;
   controlsHost: HTMLElement | null;
+  themeHost: HTMLElement | null;
   binaryDecoder: TextDecoder;
   connected: boolean;
   connecting: boolean;
@@ -498,11 +499,15 @@ type TerminalRuntime = {
   updateViewportSizing?: () => void;
   mobilePlatform: MobilePlatform | null;
   requestDisconnect: (reason?: string) => boolean;
+  disposeResources?: () => void;
 };
 
 type RenderTerminalOptions = {
   controlsHost?: HTMLElement | null;
+  themeHost?: HTMLElement | null;
 };
+
+type ThemeName = 'dark' | 'light';
 
 type AnsiState = {
   color: string | null;
@@ -848,6 +853,66 @@ const createRuntime = (
   const containerDatasetLabel = container.dataset.mobilePlatformLabel;
   const rootDatasetPlatform = root?.dataset.mobilePlatform;
   const rootDatasetLabel = root?.dataset.mobilePlatformLabel;
+
+  const fallbackDocumentElement =
+    typeof document !== 'undefined' ? (document.documentElement as HTMLElement | null) : null;
+  const themeHost = (options?.themeHost ?? root ?? fallbackDocumentElement) ?? null;
+
+  const readTheme = (): ThemeName => {
+    if (themeHost?.dataset.theme === 'light') {
+      return 'light';
+    }
+    if (fallbackDocumentElement?.dataset.theme === 'light') {
+      return 'light';
+    }
+    return 'dark';
+  };
+
+  let currentTheme: ThemeName = readTheme();
+  let paletteOverrideApplied = false;
+  let paletteAutoCommandSent = false;
+
+  const applyLightPaletteOverride = (enabled: boolean) => {
+    if (enabled === paletteOverrideApplied) {
+      return;
+    }
+    paletteOverrideApplied = enabled;
+    if (enabled) {
+      container.dataset.lightPaletteOverride = 'true';
+    } else {
+      delete container.dataset.lightPaletteOverride;
+    }
+  };
+
+  const syncLightPaletteOverride = () => {
+    const shouldApply = currentTheme === 'light' && !paletteAutoCommandSent;
+    applyLightPaletteOverride(shouldApply);
+  };
+
+  const resetLightPaletteAutoState = () => {
+    paletteAutoCommandSent = false;
+    syncLightPaletteOverride();
+  };
+
+  syncLightPaletteOverride();
+
+  const handleThemeChange = (event: Event) => {
+    const detail = (event as CustomEvent<{ theme?: string }>).detail;
+    const nextThemeName = detail?.theme === 'light' ? 'light' : detail?.theme === 'dark' ? 'dark' : readTheme();
+    currentTheme = nextThemeName;
+    if (nextThemeName === 'light') {
+      resetLightPaletteAutoState();
+    } else {
+      paletteAutoCommandSent = false;
+      applyLightPaletteOverride(false);
+    }
+  };
+
+  themeHost?.addEventListener('chatter:theme-change', handleThemeChange as EventListener);
+
+  const detachThemeListener = () => {
+    themeHost?.removeEventListener('chatter:theme-change', handleThemeChange as EventListener);
+  };
 
   let detectedPlatform: MobilePlatform | null = null;
   let detectedLabel = '';
@@ -1248,6 +1313,7 @@ const createRuntime = (
     passwordInput,
     passwordField,
     controlsHost,
+    themeHost,
     mobilePlatform,
     binaryDecoder: new TextDecoder(),
     socketUrl: typeof socketUrl === 'string' && socketUrl.trim() ? socketUrl.trim() : null,
@@ -2244,6 +2310,7 @@ const createRuntime = (
           updateConnectAvailability();
           setEntryStatus('Connected. Press Enter to forward the next line.', 'muted');
           updateEntryControls();
+          resetLightPaletteAutoState();
         });
         socket.addEventListener('message', (event) => {
           markBridgeActivity();
@@ -2275,6 +2342,7 @@ const createRuntime = (
           updateConnectAvailability();
           setEntryStatus('Disconnected. Buffer stays queued until you reconnect.', 'muted');
           updateEntryControls();
+          resetLightPaletteAutoState();
         });
         socket.addEventListener('error', () => {
           stopKeepAliveTimer();
@@ -2479,6 +2547,34 @@ const createRuntime = (
     }
   }
 
+  const maybeSendLightModePaletteCommand = () => {
+    if (currentTheme !== 'light') {
+      return;
+    }
+    if (paletteAutoCommandSent) {
+      return;
+    }
+
+    paletteAutoCommandSent = true;
+    const sentPalette = sendTextPayload('/palette adwaita\n');
+    if (!sentPalette) {
+      paletteAutoCommandSent = false;
+      syncLightPaletteOverride();
+      return;
+    }
+
+    setEntryStatus('Applied the Adwaita palette for light mode readability.', 'muted');
+    applyLightPaletteOverride(false);
+  };
+
+  const handleUserLineSent = (value: string) => {
+    if (!value || !value.trim()) {
+      return;
+    }
+
+    maybeSendLightModePaletteCommand();
+  };
+
   function flushNextBufferedLine(allowBlank = false): boolean {
     const buffered = normaliseBufferValue(runtime.captureElement.value);
     if (!buffered && !allowBlank) {
@@ -2520,6 +2616,8 @@ const createRuntime = (
     } else {
       setEntryStatus('Sent a blank line to the bridge.', 'default');
     }
+
+    handleUserLineSent(line);
 
     updateEntryControls();
     scheduleEntryResize();
@@ -2611,6 +2709,11 @@ const createRuntime = (
     persistIdentity();
   });
 
+  runtime.disposeResources = () => {
+    detachThemeListener();
+    applyLightPaletteOverride(false);
+  };
+
   return runtime;
 };
 
@@ -2620,11 +2723,13 @@ export const renderTerminal = (
   options?: RenderTerminalOptions
 ): TerminalRuntime => {
   const controlsHost = options?.controlsHost ?? null;
+  const themeHost = options?.themeHost ?? null;
 
   let runtime = runtimeMap.get(container);
-  if (!runtime || runtime.controlsHost !== controlsHost) {
+  if (!runtime || runtime.controlsHost !== controlsHost || runtime.themeHost !== themeHost) {
+    runtime?.disposeResources?.();
     runtime?.requestDisconnect('Rebuilding terminal controls');
-    runtime = createRuntime(container, { controlsHost });
+    runtime = createRuntime(container, { controlsHost, themeHost });
     runtimeMap.set(container, runtime);
   }
 
