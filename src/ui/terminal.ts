@@ -198,6 +198,12 @@ const stripIpv6Brackets = (value: string) =>
 
 const stripZoneId = (value: string) => (value.includes('%') ? value.split('%', 1)[0] : value);
 
+const palettesRequiringDarkText = new Set([
+  'moe',
+  'adwaita',
+  'neon-genesis-evangelion',
+]);
+
 const isPrivateIpv4 = (segments: number[]) => {
   if (segments.length !== 4 || segments.some((part) => Number.isNaN(part) || part < 0 || part > 255)) {
     return false;
@@ -871,6 +877,11 @@ const createRuntime = (
   let currentTheme: ThemeName = readTheme();
   let paletteOverrideApplied = false;
   let paletteAutoCommandSent = false;
+  let paletteDarkTextApplied = container.dataset.paletteForceDarkText === 'true';
+
+  if (!paletteDarkTextApplied && 'paletteForceDarkText' in container.dataset) {
+    delete container.dataset.paletteForceDarkText;
+  }
 
   const applyLightPaletteOverride = (enabled: boolean) => {
     if (enabled === paletteOverrideApplied) {
@@ -881,6 +892,18 @@ const createRuntime = (
       container.dataset.lightPaletteOverride = 'true';
     } else {
       delete container.dataset.lightPaletteOverride;
+    }
+  };
+
+  const applyPaletteDarkText = (enabled: boolean) => {
+    if (paletteDarkTextApplied === enabled) {
+      return;
+    }
+    paletteDarkTextApplied = enabled;
+    if (enabled) {
+      container.dataset.paletteForceDarkText = 'true';
+    } else {
+      delete container.dataset.paletteForceDarkText;
     }
   };
 
@@ -2565,6 +2588,7 @@ const createRuntime = (
 
     setEntryStatus('Applied the Adwaita palette for light mode readability.', 'muted');
     applyLightPaletteOverride(false);
+    applyPaletteDarkText(true);
   };
 
   const handleUserLineSent = (value: string) => {
@@ -2573,6 +2597,28 @@ const createRuntime = (
     }
 
     maybeSendLightModePaletteCommand();
+
+    const trimmed = value.trim();
+    if (!trimmed) {
+      return;
+    }
+
+    const paletteMatch = trimmed.match(/^\/?palette\s+(.*)$/i);
+    if (!paletteMatch) {
+      return;
+    }
+
+    const paletteName = paletteMatch[1]?.trim().split(/\s+/u, 1)[0]?.toLowerCase() ?? '';
+    if (!paletteName) {
+      applyPaletteDarkText(false);
+      return;
+    }
+
+    if (palettesRequiringDarkText.has(paletteName)) {
+      applyPaletteDarkText(true);
+    } else {
+      applyPaletteDarkText(false);
+    }
   };
 
   function flushNextBufferedLine(allowBlank = false): boolean {

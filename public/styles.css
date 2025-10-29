@@ -1977,6 +1977,14 @@ summary::-webkit-details-marker {
   color: #0f172a !important;
 }
 
+[data-palette-force-dark-text='true'] .terminal__output {
+  color: #000 !important;
+}
+
+[data-palette-force-dark-text='true'] .terminal__output .terminal__segment {
+  color: #000 !important;
+}
+
 [data-light-palette-override='true'] .terminal__output .terminal__segment--background::before {
   background: rgba(15, 23, 42, 0.12) !important;
 }
