@@ -831,16 +831,69 @@ const applyTrailingBackground = (element: HTMLElement, trailingBackground: strin
   element.classList.remove('terminal__line--trailing-background');
 };
 
-const renderAnsiLine = (target: HTMLElement, content: string) => {
-  if (!content) {
-    target.replaceChildren();
-    applyTrailingBackground(target, null);
+const pendingLineRenders = new Map<HTMLElement, string>();
+const lastRenderedLine = new WeakMap<HTMLElement, string>();
+let lineRenderScheduled = false;
+
+const flushPendingLineRenders = () => {
+  lineRenderScheduled = false;
+  if (pendingLineRenders.size === 0) {
     return;
   }
 
-  const { fragment, trailingBackground } = createAnsiFragment(content);
-  target.replaceChildren(fragment);
-  applyTrailingBackground(target, trailingBackground);
+  const entries = Array.from(pendingLineRenders.entries());
+  pendingLineRenders.clear();
+
+  for (const [target, content] of entries) {
+    if (!target.isConnected) {
+      lastRenderedLine.delete(target);
+      continue;
+    }
+
+    const nextContent = content ?? '';
+    const previous = lastRenderedLine.get(target) ?? '';
+    if (previous === nextContent) {
+      continue;
+    }
+
+    if (!nextContent) {
+      target.replaceChildren();
+      applyTrailingBackground(target, null);
+      lastRenderedLine.set(target, '');
+      continue;
+    }
+
+    const { fragment, trailingBackground } = createAnsiFragment(nextContent);
+    target.replaceChildren(fragment);
+    applyTrailingBackground(target, trailingBackground);
+    lastRenderedLine.set(target, nextContent);
+  }
+};
+
+const schedulePendingLineRenderFlush = () => {
+  if (lineRenderScheduled) {
+    return;
+  }
+  lineRenderScheduled = true;
+
+  const schedule =
+    typeof window !== 'undefined' && typeof window.requestAnimationFrame === 'function'
+      ? window.requestAnimationFrame.bind(window)
+      : (callback: FrameRequestCallback) => {
+          setTimeout(() => {
+            const timestamp = typeof performance !== 'undefined' ? performance.now() : Date.now();
+            callback(timestamp);
+          }, 0);
+        };
+
+  schedule(() => {
+    flushPendingLineRenders();
+  });
+};
+
+const renderAnsiLine = (target: HTMLElement, content: string) => {
+  pendingLineRenders.set(target, content);
+  schedulePendingLineRenderFlush();
 };
 
 const limitOutputLines = (output: HTMLElement, maxLines = 600) => {
@@ -1850,7 +1903,9 @@ const createRuntime = (
     }
     block.currentLine = currentLine;
     const visibleLines = currentLine ? [...block.lines, currentLine] : [...block.lines];
-    block.element.textContent = visibleLines.join('\n');
+    const content = visibleLines.join('\n');
+    block.element.textContent = content;
+    lastRenderedLine.set(block.element, content);
   };
 
   const startAsciiArtBlock = (headerLine: string, element: HTMLPreElement) => {
@@ -1863,6 +1918,7 @@ const createRuntime = (
     element.dataset.terminalBlock = 'ascii-art';
     applyTrailingBackground(element, null);
     element.textContent = headerLine;
+    lastRenderedLine.set(element, headerLine);
     runtime.incomingLineElement = element;
     runtime.incomingBuffer = '';
   };
@@ -1874,7 +1930,9 @@ const createRuntime = (
     }
     block.lines.push(line);
     block.currentLine = '';
-    block.element.textContent = block.lines.join('\n');
+    const content = block.lines.join('\n');
+    block.element.textContent = content;
+    lastRenderedLine.set(block.element, content);
   };
 
   const finishAsciiArtBlock = () => {
@@ -1883,7 +1941,9 @@ const createRuntime = (
       return;
     }
     block.currentLine = '';
-    block.element.textContent = block.lines.join('\n');
+    const content = block.lines.join('\n');
+    block.element.textContent = content;
+    lastRenderedLine.set(block.element, content);
     runtime.asciiArtBlock = null;
     runtime.incomingLineElement = null;
     runtime.incomingBuffer = '';
@@ -1895,6 +1955,7 @@ const createRuntime = (
     const { fragment, trailingBackground } = createAnsiFragment(line);
     entry.append(fragment);
     applyTrailingBackground(entry, trailingBackground);
+    lastRenderedLine.set(entry, line);
     runtime.outputElement.append(entry);
     limitOutputLines(runtime.outputElement, runtime.maxOutputLines);
   };
@@ -2617,30 +2678,69 @@ const createRuntime = (
     }
   };
 
-  function flushNextBufferedLine(allowBlank = false): boolean {
+  function flushNextBufferedLine(allowBlank = false, flushAll = false): boolean {
     const buffered = normaliseBufferValue(runtime.captureElement.value);
-    if (!buffered && !allowBlank) {
-      setEntryStatus('Buffer is empty. Type a command first or press Enter to send a blank line.', 'muted');
-      return false;
+
+    if (!buffered) {
+      if (!allowBlank) {
+        setEntryStatus('Buffer is empty. Type a command first or press Enter to send a blank line.', 'muted');
+        return false;
+      }
+
+      const sentBlank = sendTextPayload('\n');
+      if (!sentBlank) {
+        return false;
+      }
+
+      setEntryStatus('Sent a blank line to the bridge.', 'default');
+      handleUserLineSent('');
+      updateEntryControls();
+      scheduleEntryResize();
+      return true;
     }
 
-    let line = '';
     let remainder = '';
+    const linesToSend: string[] = [];
 
-    if (buffered) {
+    if (flushAll) {
+      linesToSend.push(...buffered.split('\n'));
+    } else {
       const newlineIndex = buffered.indexOf('\n');
       if (newlineIndex === -1) {
-        line = buffered;
-        remainder = '';
+        linesToSend.push(buffered);
       } else {
-        line = buffered.slice(0, newlineIndex);
+        linesToSend.push(buffered.slice(0, newlineIndex));
         remainder = buffered.slice(newlineIndex + 1);
       }
     }
 
-    const sent = sendTextPayload(`${line}\n`);
-    if (!sent) {
-      return false;
+    if (flushAll) {
+      remainder = '';
+    }
+
+    let sentCount = 0;
+    for (const line of linesToSend) {
+      const sent = sendTextPayload(`${line}\n`);
+      if (!sent) {
+        const unsentLines = linesToSend.slice(sentCount).join('\n');
+        const newBuffer = flushAll
+          ? [unsentLines, remainder].filter(Boolean).join('\n')
+          : [line, remainder].filter(Boolean).join('\n');
+        runtime.captureElement.value = newBuffer;
+        scheduleEntryResize();
+        try {
+          const position = runtime.captureElement.value.length;
+          runtime.captureElement.setSelectionRange(position, position);
+        } catch (error) {
+          // Ignore selection errors
+        }
+        runtime.captureElement.focus();
+        updateEntryControls();
+        return false;
+      }
+
+      handleUserLineSent(line);
+      sentCount += 1;
     }
 
     runtime.captureElement.value = remainder;
@@ -2653,24 +2753,103 @@ const createRuntime = (
     }
     runtime.captureElement.focus();
 
-    if (line) {
+    if (flushAll && linesToSend.length > 1) {
+      setEntryStatus(`Sent ${linesToSend.length} lines to the bridge.`, 'default');
+    } else if (linesToSend[0]) {
       setEntryStatus('Sent the next line to the bridge.', 'default');
     } else {
       setEntryStatus('Sent a blank line to the bridge.', 'default');
     }
-
-    handleUserLineSent(line);
 
     updateEntryControls();
     scheduleEntryResize();
     return true;
   }
 
+    const hasMultipleBufferedLines = () =>
+      normaliseBufferValue(runtime.captureElement.value).includes('\n');
+
+    const LOCAL_EDITING_KEYS = new Set([
+      'ArrowUp',
+      'ArrowDown',
+      'ArrowLeft',
+      'ArrowRight',
+      'Home',
+      'End',
+      'PageUp',
+      'PageDown',
+      'Delete',
+      'Insert'
+    ]);
+
+    const insertTabCharacter = (target: HTMLTextAreaElement) => {
+      const start = target.selectionStart ?? target.value.length;
+      const end = target.selectionEnd ?? target.value.length;
+      const before = target.value.slice(0, start);
+      const after = target.value.slice(end);
+      target.value = `${before}\t${after}`;
+      try {
+        const nextPosition = start + 1;
+        target.setSelectionRange(nextPosition, nextPosition);
+      } catch (error) {
+        // Ignore selection errors when environments do not support setSelectionRange
+      }
+      updateEntryControls();
+      scheduleEntryResize();
+    };
+
+    const isEditingMultilineBuffer = () => {
+      const target = runtime.captureElement;
+      const value = target.value;
+      if (!value) {
+        return false;
+      }
+
+      if (value.includes('\n')) {
+        return true;
+      }
+
+      const selectionStart = target.selectionStart;
+      const selectionEnd = target.selectionEnd;
+
+      if (typeof selectionStart !== 'number' || typeof selectionEnd !== 'number') {
+        return false;
+      }
+
+      const caretAtEnd = selectionStart === value.length && selectionEnd === value.length;
+      return !caretAtEnd;
+    };
+
     runtime.captureElement.addEventListener('keydown', (event) => {
-      if (event.key === 'Enter' && !event.shiftKey && !event.altKey) {
+      const editingBuffer = isEditingMultilineBuffer();
+
+      if (event.key === 'Enter') {
+        if ((event.ctrlKey || event.metaKey) && !event.shiftKey && !event.altKey) {
+          event.preventDefault();
+          const flushAll = editingBuffer || hasMultipleBufferedLines();
+          flushNextBufferedLine(true, flushAll);
+          return;
+        }
+
+        if (event.altKey || event.metaKey || event.shiftKey || editingBuffer) {
+          return;
+        }
+
         event.preventDefault();
         flushNextBufferedLine(true);
         return;
+      }
+
+      if (editingBuffer && !event.ctrlKey && !event.metaKey) {
+        if (event.key === 'Tab') {
+          event.preventDefault();
+          insertTabCharacter(runtime.captureElement);
+          return;
+        }
+
+        if (LOCAL_EDITING_KEYS.has(event.key)) {
+          return;
+        }
       }
 
       if (event.key === 'Backspace') {
@@ -2713,16 +2892,8 @@ const createRuntime = (
       if (!isSocketOpen()) {
         if (event.key === 'Tab') {
           event.preventDefault();
-          const target = runtime.captureElement;
-          const start = target.selectionStart ?? target.value.length;
-          const end = target.selectionEnd ?? target.value.length;
-          target.value = `${target.value.slice(0, start)}\t${target.value.slice(end)}`;
-          try {
-            target.setSelectionRange(start + 1, start + 1);
-          } catch (error) {
-            // Ignore selection errors when environments do not support setSelectionRange
-          }
-          updateEntryControls();
+          insertTabCharacter(runtime.captureElement);
+          return;
         }
         return;
       }
@@ -2751,12 +2922,14 @@ const createRuntime = (
       }
 
       event.preventDefault();
-      flushNextBufferedLine(true);
+      const flushAll = hasMultipleBufferedLines();
+      flushNextBufferedLine(true, flushAll);
     });
 
     runtime.entryForm.addEventListener('submit', (event) => {
       event.preventDefault();
-      flushNextBufferedLine(false);
+      const flushAll = hasMultipleBufferedLines();
+      flushNextBufferedLine(false, flushAll);
     });
 
     runtime.captureElement.addEventListener('input', () => {
