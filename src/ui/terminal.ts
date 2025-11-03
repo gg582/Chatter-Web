@@ -2002,41 +2002,44 @@ const createRuntime = (
   const stripAnsi = (str: string) => str.replace(/\u001b\[[0-9;]*[a-zA-Z]/g, '');
 
   const parseBubbleMessage = (lines: string[]): { author: string; content: string } | null => {
-    if (lines.length < 3) {
+    if (lines.length < 2) {
       return null;
     }
 
     const strippedLines = lines.map(stripAnsi);
-
     const topBorder = strippedLines[0];
     const bottomBorder = strippedLines[strippedLines.length - 1];
 
-    if (!topBorder.startsWith('╭') || !topBorder.endsWith('╮') || !bottomBorder.startsWith('╰') || !bottomBorder.endsWith('╯')) {
+    const topLeft = topBorder[0];
+    const topRight = topBorder[topBorder.length - 1];
+    const bottomLeft = bottomBorder[0];
+    const bottomRight = bottomBorder[bottomBorder.length - 1];
+
+    if (topLeft !== '╭' || topRight !== '╮' || bottomLeft !== '╰' || bottomRight !== '╯') {
       return null;
     }
 
-    const contentLines = strippedLines.slice(1, -1).map(line => line.substring(line.indexOf('│') + 1, line.lastIndexOf('│')).trim());
-    if (contentLines.length === 0) {
-      return null;
-    }
+    const contentLines = strippedLines.slice(1, -1).map(line => {
+      let content = line;
+      if (content.startsWith('│')) {
+        content = content.substring(1);
+      }
+      if (content.endsWith('│')) {
+        content = content.substring(0, content.length - 1);
+      }
+      return content.trim();
+    });
 
+    let content = contentLines.join('\n');
     let author = '';
-    let content = '';
 
-    const authorMatch = contentLines[0].match(/\[(.*?)\]/);
+    const authorMatch = content.match(/^s*\[([^\]]+)\]\s*/);
     if (authorMatch) {
       author = authorMatch[1].trim();
-      content = contentLines.map((line, index) => {
-        if (index === 0) {
-          return line.substring(line.indexOf(']') + 1).trim();
-        } 
-        return line;
-      }).join('\n');
-    } else {
-      content = contentLines.join('\n');
+      content = content.substring(authorMatch[0].length);
     }
 
-    return { author, content };
+    return { author, content: content.trim() };
   };
 
   function processIncomingChunk(chunk: string) {
