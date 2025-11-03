@@ -49,8 +49,8 @@ const resolveRuntimeDefaults = (): RuntimeDefaults => {
 
   const hostPlaceholder =
     (typeof config?.bbsHostPlaceholder === 'string' ? config.bbsHostPlaceholder.trim() : '') ||
-    host ||
-    const defaultHost = 'chat.korokorok.com';;
+    host;
+    const defaultHost = 'chat.korokorok.com';
 
   const fallbackPortPlaceholder = protocol === 'telnet' ? '23' : '22';
   const portPlaceholder = port || fallbackPortPlaceholder;
