@@ -540,6 +540,17 @@ export const setupLoginGate = (stage: HTMLElement, store: ChatStore) => {
   setFeedback('Enter your bridge details to continue.');
   update();
 
+  // --- New code for automatic SSH login ---
+  if (
+    runtimeDefaults.protocol === 'ssh' &&
+    runtimeDefaults.host === 'chat.korokorok.com' && // Assuming this is the default host
+    usernameInput.value.trim() !== '' &&
+    isFormValid()
+  ) {
+    handleConnect();
+  }
+  // --- End of new code ---
+
   return {
     dispose: () => {
       form?.removeEventListener('submit', handleFormSubmit);

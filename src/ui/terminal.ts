@@ -2243,7 +2243,7 @@ const createRuntime = (
       (protocolSelect.value === 'ssh' || protocolSelect.value === 'telnet'
         ? protocolSelect.value
         : runtime.target.defaults.protocol) ?? 'telnet';
-    hostInput.placeholder = runtime.target.defaults.host || runtime.target.placeholders.host || 'chat.korokorok.com';
+    hostInput.placeholder = runtime.target.defaults.host || runtime.target.placeholders.host || 'bbs.example.com';
     const fallbackPort =
       runtime.target.defaults.port || (protocolValue === 'ssh' ? '22' : protocolValue === 'telnet' ? '23' : '');
     portInput.placeholder = fallbackPort || runtime.target.placeholders.port || '23';

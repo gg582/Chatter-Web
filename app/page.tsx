@@ -50,7 +50,7 @@ export default function Home() {
                 <input
                   className="chatter-gate__input"
                   type="text"
-                  placeholder="chat.korokorok.com"
+                  placeholder="bbs.example.com"
                   data-login-host
                   data-login-focus
                   required
