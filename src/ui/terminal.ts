@@ -891,10 +891,7 @@ const schedulePendingLineRenderFlush = () => {
   });
 };
 
-const renderAnsiLine = (target: HTMLElement, content: string) => {
-  pendingLineRenders.set(target, content);
-  schedulePendingLineRenderFlush();
-};
+
 
 const limitOutputLines = (output: HTMLElement, maxLines = 600) => {
   const safeMaxLines = Number.isFinite(maxLines) && maxLines > 0 ? Math.floor(maxLines) : 600;
@@ -2000,13 +1997,46 @@ const createRuntime = (
     processIncomingChunk(chunk);
   }
 
-  const handleRegularLineCommit = (line: string, element: HTMLPreElement | null) => {
-    if (!shouldStartAsciiArtBlock(line)) {
-      return;
+
+
+  const stripAnsi = (str: string) => str.replace(/\u001b\[[0-9;]*[a-zA-Z]/g, '');
+
+  const parseBubbleMessage = (lines: string[]): { author: string; content: string } | null => {
+    if (lines.length < 3) {
+      return null;
     }
 
-    const target = element ?? ensureIncomingLine();
-    startAsciiArtBlock(line, target);
+    const strippedLines = lines.map(stripAnsi);
+
+    const topBorder = strippedLines[0];
+    const bottomBorder = strippedLines[strippedLines.length - 1];
+
+    if (!topBorder.startsWith('╭') || !topBorder.endsWith('╮') || !bottomBorder.startsWith('╰') || !bottomBorder.endsWith('╯')) {
+      return null;
+    }
+
+    const contentLines = strippedLines.slice(1, -1).map(line => line.substring(line.indexOf('│') + 1, line.lastIndexOf('│')).trim());
+    if (contentLines.length === 0) {
+      return null;
+    }
+
+    let author = '';
+    let content = '';
+
+    const authorMatch = contentLines[0].match(/\[(.*?)\]/);
+    if (authorMatch) {
+      author = authorMatch[1].trim();
+      content = contentLines.map((line, index) => {
+        if (index === 0) {
+          return line.substring(line.indexOf(']') + 1).trim();
+        } 
+        return line;
+      }).join('\n');
+    } else {
+      content = contentLines.join('\n');
+    }
+
+    return { author, content };
   };
 
   function processIncomingChunk(chunk: string) {
@@ -2014,73 +2044,46 @@ const createRuntime = (
       return;
     }
 
-    let buffer = runtime.incomingBuffer;
-    let lineElement = runtime.incomingLineElement;
-    let needsRender = false;
+    let buffer = runtime.incomingBuffer + chunk;
+    let lines = buffer.split('\n');
+    buffer = lines.pop() || '';
 
-    for (const char of chunk) {
-      if (char === '\r') {
-        if (runtime.asciiArtBlock) {
-          updateAsciiArtPreview(buffer);
-          lineElement = runtime.asciiArtBlock.element;
-          runtime.incomingLineElement = runtime.asciiArtBlock.element;
-        } else {
-          const target = ensureIncomingLine();
-          renderAnsiLine(target, buffer);
-          lineElement = runtime.incomingLineElement;
-        }
-        buffer = '';
-        needsRender = false;
-        continue;
-      }
+    let bubbleLines: string[] = [];
+    let inBubble = false;
 
-      if (char === '\n') {
-        if (runtime.asciiArtBlock) {
-          updateAsciiArtPreview(buffer);
-          handleAsciiLineCommit(buffer);
-        } else {
-          if (buffer || !lineElement) {
-            const target = ensureIncomingLine();
-            renderAnsiLine(target, buffer);
-            lineElement = runtime.incomingLineElement;
+    for (const line of lines) {
+      const strippedLine = stripAnsi(line);
+      if (strippedLine.startsWith('╭')) {
+        inBubble = true;
+        bubbleLines.push(line);
+      } else if (inBubble) {
+        bubbleLines.push(line);
+        if (strippedLine.startsWith('╰')) {
+          const bubble = parseBubbleMessage(bubbleLines);
+          if (bubble) {
+            const bubbleElement = document.createElement('div');
+            bubbleElement.className = 'chat-message';
+            const authorElement = bubble.author ? `<strong>${escapeHtml(bubble.author)}</strong>` : '';
+            bubbleElement.innerHTML = `
+              <div class="chat-message__meta">
+                ${authorElement}
+                <span>${new Date().toLocaleTimeString()}</span>
+              </div>
+              <p class="chat-message__body">${escapeHtml(bubble.content)}</p>
+            `;
+            runtime.outputElement.append(bubbleElement);
+          } else {
+            bubbleLines.forEach(l => appendStandaloneLine(l));
           }
-          handleRegularLineCommit(buffer, lineElement);
+          inBubble = false;
+          bubbleLines = [];
         }
-
-        buffer = '';
-        lineElement = runtime.asciiArtBlock ? runtime.asciiArtBlock.element : null;
-        runtime.incomingBuffer = '';
-        runtime.incomingLineElement = runtime.asciiArtBlock ? runtime.asciiArtBlock.element : null;
-        needsRender = false;
-        continue;
-      }
-
-      if (char === '\u0008') {
-        if (buffer) {
-          buffer = buffer.slice(0, -1);
-          needsRender = true;
-        }
-        continue;
-      }
-
-      buffer += char;
-      needsRender = true;
-    }
-
-    if (needsRender) {
-      if (runtime.asciiArtBlock) {
-        updateAsciiArtPreview(buffer);
-        lineElement = runtime.asciiArtBlock.element;
-        runtime.incomingLineElement = runtime.asciiArtBlock.element;
       } else {
-        const target = ensureIncomingLine();
-        renderAnsiLine(target, buffer);
-        lineElement = target;
+        appendStandaloneLine(line);
       }
     }
 
     runtime.incomingBuffer = buffer;
-    runtime.incomingLineElement = lineElement;
     scrollOutputToBottom();
   }
 
