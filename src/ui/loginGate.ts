@@ -49,8 +49,8 @@ const resolveRuntimeDefaults = (): RuntimeDefaults => {
 
   const hostPlaceholder =
     (typeof config?.bbsHostPlaceholder === 'string' ? config.bbsHostPlaceholder.trim() : '') ||
-    host;
-    const defaultHost = 'chat.korokorok.com';
+    host ||
+    'chat.korokorok.com';
 
   const fallbackPortPlaceholder = protocol === 'telnet' ? '23' : '22';
   const portPlaceholder = port || fallbackPortPlaceholder;
@@ -357,6 +357,9 @@ export const setupLoginGate = (stage: HTMLElement, store: ChatStore) => {
       const portValue = stored.port ?? runtimeDefaults.port;
       if (portValue) {
         portInput.value = portValue;
+      } else { // If no stored or runtime default port, set a default based on protocol
+        const currentProtocol = protocolSelect ? normaliseProtocolName(protocolSelect.value.trim().toLowerCase()) : runtimeDefaults.protocol;
+        portInput.value = currentProtocol === 'telnet' ? '23' : '22';
       }
     }
     if (usernameInput) {
@@ -544,7 +547,7 @@ export const setupLoginGate = (stage: HTMLElement, store: ChatStore) => {
   if (
     runtimeDefaults.protocol === 'ssh' &&
     runtimeDefaults.host === 'chat.korokorok.com' && // Assuming this is the default host
-    usernameInput.value.trim() !== '' &&
+    usernameInput && passwordInput && usernameInput.value.trim() !== '' && passwordInput.value.trim() !== '' &&
     isFormValid()
   ) {
     handleConnect();
