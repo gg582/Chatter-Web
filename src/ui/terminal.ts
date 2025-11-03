@@ -2030,10 +2030,10 @@ const createRuntime = (
       return content.trim();
     });
 
-    let content = contentLines.join('\n');
+    let content = contentLines.join(' ');
     let author = '';
 
-    const authorMatch = content.match(/^s*\[([^\]]+)\]\s*/);
+    const authorMatch = content.match(/^\s*\[([^\]]+)\]\s*/);
     if (authorMatch) {
       author = authorMatch[1].trim();
       content = content.substring(authorMatch[0].length);
