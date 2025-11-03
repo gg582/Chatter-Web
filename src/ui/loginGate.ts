@@ -50,7 +50,7 @@ const resolveRuntimeDefaults = (): RuntimeDefaults => {
   const hostPlaceholder =
     (typeof config?.bbsHostPlaceholder === 'string' ? config.bbsHostPlaceholder.trim() : '') ||
     host ||
-    'bbs.example.com';
+    const defaultHost = 'chat.korokorok.com';;
 
   const fallbackPortPlaceholder = protocol === 'telnet' ? '23' : '22';
   const portPlaceholder = port || fallbackPortPlaceholder;

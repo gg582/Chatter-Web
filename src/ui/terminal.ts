@@ -346,7 +346,7 @@ const resolveTarget = (): TerminalTarget => {
     username: defaultUsername
   };
 
-  const hostPlaceholder = configuredHostPlaceholder || defaultHost || 'bbs.example.com';
+  const hostPlaceholder = configuredHostPlaceholder || defaultHost || 'chat.korokorok.com';
   const portPlaceholder = defaultPort || (defaultProtocol === 'ssh' ? '22' : '23');
 
   const descriptorParts: string[] = [protocol.toUpperCase()];
@@ -923,7 +923,7 @@ const createRuntime = (
   const controlsHost = options?.controlsHost ?? null;
   const target = resolveTarget();
   const socketUrl = resolveSocketUrl(container);
-  const hostPlaceholderText = target.placeholders.host || 'bbs.example.com';
+  const hostPlaceholderText = target.placeholders.host || 'chat.korokorok.com';
   const portPlaceholderText =
     target.placeholders.port || (target.defaults.protocol === 'ssh' ? '22' : '23');
 
@@ -2243,7 +2243,7 @@ const createRuntime = (
       (protocolSelect.value === 'ssh' || protocolSelect.value === 'telnet'
         ? protocolSelect.value
         : runtime.target.defaults.protocol) ?? 'telnet';
-    hostInput.placeholder = runtime.target.defaults.host || runtime.target.placeholders.host || 'bbs.example.com';
+    hostInput.placeholder = runtime.target.defaults.host || runtime.target.placeholders.host || 'chat.korokorok.com';
     const fallbackPort =
       runtime.target.defaults.port || (protocolValue === 'ssh' ? '22' : protocolValue === 'telnet' ? '23' : '');
     portInput.placeholder = fallbackPort || runtime.target.placeholders.port || '23';
