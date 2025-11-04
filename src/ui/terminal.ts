@@ -2098,6 +2098,12 @@ const createRuntime = (
     limitOutputLines(runtime.outputElement, runtime.maxOutputLines);
   };
 
+  const renderBubbleContent = (content: string): string =>
+    content
+      .split('\n')
+      .map(part => escapeHtml(part))
+      .join('<br>');
+
   function processIncomingChunk(chunk: string) {
     if (!chunk) {
       return;
