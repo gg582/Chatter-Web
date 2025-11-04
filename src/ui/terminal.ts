@@ -2,6 +2,12 @@ import { ChatStore } from '../state/chatStore.js';
 import { pickRandomNickname } from '../data/nicknames.js';
 import { describeMobilePlatform, detectMobilePlatform, escapeHtml, isMobilePlatform } from './helpers.js';
 import type { MobilePlatform } from './helpers.js';
+import {
+  isBubbleEndLine,
+  isBubbleStartLine,
+  parseTerminalBubble,
+  type TerminalBubble,
+} from './terminalBubble.js';
 
 const runtimeMap = new WeakMap<HTMLElement, TerminalRuntime>();
 const textEncoder = new TextEncoder();
@@ -2002,73 +2008,44 @@ const createRuntime = (
 
 
 
-  const stripAnsi = (str: string) => str.replace(/\u001b\[[0-9;]*[a-zA-Z]/g, '');
-
-  const normaliseBubbleLine = (line: string) => stripAnsi(line).replace(/\r$/u, '');
-
-  const isBubbleStartLine = (line: string) => {
-    const trimmed = normaliseBubbleLine(line).trimStart();
-    return trimmed.startsWith('╭') && trimmed.includes('╮');
-  };
-
-  const isBubbleEndLine = (line: string) => {
-    const trimmed = normaliseBubbleLine(line).trimStart();
-    return trimmed.startsWith('╰') && trimmed.includes('╯');
-  };
-
-  const parseBubbleMessage = (lines: string[]): { author: string; content: string } | null => {
-    if (lines.length < 3) {
+  const parseRgbComponents = (rgb: string): [number, number, number] | null => {
+    const match = rgb
+      .trim()
+      .match(/^rgb\s*\(\s*(\d{1,3})\s*,\s*(\d{1,3})\s*,\s*(\d{1,3})\s*\)$/iu);
+    if (!match) {
       return null;
     }
-
-    const strippedLines = lines.map(normaliseBubbleLine);
-    const topBorder = strippedLines[0].trimEnd();
-    const bottomBorder = strippedLines[strippedLines.length - 1].trimEnd();
-
-    const topBorderStart = topBorder.trimStart();
-    const bottomBorderStart = bottomBorder.trimStart();
-
-    if (!topBorderStart.startsWith('╭') || !topBorderStart.includes('╮') || !bottomBorderStart.startsWith('╰') || !bottomBorderStart.includes('╯')) {
-      return null;
-    }
-
-    const contentLines = strippedLines.slice(1, -1).map(line => {
-      const leftPipe = line.indexOf('│');
-      const rightPipe = line.lastIndexOf('│');
-
-      if (leftPipe === -1 || rightPipe === -1 || leftPipe === rightPipe) {
-        return line.trim();
+    const components = match.slice(1).map(value => {
+      const parsed = Number.parseInt(value, 10);
+      if (!Number.isFinite(parsed)) {
+        return 0;
       }
+      return Math.max(0, Math.min(255, parsed));
+    }) as [number, number, number];
+    return components;
+  };
 
-      const inner = line.slice(leftPipe + 1, rightPipe);
-      return inner.replace(/\s+$/u, '');
-    });
-
-    while (contentLines.length && contentLines[0].trim() === '') {
-      contentLines.shift();
+  const rgbStringToRgba = (rgb: string, alpha: number): string | null => {
+    const components = parseRgbComponents(rgb);
+    if (!components) {
+      return null;
     }
-    while (contentLines.length && contentLines[contentLines.length - 1].trim() === '') {
-      contentLines.pop();
+    const [r, g, b] = components;
+    const normalisedAlpha = Math.max(0, Math.min(1, alpha));
+    return `rgba(${r}, ${g}, ${b}, ${normalisedAlpha})`;
+  };
+
+  const pickTextColorForBackground = (rgb: string): string | null => {
+    const components = parseRgbComponents(rgb);
+    if (!components) {
+      return null;
     }
-
-    if (!contentLines.length) {
-      return { author: '', content: '' };
+    const [r, g, b] = components;
+    const luminance = (0.2126 * r + 0.7152 * g + 0.0722 * b) / 255;
+    if (luminance < 0.45) {
+      return 'rgb(243, 244, 246)';
     }
-
-    let author = '';
-    const firstContentLine = contentLines[0];
-    const authorMatch = firstContentLine.match(/^\s*\[([^\]]+)\]\s*/u);
-    if (authorMatch) {
-      author = authorMatch[1].trim();
-      contentLines[0] = firstContentLine.slice(authorMatch[0].length);
-    }
-
-    const normalisedContent = contentLines
-      .map(line => line.replace(/^\s+/u, '').trimEnd())
-      .join('\n')
-      .trimEnd();
-
-    return { author, content: normalisedContent };
+    return 'rgb(17, 24, 39)';
   };
 
   const renderBubbleContent = (content: string): string =>
@@ -2077,7 +2054,36 @@ const createRuntime = (
       .map(part => escapeHtml(part))
       .join('<br>');
 
-  const createBubbleElement = (bubble: { author: string; content: string }) => {
+  const applyBubblePalette = (element: HTMLElement, palette: TerminalBubble['palette']) => {
+    const { borderColor, backgroundColor } = palette;
+
+    if (backgroundColor) {
+      element.style.setProperty('--bubble-bg-color', backgroundColor);
+      const contrast = pickTextColorForBackground(backgroundColor);
+      if (contrast) {
+        element.style.setProperty('--bubble-text-color', contrast);
+      }
+    } else if (borderColor) {
+      const tinted = rgbStringToRgba(borderColor, 0.18);
+      if (tinted) {
+        element.style.setProperty('--bubble-bg-color', tinted);
+      }
+    }
+
+    if (borderColor) {
+      element.style.setProperty('--bubble-border-color', borderColor);
+      const shadowColor = rgbStringToRgba(borderColor, 0.35);
+      if (shadowColor) {
+        element.style.setProperty('--bubble-shadow-color', shadowColor);
+      }
+      element.style.setProperty('--bubble-accent-color', borderColor);
+      element.dataset.bubbleAccent = 'true';
+    } else {
+      delete element.dataset.bubbleAccent;
+    }
+  };
+
+  const createBubbleElement = (bubble: TerminalBubble) => {
     const bubbleElement = document.createElement('article');
     bubbleElement.className = 'chat-message chat-message--terminal';
     bubbleElement.dataset.terminalBubble = 'true';
@@ -2089,10 +2095,11 @@ const createRuntime = (
       </div>
       <p class="chat-message__body">${renderBubbleContent(bubble.content)}</p>
     `;
+    applyBubblePalette(bubbleElement, bubble.palette);
     return bubbleElement;
   };
 
-  const appendBubbleToOutput = (bubble: { author: string; content: string }) => {
+  const appendBubbleToOutput = (bubble: TerminalBubble) => {
     const element = createBubbleElement(bubble);
     runtime.outputElement.append(element);
     limitOutputLines(runtime.outputElement, runtime.maxOutputLines);
@@ -2150,7 +2157,7 @@ const createRuntime = (
         continue;
       }
 
-      const bubble = parseBubbleMessage(bubbleLines);
+      const bubble = parseTerminalBubble(bubbleLines);
       if (bubble) {
         appendBubbleToOutput(bubble);
       } else {
@@ -2210,7 +2217,7 @@ const createRuntime = (
         continue;
       }
 
-      const bubble = parseBubbleMessage(bufferedLines);
+      const bubble = parseTerminalBubble(bufferedLines);
       if (bubble) {
         const bubbleElement = createBubbleElement(bubble);
         const anchor = bufferedNodes[0] ?? null;
