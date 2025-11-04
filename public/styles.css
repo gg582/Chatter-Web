@@ -1077,6 +1077,18 @@ summary::-webkit-details-marker {
   color: var(--bubble-text-color, var(--terminal-text));
 }
 
+.terminal__output .chat-message--terminal {
+  align-self: stretch;
+  width: 100%;
+  max-width: 100%;
+  box-sizing: border-box;
+  gap: 0.5rem;
+}
+
+.terminal__output .chat-message--terminal .chat-message__body {
+  word-break: break-word;
+}
+
 .session-panel__grid {
   display: flex;
   flex-wrap: wrap;
