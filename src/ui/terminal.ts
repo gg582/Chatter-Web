@@ -1430,6 +1430,12 @@ const createRuntime = (
     identityKey: null,
     lastStoredUsername: '',
     requestDisconnect: () => false,
+    clearOutput: () => {
+      runtime.outputElement.innerHTML = '';
+      runtime.incomingLineElement = null;
+      runtime.incomingBuffer = '';
+      scrollOutputToBottom(true);
+    },
     appendLine: (text: string, kind: TerminalLineKind = 'info') => {
       if (kind === 'incoming') {
         deliverIncomingPayload(text);
@@ -1978,6 +1984,21 @@ const createRuntime = (
 
   function deliverIncomingPayload(chunk: string) {
     if (!chunk) {
+      return;
+    }
+
+    if (chunk.includes('\u001b[2J')) {
+      const parts = chunk.split('\u001b[2J');
+      let first = true;
+      for (const part of parts) {
+        if (!first) {
+          runtime.clearOutput();
+        }
+        first = false;
+        if (part) {
+          deliverIncomingPayload(part);
+        }
+      }
       return;
     }
 

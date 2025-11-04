@@ -269,6 +269,11 @@ p {
   .chatter-gate__fieldset {
     padding: 1.1rem 1.25rem;
   }
+
+  .chat-message {
+    padding: 0.75rem 0.9rem;
+    border-radius: 14px;
+  }
 }
 
 a {
@@ -1156,8 +1161,10 @@ summary::-webkit-details-marker {
 }
 
 .chat-message__body {
-  font-size: 1rem;
+  font-size: clamp(0.9rem, 2.5vw, 1rem);
   color: var(--terminal-text);
+  word-break: break-word;
+  overflow-wrap: anywhere;
 }
 
 .session-panel__actions {
