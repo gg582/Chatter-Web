@@ -526,6 +526,7 @@ type TerminalRuntime = {
   mobilePlatform: MobilePlatform | null;
   requestDisconnect: (reason?: string) => boolean;
   disposeResources?: () => void;
+  clearOutput: () => void;
 };
 
 type RenderTerminalOptions = {
