@@ -483,6 +483,11 @@ const createEntryStatusId = () => {
 
 type TerminalLineKind = 'info' | 'error' | 'incoming' | 'outgoing';
 
+type BubbleObserver = {
+  disconnect(): void;
+  observe(target: Node, options: MutationObserverInit): void;
+};
+
 type TerminalRuntime = {
   socket: WebSocket | null;
   statusElements: HTMLElement[];
@@ -519,6 +524,8 @@ type TerminalRuntime = {
     lines: string[];
     currentLine: string;
   } | null;
+  bubbleObserver: BubbleObserver | null;
+  enhanceBubbleTree?: (root?: ParentNode | null) => void;
   introSilenced: boolean;
   introBuffer: string;
   maxOutputLines: number;
@@ -1428,6 +1435,7 @@ const createRuntime = (
     incomingLineElement: null,
     pendingBubbleLines: null,
     asciiArtBlock: null,
+    bubbleObserver: null,
     introSilenced: true,
     introBuffer: '',
     maxOutputLines: 600,
@@ -2054,6 +2062,74 @@ const createRuntime = (
       .map(part => escapeHtml(part))
       .join('<br>');
 
+  const measureBubbleContentWidth = (content: string): string | null => {
+    const lines = content.split('\n');
+    let longest = 0;
+
+    for (const line of lines) {
+      const length = line.trimEnd().length;
+      if (length > longest) {
+        longest = length;
+      }
+    }
+
+    if (longest === 0) {
+      return null;
+    }
+
+    return `${longest}ch`;
+  };
+
+  const isBubbleElement = (node: Node): node is HTMLElement =>
+    node instanceof HTMLElement && node.hasAttribute('data-terminal-bubble');
+
+  const applyBubbleLayout = (element: HTMLElement) => {
+    if (!isBubbleElement(element)) {
+      return;
+    }
+
+    const rawContent = element.dataset.terminalBubbleContent ?? '';
+    const widthSource = rawContent || element.textContent || '';
+    const measuredWidth = measureBubbleContentWidth(widthSource.replace(/\r/g, ''));
+
+    if (measuredWidth) {
+      element.style.setProperty('--bubble-measured-width', measuredWidth);
+    } else {
+      element.style.removeProperty('--bubble-measured-width');
+    }
+  };
+
+  const collectBubbleElements = (root: ParentNode | null): HTMLElement[] => {
+    if (!root) {
+      return [];
+    }
+
+    const elements: HTMLElement[] = [];
+
+    if (root instanceof HTMLElement && root.hasAttribute('data-terminal-bubble')) {
+      elements.push(root);
+    }
+
+    if ('querySelectorAll' in root) {
+      elements.push(
+        ...Array.from(root.querySelectorAll<HTMLElement>('[data-terminal-bubble]'))
+      );
+    }
+
+    return elements;
+  };
+
+  const enhanceBubbleTree = (root?: ParentNode | null) => {
+    if (!root) {
+      return;
+    }
+
+    const targets = collectBubbleElements(root);
+    targets.forEach(applyBubbleLayout);
+  };
+
+  let bubbleObserver: BubbleObserver | null = null;
+
   const applyBubblePalette = (element: HTMLElement, palette: TerminalBubble['palette']) => {
     const { borderColor, backgroundColor } = palette;
 
@@ -2087,6 +2163,7 @@ const createRuntime = (
     const bubbleElement = document.createElement('article');
     bubbleElement.className = 'chat-message chat-message--terminal';
     bubbleElement.dataset.terminalBubble = 'true';
+    bubbleElement.dataset.terminalBubbleContent = bubble.content;
     const authorElement = bubble.author ? `<strong>${escapeHtml(bubble.author)}</strong>` : '';
     bubbleElement.innerHTML = `
       <div class="chat-message__meta">
@@ -2096,6 +2173,7 @@ const createRuntime = (
       <p class="chat-message__body">${renderBubbleContent(bubble.content)}</p>
     `;
     applyBubblePalette(bubbleElement, bubble.palette);
+    applyBubbleLayout(bubbleElement);
     return bubbleElement;
   };
 
@@ -2104,12 +2182,6 @@ const createRuntime = (
     runtime.outputElement.append(element);
     limitOutputLines(runtime.outputElement, runtime.maxOutputLines);
   };
-
-  const renderBubbleContent = (content: string): string =>
-    content
-      .split('\n')
-      .map(part => escapeHtml(part))
-      .join('<br>');
 
   function processIncomingChunk(chunk: string) {
     if (!chunk) {
@@ -2242,6 +2314,48 @@ const createRuntime = (
 
   runtime.hydrateBubbleHistory = hydrateBubbleHistory;
   hydrateBubbleHistory();
+
+  runtime.enhanceBubbleTree = enhanceBubbleTree;
+  enhanceBubbleTree(container);
+  if (controlsHost) {
+    enhanceBubbleTree(controlsHost);
+  }
+
+  bubbleObserver = runtime.bubbleObserver;
+  if (bubbleObserver) {
+    bubbleObserver.disconnect();
+  }
+  const bubbleHosts: HTMLElement[] = [container];
+  if (controlsHost) {
+    bubbleHosts.push(controlsHost);
+  }
+
+  bubbleObserver = new MutationObserver((records) => {
+    for (const record of records) {
+      if (record.type === 'attributes' && record.target instanceof HTMLElement) {
+        if (isBubbleElement(record.target)) {
+          applyBubbleLayout(record.target);
+        }
+      }
+
+      record.addedNodes.forEach((node) => {
+        if (node instanceof HTMLElement || node instanceof DocumentFragment) {
+          enhanceBubbleTree(node);
+        }
+      });
+    }
+  });
+
+  for (const host of bubbleHosts) {
+    bubbleObserver.observe(host, {
+      subtree: true,
+      childList: true,
+      attributes: true,
+      attributeFilter: ['data-terminal-bubble', 'data-terminal-bubble-content']
+    });
+  }
+
+  runtime.bubbleObserver = bubbleObserver;
 
   const collectOverridesFromInputs = (): { overrides: TargetOverrides; errors: string[] } => {
     const protocolValue = protocolSelect.value.trim().toLowerCase();
@@ -2964,19 +3078,27 @@ const createRuntime = (
         return false;
       }
 
-      if (value.includes('\n')) {
-        return true;
-      }
-
       const selectionStart = target.selectionStart;
       const selectionEnd = target.selectionEnd;
+      const selectionDefined =
+        typeof selectionStart === 'number' && typeof selectionEnd === 'number';
+      const hasSelection =
+        selectionDefined && selectionStart !== selectionEnd;
+      const caretAtEnd =
+        selectionDefined && selectionStart === value.length && selectionEnd === value.length;
 
-      if (typeof selectionStart !== 'number' || typeof selectionEnd !== 'number') {
+      if (value.includes('\n')) {
+        if (!selectionDefined) {
+          return true;
+        }
+        return hasSelection || !caretAtEnd;
+      }
+
+      if (!selectionDefined) {
         return false;
       }
 
-      const caretAtEnd = selectionStart === value.length && selectionEnd === value.length;
-      return !caretAtEnd;
+      return hasSelection || !caretAtEnd;
     };
 
     runtime.captureElement.addEventListener('keydown', (event) => {
@@ -3106,6 +3228,12 @@ const createRuntime = (
   });
 
   runtime.disposeResources = () => {
+    if (bubbleObserver) {
+      bubbleObserver.disconnect();
+    }
+    runtime.bubbleObserver = null;
+    runtime.enhanceBubbleTree = undefined;
+    bubbleObserver = null;
     detachThemeListener();
     applyLightPaletteOverride(false);
   };
@@ -3143,6 +3271,10 @@ export const renderTerminal = (
   runtime.updateViewportSizing?.();
 
   runtime.hydrateBubbleHistory?.();
+  runtime.enhanceBubbleTree?.(container);
+  if (controlsHost) {
+    runtime.enhanceBubbleTree?.(controlsHost);
+  }
 
   const state = store.snapshot();
   container.classList.toggle('terminal-chat--game', Boolean(state.activeGame));
