@@ -2,6 +2,12 @@ import { ChatStore } from '../state/chatStore.js';
 import { pickRandomNickname } from '../data/nicknames.js';
 import { describeMobilePlatform, detectMobilePlatform, escapeHtml, isMobilePlatform } from './helpers.js';
 import type { MobilePlatform } from './helpers.js';
+import {
+  isBubbleEndLine,
+  isBubbleStartLine,
+  parseTerminalBubble,
+  type TerminalBubble,
+} from './terminalBubble.js';
 
 const runtimeMap = new WeakMap<HTMLElement, TerminalRuntime>();
 const textEncoder = new TextEncoder();
@@ -507,6 +513,7 @@ type TerminalRuntime = {
   target: TerminalTarget;
   incomingBuffer: string;
   incomingLineElement: HTMLPreElement | null;
+  pendingBubbleLines: string[] | null;
   asciiArtBlock: {
     element: HTMLPreElement;
     lines: string[];
@@ -526,6 +533,7 @@ type TerminalRuntime = {
   mobilePlatform: MobilePlatform | null;
   requestDisconnect: (reason?: string) => boolean;
   disposeResources?: () => void;
+  hydrateBubbleHistory?: () => void;
 };
 
 type RenderTerminalOptions = {
@@ -1418,6 +1426,7 @@ const createRuntime = (
     connecting: false,
     incomingBuffer: '',
     incomingLineElement: null,
+    pendingBubbleLines: null,
     asciiArtBlock: null,
     introSilenced: true,
     introBuffer: '',
@@ -1999,47 +2008,101 @@ const createRuntime = (
 
 
 
-  const stripAnsi = (str: string) => str.replace(/\u001b\[[0-9;]*[a-zA-Z]/g, '');
-
-  const parseBubbleMessage = (lines: string[]): { author: string; content: string } | null => {
-    if (lines.length < 2) {
+  const parseRgbComponents = (rgb: string): [number, number, number] | null => {
+    const match = rgb
+      .trim()
+      .match(/^rgb\s*\(\s*(\d{1,3})\s*,\s*(\d{1,3})\s*,\s*(\d{1,3})\s*\)$/iu);
+    if (!match) {
       return null;
     }
+    const components = match.slice(1).map(value => {
+      const parsed = Number.parseInt(value, 10);
+      if (!Number.isFinite(parsed)) {
+        return 0;
+      }
+      return Math.max(0, Math.min(255, parsed));
+    }) as [number, number, number];
+    return components;
+  };
 
-    const strippedLines = lines.map(stripAnsi);
-    const topBorder = strippedLines[0];
-    const bottomBorder = strippedLines[strippedLines.length - 1];
-
-    const topLeft = topBorder[0];
-    const topRight = topBorder[topBorder.length - 1];
-    const bottomLeft = bottomBorder[0];
-    const bottomRight = bottomBorder[bottomBorder.length - 1];
-
-    if (topLeft !== '╭' || topRight !== '╮' || bottomLeft !== '╰' || bottomRight !== '╯') {
+  const rgbStringToRgba = (rgb: string, alpha: number): string | null => {
+    const components = parseRgbComponents(rgb);
+    if (!components) {
       return null;
     }
+    const [r, g, b] = components;
+    const normalisedAlpha = Math.max(0, Math.min(1, alpha));
+    return `rgba(${r}, ${g}, ${b}, ${normalisedAlpha})`;
+  };
 
-    const contentLines = strippedLines.slice(1, -1).map(line => {
-      let content = line;
-      if (content.startsWith('│')) {
-        content = content.substring(1);
+  const pickTextColorForBackground = (rgb: string): string | null => {
+    const components = parseRgbComponents(rgb);
+    if (!components) {
+      return null;
+    }
+    const [r, g, b] = components;
+    const luminance = (0.2126 * r + 0.7152 * g + 0.0722 * b) / 255;
+    if (luminance < 0.45) {
+      return 'rgb(243, 244, 246)';
+    }
+    return 'rgb(17, 24, 39)';
+  };
+
+  const renderBubbleContent = (content: string): string =>
+    content
+      .split('\n')
+      .map(part => escapeHtml(part))
+      .join('<br>');
+
+  const applyBubblePalette = (element: HTMLElement, palette: TerminalBubble['palette']) => {
+    const { borderColor, backgroundColor } = palette;
+
+    if (backgroundColor) {
+      element.style.setProperty('--bubble-bg-color', backgroundColor);
+      const contrast = pickTextColorForBackground(backgroundColor);
+      if (contrast) {
+        element.style.setProperty('--bubble-text-color', contrast);
       }
-      if (content.endsWith('│')) {
-        content = content.substring(0, content.length - 1);
+    } else if (borderColor) {
+      const tinted = rgbStringToRgba(borderColor, 0.18);
+      if (tinted) {
+        element.style.setProperty('--bubble-bg-color', tinted);
       }
-      return content.trim();
-    });
-
-    let content = contentLines.join(' ');
-    let author = '';
-
-    const authorMatch = content.match(/^\s*\[([^\]]+)\]\s*/);
-    if (authorMatch) {
-      author = authorMatch[1].trim();
-      content = content.substring(authorMatch[0].length);
     }
 
-    return { author, content: content.trim() };
+    if (borderColor) {
+      element.style.setProperty('--bubble-border-color', borderColor);
+      const shadowColor = rgbStringToRgba(borderColor, 0.35);
+      if (shadowColor) {
+        element.style.setProperty('--bubble-shadow-color', shadowColor);
+      }
+      element.style.setProperty('--bubble-accent-color', borderColor);
+      element.dataset.bubbleAccent = 'true';
+    } else {
+      delete element.dataset.bubbleAccent;
+    }
+  };
+
+  const createBubbleElement = (bubble: TerminalBubble) => {
+    const bubbleElement = document.createElement('article');
+    bubbleElement.className = 'chat-message chat-message--terminal';
+    bubbleElement.dataset.terminalBubble = 'true';
+    const authorElement = bubble.author ? `<strong>${escapeHtml(bubble.author)}</strong>` : '';
+    bubbleElement.innerHTML = `
+      <div class="chat-message__meta">
+        ${authorElement}
+        <span>${new Date().toLocaleTimeString()}</span>
+      </div>
+      <p class="chat-message__body">${renderBubbleContent(bubble.content)}</p>
+    `;
+    applyBubblePalette(bubbleElement, bubble.palette);
+    return bubbleElement;
+  };
+
+  const appendBubbleToOutput = (bubble: TerminalBubble) => {
+    const element = createBubbleElement(bubble);
+    runtime.outputElement.append(element);
+    limitOutputLines(runtime.outputElement, runtime.maxOutputLines);
   };
 
   function processIncomingChunk(chunk: string) {
@@ -2051,44 +2114,128 @@ const createRuntime = (
     let lines = buffer.split('\n');
     buffer = lines.pop() || '';
 
-    let bubbleLines: string[] = [];
-    let inBubble = false;
+    let bubbleLines = runtime.pendingBubbleLines ? [...runtime.pendingBubbleLines] : [];
+    let inBubble = bubbleLines.length > 0;
+
+    const flushBufferedLines = () => {
+      if (!bubbleLines.length) {
+        return;
+      }
+      bubbleLines.forEach(l => appendStandaloneLine(l));
+      bubbleLines = [];
+      inBubble = false;
+    };
 
     for (const line of lines) {
-      const strippedLine = stripAnsi(line);
-      if (strippedLine.startsWith('╭')) {
-        inBubble = true;
-        bubbleLines.push(line);
-      } else if (inBubble) {
-        bubbleLines.push(line);
-        if (strippedLine.startsWith('╰')) {
-          const bubble = parseBubbleMessage(bubbleLines);
-          if (bubble) {
-            const bubbleElement = document.createElement('div');
-            bubbleElement.className = 'chat-message';
-            const authorElement = bubble.author ? `<strong>${escapeHtml(bubble.author)}</strong>` : '';
-            bubbleElement.innerHTML = `
-              <div class="chat-message__meta">
-                ${authorElement}
-                <span>${new Date().toLocaleTimeString()}</span>
-              </div>
-              <p class="chat-message__body">${escapeHtml(bubble.content)}</p>
-            `;
-            runtime.outputElement.append(bubbleElement);
-          } else {
-            bubbleLines.forEach(l => appendStandaloneLine(l));
-          }
-          inBubble = false;
-          bubbleLines = [];
+      if (!inBubble) {
+        if (isBubbleStartLine(line)) {
+          inBubble = true;
+          bubbleLines = [line];
+          continue;
         }
-      } else {
+
         appendStandaloneLine(line);
+        continue;
       }
+
+      if (isBubbleStartLine(line)) {
+        flushBufferedLines();
+        inBubble = true;
+        bubbleLines = [line];
+        continue;
+      }
+
+      bubbleLines.push(line);
+
+      if (!isBubbleEndLine(line)) {
+        continue;
+      }
+
+      const bubble = parseTerminalBubble(bubbleLines);
+      if (bubble) {
+        appendBubbleToOutput(bubble);
+      } else {
+        bubbleLines.forEach(l => appendStandaloneLine(l));
+      }
+
+      bubbleLines = [];
+      inBubble = false;
     }
 
+    runtime.pendingBubbleLines = inBubble ? bubbleLines : null;
     runtime.incomingBuffer = buffer;
     scrollOutputToBottom();
   }
+
+  const hydrateBubbleHistory = () => {
+    const nodes = Array.from(runtime.outputElement.children);
+    let bufferedNodes: HTMLElement[] = [];
+    let bufferedLines: string[] = [];
+    let collecting = false;
+
+    const resetBuffer = () => {
+      bufferedNodes = [];
+      bufferedLines = [];
+      collecting = false;
+    };
+
+    for (const node of nodes) {
+      if (!(node instanceof HTMLElement) || !node.classList.contains('terminal__line')) {
+        resetBuffer();
+        continue;
+      }
+
+      const storedLine = lastRenderedLine.get(node) ?? node.textContent ?? '';
+
+      if (!collecting) {
+        if (storedLine && isBubbleStartLine(storedLine)) {
+          collecting = true;
+          bufferedNodes = [node];
+          bufferedLines = [storedLine];
+        }
+        continue;
+      }
+
+      if (storedLine && isBubbleStartLine(storedLine)) {
+        resetBuffer();
+        collecting = true;
+        bufferedNodes = [node];
+        bufferedLines = [storedLine];
+        continue;
+      }
+
+      bufferedNodes.push(node);
+      bufferedLines.push(storedLine);
+
+      if (!storedLine || !isBubbleEndLine(storedLine)) {
+        continue;
+      }
+
+      const bubble = parseTerminalBubble(bufferedLines);
+      if (bubble) {
+        const bubbleElement = createBubbleElement(bubble);
+        const anchor = bufferedNodes[0] ?? null;
+        if (anchor && anchor.parentNode === runtime.outputElement) {
+          runtime.outputElement.insertBefore(bubbleElement, anchor);
+        } else {
+          runtime.outputElement.append(bubbleElement);
+        }
+        for (const bufferedNode of bufferedNodes) {
+          lastRenderedLine.delete(bufferedNode);
+          bufferedNode.remove();
+        }
+        limitOutputLines(runtime.outputElement, runtime.maxOutputLines);
+      }
+
+      resetBuffer();
+    }
+
+    runtime.pendingBubbleLines = null;
+    scrollOutputToBottom();
+  };
+
+  runtime.hydrateBubbleHistory = hydrateBubbleHistory;
+  hydrateBubbleHistory();
 
   const collectOverridesFromInputs = (): { overrides: TargetOverrides; errors: string[] } => {
     const protocolValue = protocolSelect.value.trim().toLowerCase();
@@ -2988,6 +3135,8 @@ export const renderTerminal = (
   }
 
   runtime.updateViewportSizing?.();
+
+  runtime.hydrateBubbleHistory?.();
 
   const state = store.snapshot();
   container.classList.toggle('terminal-chat--game', Boolean(state.activeGame));
