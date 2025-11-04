@@ -20,7 +20,7 @@ export const renderChatFeed = (store: ChatStore, container: HTMLElement) => {
   const feedback = container.dataset.feedback ?? '';
   const feedbackType = container.dataset.feedbackType ?? 'info';
 
-  const messageItems = state.messages
+  const messageItems = state.isServerScrolling ? '' : state.messages
     .map((message) => {
       const reply = message.replyTo ? state.messages.find((entry) => entry.id === message.replyTo) : undefined;
       return `
@@ -44,6 +44,8 @@ export const renderChatFeed = (store: ChatStore, container: HTMLElement) => {
     .map((message) => `<option value="${escapeHtml(message.id)}">${escapeHtml(message.id)} · ${escapeHtml(message.author)}</option>`)
     .join('');
 
+  const chatFeedClass = state.isServerScrolling ? 'chat-feed server-scrolling' : 'chat-feed';
+
   container.innerHTML = `
     <header class="card__header">
       <span class="card__glyph" aria-hidden="true">chat</span>
@@ -53,7 +55,7 @@ export const renderChatFeed = (store: ChatStore, container: HTMLElement) => {
       </div>
     </header>
     <div class="card__body card__body--stacked">
-      <div class="chat-feed" data-element="chat-feed">${messageItems || '<p class="feedback">No messages yet.</p>'}</div>
+      <div class="${chatFeedClass}" data-element="chat-feed">${messageItems || '<p class="feedback">No messages yet.</p>'}</div>
       <form class="form-grid" data-action="post-message">
         <label for="chat-message-input">Message</label>
         <textarea id="chat-message-input" name="message" placeholder="Share something with everyone"></textarea>

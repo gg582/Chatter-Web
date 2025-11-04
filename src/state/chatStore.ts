@@ -616,4 +616,9 @@ export class ChatStore {
     this.emit();
     return { ok: true, message: 'Thread deleted.' };
   }
+
+  setServerScrolling(isScrolling: boolean): void {
+    this.state.isServerScrolling = isScrolling;
+    this.emit();
+  }
 }

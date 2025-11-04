@@ -1120,8 +1120,15 @@ summary::-webkit-details-marker {
   flex-direction: column;
   gap: 1.1rem;
   max-height: 420px;
-  overflow-y: auto;
   padding-right: 0.5rem;
+}
+
+.chat-feed {
+  overflow-y: auto;
+}
+
+.chat-feed.server-scrolling {
+  overflow-y: hidden;
 }
 
 .chat-feed::-webkit-scrollbar {

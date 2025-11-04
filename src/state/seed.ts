@@ -99,5 +99,6 @@ export const seedState: ChatState = {
   blockedTargets: [],
   pokeLog: [],
   rssFeeds: [],
-  bbsThreads: []
+  bbsThreads: [],
+  isServerScrolling: false
 };

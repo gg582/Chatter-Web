@@ -917,6 +917,7 @@ const normaliseLineBreaks = (value: string): string =>
   value.replace(/\r\n?|\n/g, '\r\n');
 
 const createRuntime = (
+  store: ChatStore,
   container: HTMLElement,
   options?: RenderTerminalOptions
 ): TerminalRuntime => {
@@ -2921,6 +2922,10 @@ const createRuntime = (
 
       if (sendTextPayload(payload)) {
         if (ARROW_KEY_NAMES.has(event.key)) {
+          store.setServerScrolling(true);
+          setTimeout(() => {
+            store.setServerScrolling(false);
+          }, 500);
           resetOutputScroll();
         }
         event.preventDefault();
@@ -2987,7 +2992,7 @@ export const renderTerminal = (
   if (!runtime || runtime.controlsHost !== controlsHost || runtime.themeHost !== themeHost) {
     runtime?.disposeResources?.();
     runtime?.requestDisconnect('Rebuilding terminal controls');
-    runtime = createRuntime(container, { controlsHost, themeHost });
+    runtime = createRuntime(store, container, { controlsHost, themeHost });
     runtimeMap.set(container, runtime);
   }
 
