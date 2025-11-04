@@ -507,6 +507,7 @@ type TerminalRuntime = {
   target: TerminalTarget;
   incomingBuffer: string;
   incomingLineElement: HTMLPreElement | null;
+  pendingBubbleLines: string[] | null;
   asciiArtBlock: {
     element: HTMLPreElement;
     lines: string[];
@@ -526,6 +527,7 @@ type TerminalRuntime = {
   mobilePlatform: MobilePlatform | null;
   requestDisconnect: (reason?: string) => boolean;
   disposeResources?: () => void;
+  hydrateBubbleHistory?: () => void;
 };
 
 type RenderTerminalOptions = {
@@ -1418,6 +1420,7 @@ const createRuntime = (
     connecting: false,
     incomingBuffer: '',
     incomingLineElement: null,
+    pendingBubbleLines: null,
     asciiArtBlock: null,
     introSilenced: true,
     introBuffer: '',
@@ -2001,12 +2004,24 @@ const createRuntime = (
 
   const stripAnsi = (str: string) => str.replace(/\u001b\[[0-9;]*[a-zA-Z]/g, '');
 
+  const normaliseBubbleLine = (line: string) => stripAnsi(line).replace(/\r$/u, '');
+
+  const isBubbleStartLine = (line: string) => {
+    const trimmed = normaliseBubbleLine(line).trimStart();
+    return trimmed.startsWith('╭') && trimmed.includes('╮');
+  };
+
+  const isBubbleEndLine = (line: string) => {
+    const trimmed = normaliseBubbleLine(line).trimStart();
+    return trimmed.startsWith('╰') && trimmed.includes('╯');
+  };
+
   const parseBubbleMessage = (lines: string[]): { author: string; content: string } | null => {
     if (lines.length < 3) {
       return null;
     }
 
-    const strippedLines = lines.map(line => stripAnsi(line).replace(/\r$/u, ''));
+    const strippedLines = lines.map(normaliseBubbleLine);
     const topBorder = strippedLines[0].trimEnd();
     const bottomBorder = strippedLines[strippedLines.length - 1].trimEnd();
 
@@ -2062,6 +2077,33 @@ const createRuntime = (
       .map(part => escapeHtml(part))
       .join('<br>');
 
+  const createBubbleElement = (bubble: { author: string; content: string }) => {
+    const bubbleElement = document.createElement('article');
+    bubbleElement.className = 'chat-message chat-message--terminal';
+    bubbleElement.dataset.terminalBubble = 'true';
+    const authorElement = bubble.author ? `<strong>${escapeHtml(bubble.author)}</strong>` : '';
+    bubbleElement.innerHTML = `
+      <div class="chat-message__meta">
+        ${authorElement}
+        <span>${new Date().toLocaleTimeString()}</span>
+      </div>
+      <p class="chat-message__body">${renderBubbleContent(bubble.content)}</p>
+    `;
+    return bubbleElement;
+  };
+
+  const appendBubbleToOutput = (bubble: { author: string; content: string }) => {
+    const element = createBubbleElement(bubble);
+    runtime.outputElement.append(element);
+    limitOutputLines(runtime.outputElement, runtime.maxOutputLines);
+  };
+
+  const renderBubbleContent = (content: string): string =>
+    content
+      .split('\n')
+      .map(part => escapeHtml(part))
+      .join('<br>');
+
   function processIncomingChunk(chunk: string) {
     if (!chunk) {
       return;
@@ -2071,44 +2113,128 @@ const createRuntime = (
     let lines = buffer.split('\n');
     buffer = lines.pop() || '';
 
-    let bubbleLines: string[] = [];
-    let inBubble = false;
+    let bubbleLines = runtime.pendingBubbleLines ? [...runtime.pendingBubbleLines] : [];
+    let inBubble = bubbleLines.length > 0;
+
+    const flushBufferedLines = () => {
+      if (!bubbleLines.length) {
+        return;
+      }
+      bubbleLines.forEach(l => appendStandaloneLine(l));
+      bubbleLines = [];
+      inBubble = false;
+    };
 
     for (const line of lines) {
-      const strippedLine = stripAnsi(line);
-      if (strippedLine.startsWith('╭')) {
-        inBubble = true;
-        bubbleLines.push(line);
-      } else if (inBubble) {
-        bubbleLines.push(line);
-        if (strippedLine.startsWith('╰')) {
-          const bubble = parseBubbleMessage(bubbleLines);
-          if (bubble) {
-            const bubbleElement = document.createElement('div');
-            bubbleElement.className = 'chat-message';
-            const authorElement = bubble.author ? `<strong>${escapeHtml(bubble.author)}</strong>` : '';
-            bubbleElement.innerHTML = `
-              <div class="chat-message__meta">
-                ${authorElement}
-                <span>${new Date().toLocaleTimeString()}</span>
-              </div>
-              <p class="chat-message__body">${renderBubbleContent(bubble.content)}</p>
-            `;
-            runtime.outputElement.append(bubbleElement);
-          } else {
-            bubbleLines.forEach(l => appendStandaloneLine(l));
-          }
-          inBubble = false;
-          bubbleLines = [];
+      if (!inBubble) {
+        if (isBubbleStartLine(line)) {
+          inBubble = true;
+          bubbleLines = [line];
+          continue;
         }
-      } else {
+
         appendStandaloneLine(line);
+        continue;
       }
+
+      if (isBubbleStartLine(line)) {
+        flushBufferedLines();
+        inBubble = true;
+        bubbleLines = [line];
+        continue;
+      }
+
+      bubbleLines.push(line);
+
+      if (!isBubbleEndLine(line)) {
+        continue;
+      }
+
+      const bubble = parseBubbleMessage(bubbleLines);
+      if (bubble) {
+        appendBubbleToOutput(bubble);
+      } else {
+        bubbleLines.forEach(l => appendStandaloneLine(l));
+      }
+
+      bubbleLines = [];
+      inBubble = false;
     }
 
+    runtime.pendingBubbleLines = inBubble ? bubbleLines : null;
     runtime.incomingBuffer = buffer;
     scrollOutputToBottom();
   }
+
+  const hydrateBubbleHistory = () => {
+    const nodes = Array.from(runtime.outputElement.children);
+    let bufferedNodes: HTMLElement[] = [];
+    let bufferedLines: string[] = [];
+    let collecting = false;
+
+    const resetBuffer = () => {
+      bufferedNodes = [];
+      bufferedLines = [];
+      collecting = false;
+    };
+
+    for (const node of nodes) {
+      if (!(node instanceof HTMLElement) || !node.classList.contains('terminal__line')) {
+        resetBuffer();
+        continue;
+      }
+
+      const storedLine = lastRenderedLine.get(node) ?? node.textContent ?? '';
+
+      if (!collecting) {
+        if (storedLine && isBubbleStartLine(storedLine)) {
+          collecting = true;
+          bufferedNodes = [node];
+          bufferedLines = [storedLine];
+        }
+        continue;
+      }
+
+      if (storedLine && isBubbleStartLine(storedLine)) {
+        resetBuffer();
+        collecting = true;
+        bufferedNodes = [node];
+        bufferedLines = [storedLine];
+        continue;
+      }
+
+      bufferedNodes.push(node);
+      bufferedLines.push(storedLine);
+
+      if (!storedLine || !isBubbleEndLine(storedLine)) {
+        continue;
+      }
+
+      const bubble = parseBubbleMessage(bufferedLines);
+      if (bubble) {
+        const bubbleElement = createBubbleElement(bubble);
+        const anchor = bufferedNodes[0] ?? null;
+        if (anchor && anchor.parentNode === runtime.outputElement) {
+          runtime.outputElement.insertBefore(bubbleElement, anchor);
+        } else {
+          runtime.outputElement.append(bubbleElement);
+        }
+        for (const bufferedNode of bufferedNodes) {
+          lastRenderedLine.delete(bufferedNode);
+          bufferedNode.remove();
+        }
+        limitOutputLines(runtime.outputElement, runtime.maxOutputLines);
+      }
+
+      resetBuffer();
+    }
+
+    runtime.pendingBubbleLines = null;
+    scrollOutputToBottom();
+  };
+
+  runtime.hydrateBubbleHistory = hydrateBubbleHistory;
+  hydrateBubbleHistory();
 
   const collectOverridesFromInputs = (): { overrides: TargetOverrides; errors: string[] } => {
     const protocolValue = protocolSelect.value.trim().toLowerCase();
@@ -3008,6 +3134,8 @@ export const renderTerminal = (
   }
 
   runtime.updateViewportSizing?.();
+
+  runtime.hydrateBubbleHistory?.();
 
   const state = store.snapshot();
   container.classList.toggle('terminal-chat--game', Boolean(state.activeGame));
