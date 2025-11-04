@@ -14,6 +14,8 @@
   --accent-lime: #bef264;
   --accent-pink: #f97316;
   --accent-sky: #38bdf8;
+  --accent-sky-faint: rgba(56, 189, 248, 0.18);
+  --accent-sky-strong: #38bdf8;
   --warning: #facc15;
   --danger: #ef4444;
   --success: #22c55e;
@@ -44,6 +46,8 @@
   --accent-lime: #65a30d;
   --accent-pink: #f97316;
   --accent-sky: #1e3a8a;
+  --accent-sky-faint: rgba(56, 189, 248, 0.18);
+  --accent-sky-strong: #1e3a8a;
   --warning: #ca8a04;
   --danger: #dc2626;
   --success: #16a34a;
@@ -422,8 +426,8 @@ summary::-webkit-details-marker {
   align-self: flex-start;
   padding: 0.35rem 0.85rem;
   border-radius: 999px;
-  background: rgba(56, 189, 248, 0.18);
-  color: var(--text);
+  background: var(--accent-sky-faint);
+  color: var(--accent-sky-strong);
   font-size: 0.75rem;
   letter-spacing: 0.12em;
   text-transform: uppercase;
@@ -823,8 +827,8 @@ summary::-webkit-details-marker {
   align-self: flex-start;
   padding: 0.35rem 0.9rem;
   border-radius: 999px;
-  background: rgba(56, 189, 248, 0.18);
-  color: var(--text);
+  background: var(--accent-sky-faint);
+  color: var(--accent-sky-strong);
   font-size: 0.78rem;
   font-weight: 600;
   text-transform: uppercase;
