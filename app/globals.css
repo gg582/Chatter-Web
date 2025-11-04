@@ -253,6 +253,10 @@ p {
 }
 
 @media (max-width: 640px) {
+  body {
+    font-size: 0.875rem; /* Adjust base font size for mobile */
+  }
+
   .chatter-gate {
     padding: clamp(2rem, 8vw, 3rem) clamp(1rem, 5vw, 2rem);
   }
