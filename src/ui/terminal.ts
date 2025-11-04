@@ -2002,45 +2002,65 @@ const createRuntime = (
   const stripAnsi = (str: string) => str.replace(/\u001b\[[0-9;]*[a-zA-Z]/g, '');
 
   const parseBubbleMessage = (lines: string[]): { author: string; content: string } | null => {
-    if (lines.length < 2) {
+    if (lines.length < 3) {
       return null;
     }
 
-    const strippedLines = lines.map(stripAnsi);
-    const topBorder = strippedLines[0];
-    const bottomBorder = strippedLines[strippedLines.length - 1];
+    const strippedLines = lines.map(line => stripAnsi(line).replace(/\r$/u, ''));
+    const topBorder = strippedLines[0].trimEnd();
+    const bottomBorder = strippedLines[strippedLines.length - 1].trimEnd();
 
-    const topLeft = topBorder[0];
-    const topRight = topBorder[topBorder.length - 1];
-    const bottomLeft = bottomBorder[0];
-    const bottomRight = bottomBorder[bottomBorder.length - 1];
+    const topBorderStart = topBorder.trimStart();
+    const bottomBorderStart = bottomBorder.trimStart();
 
-    if (topLeft !== '╭' || topRight !== '╮' || bottomLeft !== '╰' || bottomRight !== '╯') {
+    if (!topBorderStart.startsWith('╭') || !topBorderStart.includes('╮') || !bottomBorderStart.startsWith('╰') || !bottomBorderStart.includes('╯')) {
       return null;
     }
 
     const contentLines = strippedLines.slice(1, -1).map(line => {
-      let content = line;
-      if (content.startsWith('│')) {
-        content = content.substring(1);
+      const leftPipe = line.indexOf('│');
+      const rightPipe = line.lastIndexOf('│');
+
+      if (leftPipe === -1 || rightPipe === -1 || leftPipe === rightPipe) {
+        return line.trim();
       }
-      if (content.endsWith('│')) {
-        content = content.substring(0, content.length - 1);
-      }
-      return content.trim();
+
+      const inner = line.slice(leftPipe + 1, rightPipe);
+      return inner.replace(/\s+$/u, '');
     });
 
-    let content = contentLines.join(' ');
-    let author = '';
-
-    const authorMatch = content.match(/^\s*\[([^\]]+)\]\s*/);
-    if (authorMatch) {
-      author = authorMatch[1].trim();
-      content = content.substring(authorMatch[0].length);
+    while (contentLines.length && contentLines[0].trim() === '') {
+      contentLines.shift();
+    }
+    while (contentLines.length && contentLines[contentLines.length - 1].trim() === '') {
+      contentLines.pop();
     }
 
-    return { author, content: content.trim() };
+    if (!contentLines.length) {
+      return { author: '', content: '' };
+    }
+
+    let author = '';
+    const firstContentLine = contentLines[0];
+    const authorMatch = firstContentLine.match(/^\s*\[([^\]]+)\]\s*/u);
+    if (authorMatch) {
+      author = authorMatch[1].trim();
+      contentLines[0] = firstContentLine.slice(authorMatch[0].length);
+    }
+
+    const normalisedContent = contentLines
+      .map(line => line.replace(/^\s+/u, '').trimEnd())
+      .join('\n')
+      .trimEnd();
+
+    return { author, content: normalisedContent };
   };
+
+  const renderBubbleContent = (content: string): string =>
+    content
+      .split('\n')
+      .map(part => escapeHtml(part))
+      .join('<br>');
 
   function processIncomingChunk(chunk: string) {
     if (!chunk) {
@@ -2072,7 +2092,7 @@ const createRuntime = (
                 ${authorElement}
                 <span>${new Date().toLocaleTimeString()}</span>
               </div>
-              <p class="chat-message__body">${escapeHtml(bubble.content)}</p>
+              <p class="chat-message__body">${renderBubbleContent(bubble.content)}</p>
             `;
             runtime.outputElement.append(bubbleElement);
           } else {
