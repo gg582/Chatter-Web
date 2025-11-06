@@ -119,6 +119,61 @@ const writeStoredUsername = (key: string, username: string) => {
   writeStoredIdentities(entries);
 };
 
+type EntryPreferences = {
+  showTerminateShortcut: boolean;
+};
+
+const ENTRY_PREFERENCES_STORAGE_KEY = 'chatter-terminal-entry-preferences';
+
+const defaultEntryPreferences: EntryPreferences = {
+  showTerminateShortcut: false
+};
+
+const readEntryPreferences = (): EntryPreferences => {
+  if (typeof window === 'undefined' || typeof window.localStorage === 'undefined') {
+    return { ...defaultEntryPreferences };
+  }
+
+  try {
+    const raw = window.localStorage.getItem(ENTRY_PREFERENCES_STORAGE_KEY);
+    if (!raw) {
+      return { ...defaultEntryPreferences };
+    }
+
+    const parsed = JSON.parse(raw) as unknown;
+    if (!parsed || typeof parsed !== 'object') {
+      return { ...defaultEntryPreferences };
+    }
+
+    const showTerminate = Boolean(
+      (parsed as { showTerminateShortcut?: unknown }).showTerminateShortcut
+    );
+
+    return { showTerminateShortcut: showTerminate };
+  } catch (error) {
+    console.warn('Failed to read terminal entry preferences', error);
+    return { ...defaultEntryPreferences };
+  }
+};
+
+const writeEntryPreferences = (preferences: EntryPreferences) => {
+  if (typeof window === 'undefined' || typeof window.localStorage === 'undefined') {
+    return;
+  }
+
+  try {
+    window.localStorage.setItem(
+      ENTRY_PREFERENCES_STORAGE_KEY,
+      JSON.stringify({
+        showTerminateShortcut: Boolean(preferences.showTerminateShortcut)
+      })
+    );
+  } catch (error) {
+    console.warn('Failed to persist terminal entry preferences', error);
+  }
+};
+
+
 const loadTargetOverrides = (): TargetOverrides => {
   if (typeof window === 'undefined' || typeof window.localStorage === 'undefined') {
     return {};
@@ -500,6 +555,7 @@ type TerminalRuntime = {
   passwordField: HTMLElement;
   controlsHost: HTMLElement | null;
   themeHost: HTMLElement | null;
+  entryPreferences: EntryPreferences;
   binaryDecoder: TextDecoder;
   connected: boolean;
   connecting: boolean;
@@ -512,6 +568,7 @@ type TerminalRuntime = {
     lines: string[];
     currentLine: string;
   } | null;
+  asciiEditorLine: string | null;
   introSilenced: boolean;
   introBuffer: string;
   maxOutputLines: number;
@@ -1021,6 +1078,9 @@ const createRuntime = (
 
   const entryStatusId = createEntryStatusId();
 
+  const entryPreferences = readEntryPreferences();
+  const showTerminateShortcut = Boolean(entryPreferences.showTerminateShortcut);
+
   const controlBarMarkup = `
         <nav class="terminal-chat__menu-bar" aria-label="Terminal bridge controls">
           <div class="terminal-chat__menu-title">
@@ -1119,6 +1179,14 @@ const createRuntime = (
                 <button type="button" class="terminal-chat__menu-button" data-terminal-target-reset>Reset to server</button>
               </div>
             </form>
+            <div class="terminal-chat__menu-block terminal-chat__menu-block--entry" role="group" aria-label="Entry preferences">
+              <span class="terminal-chat__menu-block-title">Entry preferences</span>
+              <label class="terminal-chat__option">
+                <input type="checkbox" data-terminal-toggle-terminate ${showTerminateShortcut ? 'checked' : ''} />
+                <span>Show Terminate shortcut</span>
+              </label>
+              <p class="terminal-chat__hint terminal__note terminal__note--muted">Expose the Ctrl+Z shortcut button in the on-screen keyboard.</p>
+            </div>
           </div>
         </nav>`;
 
@@ -1142,7 +1210,7 @@ const createRuntime = (
             <div class="terminal-chat__keyboard" id="${entryStatusId}-kbd" data-terminal-kbd>
               <div class="terminal-chat__keyboard-grid">
                 <button type="button" data-terminal-kbd-key="ctrl-c" data-terminal-kbd-group="entry-buffer">Cancel</button>
-                <button type="button" data-terminal-kbd-key="ctrl-z" data-terminal-kbd-group="entry-buffer">Terminate</button>
+                <button type="button" data-terminal-kbd-key="ctrl-z" data-terminal-kbd-group="entry-buffer" data-terminal-terminate-shortcut ${showTerminateShortcut ? '' : 'hidden'}>Terminate</button>
                 <button type="button" data-terminal-kbd-key="ctrl-s" data-terminal-kbd-group="entry-buffer">Save</button>
                 <button type="button" data-terminal-kbd-key="ctrl-a" data-terminal-kbd-group="entry-buffer">Abort</button>
                 <button type="button" data-terminal-kbd-key="arrow-up" data-terminal-kbd-group="arrow-up">↑</button>
@@ -1227,6 +1295,7 @@ const createRuntime = (
   const targetStatus = query<HTMLElement>('[data-terminal-target-status]');
   const keyboardToggleButton = query<HTMLButtonElement>('[data-terminal-kbd-toggle]');
   const keyboardPanel = query<HTMLElement>('[data-terminal-kbd]');
+  const terminateToggle = query<HTMLInputElement>('[data-terminal-toggle-terminate]');
   const entryElement = query<HTMLElement>('[data-terminal-entry]');
   const entryForm = entryElement?.querySelector<HTMLFormElement>('[data-terminal-entry-form]');
   const entryBufferElement = entryElement?.querySelector<HTMLTextAreaElement>('[data-terminal-entry-buffer]');
@@ -1360,6 +1429,7 @@ const createRuntime = (
     passwordField,
     controlsHost,
     themeHost,
+    entryPreferences: { ...entryPreferences },
     mobilePlatform,
     binaryDecoder: new TextDecoder(),
     socketUrl: typeof socketUrl === 'string' && socketUrl.trim() ? socketUrl.trim() : null,
@@ -1369,6 +1439,7 @@ const createRuntime = (
     incomingBuffer: '',
     incomingLineElement: null,
     asciiArtBlock: null,
+    asciiEditorLine: null,
     introSilenced: true,
     introBuffer: '',
     maxOutputLines: 600,
@@ -1633,6 +1704,34 @@ const createRuntime = (
   const keyboardButtons = Array.from(
     keyboardPanel.querySelectorAll<HTMLButtonElement>('[data-terminal-kbd-key]')
   );
+  const terminateShortcutButton = keyboardPanel.querySelector<HTMLButtonElement>(
+    '[data-terminal-terminate-shortcut]'
+  );
+
+  const applyTerminateShortcutVisibility = (visible: boolean) => {
+    if (terminateShortcutButton) {
+      terminateShortcutButton.hidden = !visible;
+    }
+    runtime.entryPreferences.showTerminateShortcut = visible;
+  };
+
+  applyTerminateShortcutVisibility(showTerminateShortcut);
+
+  if (terminateToggle) {
+    terminateToggle.checked = showTerminateShortcut;
+    terminateToggle.addEventListener('change', () => {
+      const visible = terminateToggle.checked;
+      applyTerminateShortcutVisibility(visible);
+      writeEntryPreferences(runtime.entryPreferences);
+      setEntryStatus(
+        visible
+          ? 'Terminate shortcut enabled. The on-screen Ctrl+Z key is now visible.'
+          : 'Terminate shortcut hidden from the on-screen keyboard.',
+        'muted'
+      );
+    });
+  }
+
 
   const KEEP_ALIVE_INTERVAL_MS = 20000;
   const KEEP_ALIVE_PAYLOAD = new Uint8Array([0]);
@@ -1835,6 +1934,47 @@ const createRuntime = (
   const asciiArtHeaderPattern = /shared ascii art:/i;
   const asciiArtPromptPattern = /^│\s*>/i;
   const asciiArtMessagePattern = /^#\d+\]/;
+  const asciiEditorLinePattern = /^\s*(?:│\s*)?>\s?(.*)$/;
+
+  const syncAsciiEditorEntry = (line: string) => {
+    if (!runtime.asciiArtBlock) {
+      runtime.asciiEditorLine = null;
+      return;
+    }
+
+    const match = line.match(asciiEditorLinePattern);
+    if (!match) {
+      runtime.asciiEditorLine = null;
+      return;
+    }
+
+    const content = match[1] ?? '';
+    const previous = runtime.asciiEditorLine;
+    runtime.asciiEditorLine = content;
+
+    if (previous === content) {
+      return;
+    }
+
+    runtime.captureElement.value = content;
+    updateEntryControls();
+    scheduleEntryResize();
+
+    try {
+      runtime.captureElement.setSelectionRange(content.length, content.length);
+    } catch (error) {
+      // Ignore selection errors for unsupported environments.
+    }
+
+    if (previous === null) {
+      try {
+        runtime.captureElement.focus({ preventScroll: true });
+      } catch (error) {
+        runtime.captureElement.focus();
+      }
+      setEntryStatus('Synced the ASCII editor line with the entry buffer.', 'muted');
+    }
+  };
 
   const shouldStartAsciiArtBlock = (line: string) => asciiArtHeaderPattern.test(line);
 
@@ -1851,6 +1991,7 @@ const createRuntime = (
     block.currentLine = currentLine;
     const visibleLines = currentLine ? [...block.lines, currentLine] : [...block.lines];
     block.element.textContent = visibleLines.join('\n');
+    syncAsciiEditorEntry(currentLine);
   };
 
   const startAsciiArtBlock = (headerLine: string, element: HTMLPreElement) => {
@@ -1887,6 +2028,7 @@ const createRuntime = (
     runtime.asciiArtBlock = null;
     runtime.incomingLineElement = null;
     runtime.incomingBuffer = '';
+    runtime.asciiEditorLine = null;
   };
 
   const appendStandaloneLine = (line: string) => {
@@ -2732,6 +2874,61 @@ const createRuntime = (
           resetOutputScroll();
         }
         event.preventDefault();
+      }
+    });
+
+    runtime.captureElement.addEventListener('paste', (event) => {
+      if (!isSocketOpen()) {
+        return;
+      }
+      const clipboardEvent = event as ClipboardEvent;
+      const clipboardText = clipboardEvent.clipboardData?.getData('text') ?? '';
+      if (!clipboardText) {
+        return;
+      }
+      const normalised = normaliseBufferValue(clipboardText);
+      if (!normalised.includes('\n')) {
+        return;
+      }
+
+      event.preventDefault();
+
+      const lines = normalised.split('\n');
+      let sentCount = 0;
+      let failed = false;
+
+      for (const line of lines) {
+        if (!sendTextPayload(`${line}\n`)) {
+          failed = true;
+          break;
+        }
+        handleUserLineSent(line);
+        sentCount += 1;
+      }
+
+      runtime.captureElement.value = '';
+      scheduleEntryResize();
+      updateEntryControls();
+
+      try {
+        runtime.captureElement.setSelectionRange(0, 0);
+      } catch (error) {
+        // Ignore selection errors for unsupported environments
+      }
+
+      try {
+        runtime.captureElement.focus({ preventScroll: true });
+      } catch (error) {
+        runtime.captureElement.focus();
+      }
+
+      if (sentCount > 0) {
+        const message =
+          sentCount === 1 ? 'Sent 1 line from the pasted text.' : `Sent ${sentCount} lines from the pasted text.`;
+        setEntryStatus(
+          failed ? `${message} The bridge stopped accepting further lines.` : message,
+          failed ? 'error' : 'default'
+        );
       }
     });
 

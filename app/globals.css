@@ -1664,6 +1664,27 @@ summary::-webkit-details-marker {
   border-radius: 12px;
 }
 
+.terminal-chat__menu-block--entry {
+  flex: 1 1 16rem;
+}
+
+.terminal-chat__option {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.85rem;
+  font-weight: 500;
+  color: inherit;
+}
+
+.terminal-chat__option input[type='checkbox'] {
+  width: 1.15rem;
+  height: 1.15rem;
+  flex: 0 0 auto;
+  accent-color: #38bdf8;
+  border-radius: 0.35rem;
+}
+
 .terminal-chat__menu-status {
   display: inline-flex;
   align-items: center;
