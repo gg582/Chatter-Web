@@ -1118,6 +1118,42 @@ const createRuntime = (
               <p class="terminal-chat__menu-note">${settingsHint}</p>
               <p class="terminal-chat__menu-game terminal__game" data-terminal-game></p>
             </div>
+            <div class="terminal-chat__menu-block terminal-chat__menu-block--connection" role="group" aria-label="Connection options">
+              <span class="terminal-chat__menu-block-title">Connection options</span>
+              <form class="terminal-chat__target-form" data-terminal-target-form>
+                <label class="terminal-chat__field">
+                  <span class="terminal-chat__field-label">Protocol</span>
+                  <select class="terminal-chat__input" data-terminal-protocol>
+                    <option value="ssh">SSH</option>
+                    <option value="telnet">Telnet</option>
+                  </select>
+                </label>
+                <label class="terminal-chat__field">
+                  <span class="terminal-chat__field-label">Host</span>
+                  <input type="text" class="terminal-chat__input" data-terminal-host placeholder="${escapeHtml(hostPlaceholderText)}" />
+                </label>
+                <label class="terminal-chat__field">
+                  <span class="terminal-chat__field-label">Port</span>
+                  <input type="text" class="terminal-chat__input" data-terminal-port placeholder="${escapeHtml(portPlaceholderText)}" />
+                </label>
+                <div class="terminal-chat__field-actions">
+                  <button type="submit" class="terminal-chat__menu-button">Apply</button>
+                  <button type="button" class="terminal-chat__menu-button" data-terminal-target-reset>Reset</button>
+                </div>
+                <p class="terminal__note" data-terminal-target-status></p>
+              </form>
+            </div>
+            <div class="terminal-chat__menu-block terminal-chat__menu-block--identity" role="group" aria-label="Identity">
+              <span class="terminal-chat__menu-block-title">Identity</span>
+              <div class="terminal-chat__field" data-terminal-username-field>
+                <label class="terminal-chat__field-label" for="terminal-username">Username</label>
+                <input type="text" id="terminal-username" class="terminal-chat__input" data-terminal-username placeholder="Enter username" autocomplete="off" />
+              </div>
+              <div class="terminal-chat__field" data-terminal-password-field>
+                <label class="terminal-chat__field-label" for="terminal-password">Password</label>
+                <input type="password" id="terminal-password" class="terminal-chat__input" data-terminal-password placeholder="Optional" autocomplete="off" />
+              </div>
+            </div>
             <div class="terminal-chat__menu-block terminal-chat__menu-block--keyboard-toggle" role="group" aria-label="Keyboard shortcuts">
               <span class="terminal-chat__menu-block-title">Keyboard shortcuts</span>
               <button type="button" class="terminal-chat__menu-button" data-terminal-kbd-toggle aria-expanded="false">

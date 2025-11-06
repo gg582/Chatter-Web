@@ -683,12 +683,12 @@ const attachSshBridge = (context: TerminalClientContext) => {
     }
   };
 
-  child.stdout.on('data', (chunk) => {
+  child.stdout.on('data', (chunk: Buffer) => {
     handlePotentialPasswordPrompt(chunk as Buffer);
     sendBinaryFrame(context, chunk as Buffer);
   });
 
-  child.stderr.on('data', (chunk) => {
+  child.stderr.on('data', (chunk: Buffer) => {
     handlePotentialPasswordPrompt(chunk as Buffer);
     sendBinaryFrame(context, chunk as Buffer);
   });
