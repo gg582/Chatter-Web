@@ -937,7 +937,8 @@ const schedulePendingLineRenderFlush = () => {
 };
 
 const renderAnsiLine = (target: HTMLElement, content: string, runtime: TerminalRuntime) => {
-  pendingLineRenders.set(target, { content, runtime });
+  const trimmedContent = content.trim();
+  pendingLineRenders.set(target, { content: trimmedContent, runtime });
   schedulePendingLineRenderFlush();
 };
 
@@ -1467,7 +1468,8 @@ const createRuntime = (
         const suffix = kind === 'error' || kind === 'outgoing' || kind === 'info' ? '\x1b[0m' : '';
         const lines = text.replace(/\r\n/g, '\n').split('\n');
         for (const line of lines) {
-          runtime.terminal.writeln(prefix + line + suffix);
+          const trimmedLine = line.trim();
+          runtime.terminal.writeln(prefix + trimmedLine + suffix);
         }
         return;
       }
@@ -1475,9 +1477,10 @@ const createRuntime = (
       // Fallback to custom rendering
       const lines = text.replace(/\r\n/g, '\n').split('\n');
       for (const line of lines) {
+        const trimmedLine = line.trim();
         const entry = document.createElement('pre');
         entry.className = `terminal__line terminal__line--${kind}`;
-        const { fragment, trailingBackground } = createAnsiFragment(line, runtime);
+        const { fragment, trailingBackground } = createAnsiFragment(trimmedLine, runtime);
         entry.append(fragment);
         applyTrailingBackground(entry, trailingBackground);
         runtime.outputElement.append(entry);
@@ -2053,11 +2056,12 @@ const createRuntime = (
   };
 
   const appendStandaloneLine = (line: string) => {
+    const trimmedLine = line.trim();
     const entry = document.createElement('pre');
     entry.className = 'terminal__line terminal__line--incoming';
-            const { fragment, trailingBackground } = createAnsiFragment(line, runtime);    entry.append(fragment);
+            const { fragment, trailingBackground } = createAnsiFragment(trimmedLine, runtime);    entry.append(fragment);
     applyTrailingBackground(entry, trailingBackground);
-    lastRenderedLine.set(entry, line);
+    lastRenderedLine.set(entry, trimmedLine);
     runtime.outputElement.append(entry);
     limitOutputLines(runtime.outputElement, runtime.maxOutputLines);
   };
