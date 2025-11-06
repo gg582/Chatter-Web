@@ -660,7 +660,7 @@ const resolveForegroundColor = (code: number, bold: boolean): string | null => {
   return ANSI_FOREGROUND_COLOR_MAP[effectiveCode] ?? null;
 };
 
-const createAnsiFragment = (line: string): ParsedAnsiLine => {
+const createAnsiFragment = (line: string, runtime: TerminalRuntime): ParsedAnsiLine => {
   const fragment = document.createDocumentFragment();
   const state: AnsiState = { color: null, colorCode: null, background: null, bold: false };
   let lastIndex = 0;
@@ -695,13 +695,33 @@ const createAnsiFragment = (line: string): ParsedAnsiLine => {
     if (matchIndex > lastIndex) {
       pushSegment(line.slice(lastIndex, matchIndex));
     }
-    lastIndex = ANSI_PATTERN.lastIndex;
-
-    if (match[2] !== 'm') {
-      continue;
-    }
-
-    const codes = match[1] ? match[1].split(';') : ['0'];
+        lastIndex = ANSI_PATTERN.lastIndex;
+    
+        const command = match[2];
+        const codes = match[1] ? match[1].split(';') : ['0'];
+    
+        if (command === 'J') { // Erase in Display
+          const code = Number.parseInt(codes[0], 10);
+          if (code === 2) { // Clear entire screen
+            runtime.clearOutput();
+          }
+          continue;
+        }
+    
+        if (command === 'K') { // Erase in Line
+          const code = Number.parseInt(codes[0], 10);
+          if (code === 2) { // Clear entire line
+            if (runtime.incomingLineElement) {
+              runtime.incomingLineElement.textContent = '';
+              runtime.incomingBuffer = '';
+            }
+          }
+          continue;
+        }
+    
+        if (command !== 'm') { // Only process 'm' (SGR) commands if not J or K
+          continue;
+        }
 
     let codeIndex = 0;
 
@@ -864,7 +884,7 @@ const flushPendingLineRenders = () => {
       continue;
     }
 
-    const { fragment, trailingBackground } = createAnsiFragment(nextContent);
+    const { fragment, trailingBackground } = createAnsiFragment(nextContent, runtime);
     target.replaceChildren(fragment);
     applyTrailingBackground(target, trailingBackground);
     lastRenderedLine.set(target, nextContent);
@@ -1099,81 +1119,12 @@ const createRuntime = (
               <p class="terminal-chat__menu-note">${settingsHint}</p>
               <p class="terminal-chat__menu-game terminal__game" data-terminal-game></p>
             </div>
-            <div class="terminal-chat__menu-block terminal-chat__menu-block--identity" role="group" aria-label="Identity controls">
-              <span class="terminal-chat__menu-block-title">Identity</span>
-              <div class="terminal-chat__menu-inline-fields">
-                <label class="terminal-chat__field terminal__field--compact" data-terminal-username-field>
-                  <span class="terminal-chat__field-label">Username</span>
-                  <input
-                    type="text"
-                    data-terminal-username
-                    placeholder="Enter your handle"
-                    value="${escapeHtml(target.defaultUsername)}"
-                    autocomplete="off"
-                    autocapitalize="none"
-                    spellcheck="false"
-                  />
-                </label>
-                <label class="terminal-chat__field terminal__field--compact" data-terminal-password-field>
-                  <span class="terminal-chat__field-label">Password</span>
-                  <input
-                    type="password"
-                    data-terminal-password
-                    placeholder="Optional password"
-                    autocomplete="current-password"
-                    autocapitalize="none"
-                    spellcheck="false"
-                  />
-                </label>
-              </div>
-              <p class="terminal-chat__hint terminal__note terminal__note--muted">
-                Usernames and passwords never leave the browser. They're sent directly to the terminal bridge.
-              </p>
+            <div class="terminal-chat__menu-block terminal-chat__menu-block--keyboard-toggle" role="group" aria-label="Keyboard shortcuts">
+              <span class="terminal-chat__menu-block-title">Keyboard shortcuts</span>
+              <button type="button" class="terminal-chat__menu-button" data-terminal-kbd-toggle aria-expanded="false">
+                Toggle on-screen keyboard
+              </button>
             </div>
-            <form
-              class="terminal-chat__menu-block terminal-chat__menu-block--target terminal-chat__target-form terminal__target-form"
-              data-terminal-target-form
-            >
-              <span class="terminal-chat__menu-block-title">Connection settings</span>
-              <p class="terminal-chat__hint terminal__note terminal__note--muted" data-terminal-target-status></p>
-              <div class="terminal-chat__menu-inline-fields">
-                <label class="terminal-chat__field">
-                  <span class="terminal-chat__field-label">Protocol</span>
-                  <select data-terminal-protocol>
-                    <option value="telnet">Telnet</option>
-                    <option value="ssh">SSH</option>
-                  </select>
-                </label>
-                <label class="terminal-chat__field">
-                  <span class="terminal-chat__field-label">Host</span>
-                  <input
-                    type="text"
-                    data-terminal-host
-                    placeholder="${escapeHtml(hostPlaceholderText)}"
-                    autocomplete="off"
-                    autocapitalize="none"
-                    autocorrect="off"
-                    spellcheck="false"
-                  />
-                </label>
-                <label class="terminal-chat__field">
-                  <span class="terminal-chat__field-label">Port</span>
-                  <input
-                    type="text"
-                    data-terminal-port
-                    placeholder="${escapeHtml(portPlaceholderText)}"
-                    autocomplete="off"
-                    autocorrect="off"
-                    inputmode="numeric"
-                    pattern="[0-9]*"
-                  />
-                </label>
-              </div>
-              <div class="terminal-chat__menu-actions terminal-chat__menu-actions--target">
-                <button type="submit" class="terminal-chat__menu-button terminal-chat__menu-button--primary">Save target</button>
-                <button type="button" class="terminal-chat__menu-button" data-terminal-target-reset>Reset to server</button>
-              </div>
-            </form>
           </div>
         </nav>`;
 
@@ -1448,7 +1399,7 @@ const createRuntime = (
       for (const line of lines) {
         const entry = document.createElement('pre');
         entry.className = `terminal__line terminal__line--${kind}`;
-        const { fragment, trailingBackground } = createAnsiFragment(line);
+        const { fragment, trailingBackground } = createAnsiFragment(line, runtime);
         entry.append(fragment);
         applyTrailingBackground(entry, trailingBackground);
         runtime.outputElement.append(entry);
@@ -1960,8 +1911,7 @@ const createRuntime = (
   const appendStandaloneLine = (line: string) => {
     const entry = document.createElement('pre');
     entry.className = 'terminal__line terminal__line--incoming';
-    const { fragment, trailingBackground } = createAnsiFragment(line);
-    entry.append(fragment);
+            const { fragment, trailingBackground } = createAnsiFragment(line, runtime);    entry.append(fragment);
     applyTrailingBackground(entry, trailingBackground);
     lastRenderedLine.set(entry, line);
     runtime.outputElement.append(entry);
