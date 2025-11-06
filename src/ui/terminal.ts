@@ -1134,7 +1134,7 @@ const createRuntime = (
                 </label>
                 <label class="terminal-chat__field">
                   <span class="terminal-chat__field-label">Port</span>
-                  <input type="text" class="terminal-chat__input" data-terminal-port placeholder="${escapeHtml(portPlaceholderText)}" />
+                  <input type="number" min="1" max="65535" class="terminal-chat__input" data-terminal-port placeholder="${escapeHtml(portPlaceholderText)}" />
                 </label>
                 <div class="terminal-chat__field-actions">
                   <button type="submit" class="terminal-chat__menu-button">Apply</button>
