@@ -505,6 +505,7 @@ type TerminalRuntime = {
   statusElements: HTMLElement[];
   indicatorElements: HTMLElement[];
   outputElement: HTMLElement;
+  shellElement: HTMLElement;
   terminal: ITerminal | null;
   fitAddon: IFitAddon | null;
   captureElement: HTMLTextAreaElement;
@@ -937,8 +938,8 @@ const schedulePendingLineRenderFlush = () => {
 };
 
 const renderAnsiLine = (target: HTMLElement, content: string, runtime: TerminalRuntime) => {
-  const trimmedContent = content.trim();
-  pendingLineRenders.set(target, { content: trimmedContent, runtime });
+  const normalisedContent = content.replace(/\r/g, '');
+  pendingLineRenders.set(target, { content: normalisedContent, runtime });
   schedulePendingLineRenderFlush();
 };
 
@@ -1276,6 +1277,7 @@ const createRuntime = (
   const statusElements = queryAll<HTMLElement>('[data-terminal-status]');
   const indicatorElements = queryAll<HTMLElement>('[data-terminal-indicator]');
   const outputElement = query<HTMLElement>('[data-terminal-output]');
+  const shellElement = query<HTMLElement>('[data-terminal-shell]');
   const connectButtons = queryAll<HTMLButtonElement>('[data-terminal-connect]');
   const disconnectButtons = queryAll<HTMLButtonElement>('[data-terminal-disconnect]');
   const focusButton = query<HTMLButtonElement>('[data-terminal-focus]');
@@ -1307,6 +1309,7 @@ const createRuntime = (
   if (
     statusElements.length === 0 ||
     indicatorElements.length === 0 ||
+    !shellElement ||
     !outputElement ||
     !entryBufferElement ||
     connectButtons.length === 0 ||
@@ -1409,6 +1412,7 @@ const createRuntime = (
     statusElements,
     indicatorElements,
     outputElement,
+    shellElement,
     terminal: null,
     fitAddon: null,
     captureElement,
@@ -1466,21 +1470,21 @@ const createRuntime = (
       if (runtime.terminal) {
         const prefix = kind === 'error' ? '\x1b[31m[ERROR] ' : kind === 'outgoing' ? '\x1b[32m> ' : '\x1b[90m';
         const suffix = kind === 'error' || kind === 'outgoing' || kind === 'info' ? '\x1b[0m' : '';
-        const lines = text.replace(/\r\n/g, '\n').split('\n');
+        const lines = text.replace(/\r\n?/g, '\n').split('\n');
         for (const line of lines) {
-          const trimmedLine = line.trim();
-          runtime.terminal.writeln(prefix + trimmedLine + suffix);
+          const normalisedLine = line.replace(/\r/g, '');
+          runtime.terminal.writeln(prefix + normalisedLine + suffix);
         }
         return;
       }
 
       // Fallback to custom rendering
-      const lines = text.replace(/\r\n/g, '\n').split('\n');
+      const lines = text.replace(/\r\n?/g, '\n').split('\n');
       for (const line of lines) {
-        const trimmedLine = line.trim();
+        const normalisedLine = line.replace(/\r/g, '');
         const entry = document.createElement('pre');
         entry.className = `terminal__line terminal__line--${kind}`;
-        const { fragment, trailingBackground } = createAnsiFragment(trimmedLine, runtime);
+        const { fragment, trailingBackground } = createAnsiFragment(normalisedLine, runtime);
         entry.append(fragment);
         applyTrailingBackground(entry, trailingBackground);
         runtime.outputElement.append(entry);
@@ -1509,9 +1513,9 @@ const createRuntime = (
       // Dynamic imports resolved at browser runtime, not during TypeScript compilation
       // @ts-expect-error - xterm.js modules are copied to dist/lib but not available during TS compilation
       const xtermModule = await import('../../lib/xterm.js') as any;
-      // @ts-expect-error - addon-fit.js module is copied to dist/lib but not available during TS compilation  
+      // @ts-expect-error - addon-fit.js module is copied to dist/lib but not available during TS compilation
       const fitModule = await import('../../lib/addon-fit.js') as any;
-      
+
       const Terminal = xtermModule.Terminal as TerminalConstructor;
       const FitAddon = fitModule.FitAddon as FitAddonConstructor;
 
@@ -1533,8 +1537,14 @@ const createRuntime = (
 
       const fitAddon = new FitAddon();
       term.loadAddon(fitAddon);
-      term.open(runtime.outputElement);
-      
+
+      const host = document.createElement('div');
+      host.className = 'terminal-chat__xterm';
+      runtime.outputElement.replaceChildren(host);
+      runtime.outputElement.classList.add('terminal-chat__output--xterm');
+      runtime.shellElement.classList.add('terminal-chat--xterm-ready');
+      term.open(host);
+
       try {
         fitAddon.fit();
       } catch (error) {
@@ -1546,7 +1556,9 @@ const createRuntime = (
 
       // Handle theme changes
       const updateTerminalTheme = () => {
-        if (!runtime.terminal) return;
+        if (!runtime.terminal) {
+          return;
+        }
         runtime.terminal.write('\x1b[0m'); // Reset any formatting
       };
 
@@ -1554,6 +1566,9 @@ const createRuntime = (
       updateTerminalTheme();
     } catch (error) {
       console.error('Failed to initialize xterm.js, falling back to custom rendering', error);
+      runtime.outputElement.classList.remove('terminal-chat__output--xterm');
+      runtime.shellElement.classList.remove('terminal-chat--xterm-ready');
+      runtime.outputElement.replaceChildren();
       runtime.terminal = null;
       runtime.fitAddon = null;
     }
@@ -2056,12 +2071,13 @@ const createRuntime = (
   };
 
   const appendStandaloneLine = (line: string) => {
-    const trimmedLine = line.trim();
+    const normalisedLine = line.replace(/\r/g, '');
     const entry = document.createElement('pre');
     entry.className = 'terminal__line terminal__line--incoming';
-            const { fragment, trailingBackground } = createAnsiFragment(trimmedLine, runtime);    entry.append(fragment);
+    const { fragment, trailingBackground } = createAnsiFragment(normalisedLine, runtime);
+    entry.append(fragment);
     applyTrailingBackground(entry, trailingBackground);
-    lastRenderedLine.set(entry, trimmedLine);
+    lastRenderedLine.set(entry, normalisedLine);
     runtime.outputElement.append(entry);
     limitOutputLines(runtime.outputElement, runtime.maxOutputLines);
   };
@@ -3102,6 +3118,9 @@ const createRuntime = (
       runtime.fitAddon.dispose();
       runtime.fitAddon = null;
     }
+    runtime.outputElement.classList.remove('terminal-chat__output--xterm');
+    runtime.shellElement.classList.remove('terminal-chat--xterm-ready');
+    runtime.outputElement.replaceChildren();
     detachThemeListener();
     applyLightPaletteOverride(false);
   };
