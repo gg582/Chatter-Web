@@ -50,7 +50,7 @@ const resolveRuntimeDefaults = (): RuntimeDefaults => {
   const hostPlaceholder =
     (typeof config?.bbsHostPlaceholder === 'string' ? config.bbsHostPlaceholder.trim() : '') ||
     host ||
-    'bbs.example.com';
+    'chat.korokorok.com';
 
   const fallbackPortPlaceholder = protocol === 'telnet' ? '23' : '22';
   const portPlaceholder = port || fallbackPortPlaceholder;
@@ -357,6 +357,9 @@ export const setupLoginGate = (stage: HTMLElement, store: ChatStore) => {
       const portValue = stored.port ?? runtimeDefaults.port;
       if (portValue) {
         portInput.value = portValue;
+      } else { // If no stored or runtime default port, set a default based on protocol
+        const currentProtocol = protocolSelect ? normaliseProtocolName(protocolSelect.value.trim().toLowerCase()) : runtimeDefaults.protocol;
+        portInput.value = currentProtocol === 'telnet' ? '23' : '22';
       }
     }
     if (usernameInput) {
@@ -539,6 +542,17 @@ export const setupLoginGate = (stage: HTMLElement, store: ChatStore) => {
 
   setFeedback('Enter your bridge details to continue.');
   update();
+
+  // --- New code for automatic SSH login ---
+  if (
+    runtimeDefaults.protocol === 'ssh' &&
+    runtimeDefaults.host === 'chat.korokorok.com' && // Assuming this is the default host
+    usernameInput && passwordInput && usernameInput.value.trim() !== '' && passwordInput.value.trim() !== '' &&
+    isFormValid()
+  ) {
+    handleConnect();
+  }
+  // --- End of new code ---
 
   return {
     dispose: () => {

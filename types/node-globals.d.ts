@@ -27,6 +27,7 @@ declare module 'node:http' {
 
   export interface Server {
     listen(port: number, hostname: string, listener?: () => void): void;
+    on(event: 'upgrade', listener: (req: IncomingMessage, socket: any, head: Buffer) => void): void;
   }
 
   export function createServer(listener: RequestListener): Server;
@@ -53,10 +54,39 @@ declare module 'node:fs/promises' {
 declare module 'node:path' {
   export function join(...parts: string[]): string;
   export function extname(path: string): string;
+  export function resolve(...parts: string[]): string;
 }
 
 declare module 'node:url' {
   export function fileURLToPath(url: URL): string;
+}
+
+declare module 'node:crypto' {
+  export function createHash(algorithm: string): any;
+}
+
+declare module 'node:net' {
+  export interface Socket {
+    on(event: string, listener: (...args: any[]) => void): this;
+    write(data: any): void;
+    end(): void;
+    destroy(): void;
+    setNoDelay(noDelay: boolean): void;
+  }
+  export function connect(options: any, callback?: () => void): Socket;
+  export function isIP(input: string): number;
+  export { Socket as Socket };
+}
+
+declare module 'node:child_process' {
+  export interface ChildProcessWithoutNullStreams {
+    stdin: any;
+    stdout: any;
+    stderr: any;
+    on(event: string, listener: (...args: any[]) => void): this;
+    kill(signal?: string): void;
+  }
+  export function spawn(command: string, args?: string[], options?: any): ChildProcessWithoutNullStreams;
 }
 
 declare const process: {
@@ -64,3 +94,23 @@ declare const process: {
   argv: string[];
   exitCode?: number;
 };
+
+declare const Buffer: {
+  from(data: any, encoding?: string): Buffer;
+  alloc(size: number): Buffer;
+  isBuffer(obj: any): obj is Buffer;
+  byteLength(string: string, encoding?: string): number;
+  concat(list: Buffer[]): Buffer;
+};
+
+interface Buffer {
+  length: number;
+  [index: number]: number;
+  toString(encoding?: string): string;
+  copy(target: Buffer, targetStart?: number, sourceStart?: number, sourceEnd?: number): number;
+  writeUInt16BE(value: number, offset: number): number;
+  writeUInt32BE(value: number, offset: number): number;
+  readUInt16BE(offset: number): number;
+  readUInt32BE(offset: number): number;
+  subarray(start?: number, end?: number): Buffer;
+}

@@ -108,17 +108,10 @@ export class ChatStore {
     if (replyTo && !this.getMessageById(replyTo)) {
       return { ok: false, error: 'Reply target not found.' };
     }
-    const message: ChatMessage = {
-      id: randomId('m'),
-      author: this.state.currentUser.username,
-      postedAt: new Date().toISOString(),
-      body: text,
-      replyTo,
-      reactions: createEmptyReactions()
-    };
-    this.state.messages.push(message);
-    this.emit();
-    return { ok: true, message: message.id };
+    // Message is not immediately added to the local state.
+    // It should only appear when received back from the SSH connection.
+    // This ensures the UI always reflects what the server actually received.
+    return { ok: true, message: 'Message will appear when received from server.' };
   }
 
   getMessageById(messageId: string): ChatMessage | undefined {
@@ -615,5 +608,10 @@ export class ChatStore {
     }
     this.emit();
     return { ok: true, message: 'Thread deleted.' };
+  }
+
+  setServerScrolling(isScrolling: boolean): void {
+    this.state.isServerScrolling = isScrolling;
+    this.emit();
   }
 }

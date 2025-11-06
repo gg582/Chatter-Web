@@ -136,6 +136,7 @@ export interface ChatState {
   pokeLog: string[];
   rssFeeds: RssFeed[];
   bbsThreads: BbsThread[];
+  isServerScrolling: boolean;
 }
 
 export interface CommandResult {
