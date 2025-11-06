@@ -1180,7 +1180,7 @@ const createRuntime = (
         </div>
         <div class="terminal-chat__entry-region">
           <div class="terminal-chat__entry-main">
-            <div class="terminal-chat__keyboard" id="${entryStatusId}-kbd" data-terminal-kbd>
+            <div class="terminal-chat__keyboard" id="${entryStatusId}-kbd" data-terminal-kbd hidden>
               <div class="terminal-chat__keyboard-grid">
                 <button type="button" data-terminal-kbd-key="ctrl-c" data-terminal-kbd-group="entry-buffer">Cancel</button>
                 <button type="button" data-terminal-kbd-key="ctrl-z" data-terminal-kbd-group="entry-buffer">Terminate</button>
