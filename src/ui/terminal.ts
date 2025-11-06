@@ -586,6 +586,35 @@ type ParsedAnsiLine = {
   trailingBackground: string | null;
 };
 
+const applyColumnResetToChunk = (value: string, runtime: TerminalRuntime): string => {
+  if (!value) {
+    if (runtime.xtermColumnResetPending) {
+      runtime.xtermColumnResetPending = false;
+      return COLUMN_RESET_SEQUENCE;
+    }
+    return value;
+  }
+
+  let needsReset = runtime.xtermColumnResetPending;
+  let result = '';
+
+  for (const char of value) {
+    if (needsReset && char !== '\n' && char !== '\r') {
+      result += COLUMN_RESET_SEQUENCE;
+      needsReset = false;
+    }
+
+    result += char;
+
+    if (char === '\n' || char === '\r') {
+      needsReset = true;
+    }
+  }
+
+  runtime.xtermColumnResetPending = needsReset;
+  return result;
+};
+
 const ANSI_FOREGROUND_COLOR_MAP: Record<number, string> = {
   30: '#000000',
   31: '#aa0000',
@@ -1466,6 +1495,7 @@ const createRuntime = (
     echoSuppressActiveCandidate: null,
     requestDisconnect: () => false,
     clearOutput: () => {
+      runtime.xtermColumnResetPending = true;
       if (runtime.terminal) {
         runtime.terminal.clear();
       } else {
@@ -1488,7 +1518,9 @@ const createRuntime = (
         const lines = text.replace(/\r\n?/g, '\n').split('\n');
         for (const line of lines) {
           const normalisedLine = line.replace(/\r/g, '');
-          runtime.terminal.writeln(prefix + normalisedLine + suffix);
+          const preparedLine = applyColumnResetToChunk(prefix + normalisedLine + suffix, runtime);
+          runtime.terminal.writeln(preparedLine);
+          runtime.xtermColumnResetPending = true;
         }
         return;
       }
