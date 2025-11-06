@@ -28,6 +28,19 @@ async function main() {
   await mkdir(dist, { recursive: true });
   await cp(publicDir, dist, { recursive: true });
 
+  // Copy xterm.js CSS
+  const xtermCssSource = join(root, 'node_modules', '@xterm', 'xterm', 'css', 'xterm.css');
+  const xtermCssDest = join(dist, 'xterm.css');
+  try {
+    await cp(xtermCssSource, xtermCssDest);
+  } catch (error) {
+    if (error && typeof error === 'object' && 'code' in error && error.code === 'ENOENT') {
+      console.warn('xterm.css not found; skipping copy.');
+    } else {
+      throw error;
+    }
+  }
+
   const serverSource = join(dist, 'src', 'server.js');
   const serverDestination = join(dist, 'server.js');
 
