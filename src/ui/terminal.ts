@@ -31,6 +31,7 @@ const textEncoder = new TextEncoder();
 const TARGET_STORAGE_KEY = 'chatter-terminal-target';
 const IDENTITY_STORAGE_KEY = 'chatter-terminal-identity';
 const ANSI_ESCAPE_SEQUENCE_PATTERN = /\u001b\[[0-9;?]*[ -\/]*[@-~]/gu;
+const COLUMN_RESET_SEQUENCE = '\u001b[1G';
 
 const stripAnsiSequences = (value: string): string => value.replace(ANSI_ESCAPE_SEQUENCE_PATTERN, '');
 
@@ -557,6 +558,7 @@ type TerminalRuntime = {
   lastStoredUsername: string;
   echoSuppressBuffer: string;
   echoSuppressActiveCandidate: string | null;
+  xtermColumnResetPending: boolean;
   appendLine: (text: string, kind?: TerminalLineKind) => void;
   updateStatus: (label: string, state: 'disconnected' | 'connecting' | 'connected') => void;
   updateConnectAvailability?: () => void;
@@ -584,6 +586,35 @@ type AnsiState = {
 type ParsedAnsiLine = {
   fragment: DocumentFragment;
   trailingBackground: string | null;
+};
+
+const applyColumnResetToChunk = (value: string, runtime: TerminalRuntime): string => {
+  if (!value) {
+    if (runtime.xtermColumnResetPending) {
+      runtime.xtermColumnResetPending = false;
+      return COLUMN_RESET_SEQUENCE;
+    }
+    return value;
+  }
+
+  let needsReset = runtime.xtermColumnResetPending;
+  let result = '';
+
+  for (const char of value) {
+    if (needsReset && char !== '\n' && char !== '\r') {
+      result += COLUMN_RESET_SEQUENCE;
+      needsReset = false;
+    }
+
+    result += char;
+
+    if (char === '\n' || char === '\r') {
+      needsReset = true;
+    }
+  }
+
+  runtime.xtermColumnResetPending = needsReset;
+  return result;
 };
 
 const ANSI_FOREGROUND_COLOR_MAP: Record<number, string> = {
@@ -1464,8 +1495,10 @@ const createRuntime = (
     lastStoredUsername: '',
     echoSuppressBuffer: '',
     echoSuppressActiveCandidate: null,
+    xtermColumnResetPending: true,
     requestDisconnect: () => false,
     clearOutput: () => {
+      runtime.xtermColumnResetPending = true;
       if (runtime.terminal) {
         runtime.terminal.clear();
       } else {
@@ -1488,7 +1521,9 @@ const createRuntime = (
         const lines = text.replace(/\r\n?/g, '\n').split('\n');
         for (const line of lines) {
           const normalisedLine = line.replace(/\r/g, '');
-          runtime.terminal.writeln(prefix + normalisedLine + suffix);
+          const preparedLine = applyColumnResetToChunk(prefix + normalisedLine + suffix, runtime);
+          runtime.terminal.writeln(preparedLine);
+          runtime.xtermColumnResetPending = true;
         }
         return;
       }
@@ -2212,13 +2247,15 @@ const createRuntime = (
         runtime.introSilenced = false;
         const filteredOutput = filterOutgoingEchoesFromChunk(output);
         if (filteredOutput) {
-          runtime.terminal.write(filteredOutput);
+          const preparedOutput = applyColumnResetToChunk(filteredOutput, runtime);
+          runtime.terminal.write(preparedOutput);
         }
         return;
       }
       const filteredChunk = filterOutgoingEchoesFromChunk(chunk);
       if (filteredChunk) {
-        runtime.terminal.write(filteredChunk);
+        const preparedChunk = applyColumnResetToChunk(filteredChunk, runtime);
+        runtime.terminal.write(preparedChunk);
       }
       return;
     }
