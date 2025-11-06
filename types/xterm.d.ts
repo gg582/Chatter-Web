@@ -1,4 +1,4 @@
-declare module '/lib/xterm.js' {
+declare module '../../lib/xterm.js' {
   export class Terminal {
     constructor(options?: {
       rows?: number;
@@ -84,7 +84,7 @@ declare module '/lib/xterm.js' {
   }
 }
 
-declare module '/lib/addon-fit.js' {
+declare module '../../lib/addon-fit.js' {
   export class FitAddon {
     constructor();
     fit(): void;

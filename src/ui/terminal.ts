@@ -2,8 +2,29 @@ import { ChatStore } from '../state/chatStore.js';
 import { pickRandomNickname } from '../data/nicknames.js';
 import { describeMobilePlatform, detectMobilePlatform, escapeHtml, isMobilePlatform } from './helpers.js';
 import type { MobilePlatform } from './helpers.js';
-import { Terminal } from '/lib/xterm.js';
-import { FitAddon } from '/lib/addon-fit.js';
+
+// xterm.js types - modules will be loaded dynamically at runtime
+interface ITerminal {
+  open(container: HTMLElement): void;
+  write(data: string | Uint8Array): void;
+  writeln(data: string): void;
+  clear(): void;
+  dispose(): void;
+  loadAddon(addon: unknown): void;
+}
+
+interface IFitAddon {
+  fit(): void;
+  dispose(): void;
+}
+
+interface TerminalConstructor {
+  new(options?: Record<string, unknown>): ITerminal;
+}
+
+interface FitAddonConstructor {
+  new(): IFitAddon;
+}
 
 const runtimeMap = new WeakMap<HTMLElement, TerminalRuntime>();
 const textEncoder = new TextEncoder();
@@ -484,8 +505,8 @@ type TerminalRuntime = {
   statusElements: HTMLElement[];
   indicatorElements: HTMLElement[];
   outputElement: HTMLElement;
-  terminal: Terminal | null;
-  fitAddon: FitAddon | null;
+  terminal: ITerminal | null;
+  fitAddon: IFitAddon | null;
   captureElement: HTMLTextAreaElement;
   entryElement: HTMLElement;
   entryForm: HTMLFormElement;
@@ -1387,6 +1408,8 @@ const createRuntime = (
     statusElements,
     indicatorElements,
     outputElement,
+    terminal: null,
+    fitAddon: null,
     captureElement,
     entryElement,
     entryForm,
@@ -1423,9 +1446,13 @@ const createRuntime = (
     lastStoredUsername: '',
     requestDisconnect: () => false,
     clearOutput: () => {
-      runtime.outputElement.innerHTML = '';
-      runtime.incomingLineElement = null;
-      runtime.incomingBuffer = '';
+      if (runtime.terminal) {
+        runtime.terminal.clear();
+      } else {
+        runtime.outputElement.innerHTML = '';
+        runtime.incomingLineElement = null;
+        runtime.incomingBuffer = '';
+      }
       scrollOutputToBottom(true);
     },
     appendLine: (text: string, kind: TerminalLineKind = 'info') => {
@@ -1434,6 +1461,18 @@ const createRuntime = (
         return;
       }
 
+      // Use xterm if available
+      if (runtime.terminal) {
+        const prefix = kind === 'error' ? '\x1b[31m[ERROR] ' : kind === 'outgoing' ? '\x1b[32m> ' : '\x1b[90m';
+        const suffix = kind === 'error' || kind === 'outgoing' || kind === 'info' ? '\x1b[0m' : '';
+        const lines = text.replace(/\r\n/g, '\n').split('\n');
+        for (const line of lines) {
+          runtime.terminal.writeln(prefix + line + suffix);
+        }
+        return;
+      }
+
+      // Fallback to custom rendering
       const lines = text.replace(/\r\n/g, '\n').split('\n');
       for (const line of lines) {
         const entry = document.createElement('pre');
@@ -1460,6 +1499,65 @@ const createRuntime = (
       }
     }
   };
+
+  // Initialize xterm.js Terminal - load dynamically at runtime
+  const initializeXterm = async () => {
+    try {
+      // Dynamic imports resolved at browser runtime, not during TypeScript compilation
+      // @ts-expect-error - xterm.js modules are copied to dist/lib but not available during TS compilation
+      const xtermModule = await import('../../lib/xterm.js') as any;
+      // @ts-expect-error - addon-fit.js module is copied to dist/lib but not available during TS compilation  
+      const fitModule = await import('../../lib/addon-fit.js') as any;
+      
+      const Terminal = xtermModule.Terminal as TerminalConstructor;
+      const FitAddon = fitModule.FitAddon as FitAddonConstructor;
+
+      const term = new Terminal({
+        cursorBlink: true,
+        cursorStyle: 'block',
+        scrollback: 10000,
+        fontSize: 14,
+        fontFamily: '"IBM Plex Mono", "Courier New", Courier, monospace',
+        theme: {
+          background: currentTheme === 'dark' ? '#1a1a1a' : '#ffffff',
+          foreground: currentTheme === 'dark' ? '#e0e0e0' : '#000000',
+          cursor: currentTheme === 'dark' ? '#00ff00' : '#000000',
+          selection: currentTheme === 'dark' ? 'rgba(255, 255, 255, 0.3)' : 'rgba(0, 0, 0, 0.3)'
+        },
+        convertEol: false,
+        disableStdin: true
+      });
+
+      const fitAddon = new FitAddon();
+      term.loadAddon(fitAddon);
+      term.open(runtime.outputElement);
+      
+      try {
+        fitAddon.fit();
+      } catch (error) {
+        console.warn('Failed to fit terminal on init', error);
+      }
+
+      runtime.terminal = term;
+      runtime.fitAddon = fitAddon;
+
+      // Handle theme changes
+      const updateTerminalTheme = () => {
+        if (!runtime.terminal) return;
+        runtime.terminal.write('\x1b[0m'); // Reset any formatting
+      };
+
+      // Trigger initial theme update
+      updateTerminalTheme();
+    } catch (error) {
+      console.error('Failed to initialize xterm.js, falling back to custom rendering', error);
+      runtime.terminal = null;
+      runtime.fitAddon = null;
+    }
+  };
+
+  // Start xterm initialization asynchronously
+  void initializeXterm();
 
   updateScrollLockState = () => {
     const { scrollHeight, scrollTop, clientHeight } = runtime.outputElement;
@@ -1875,6 +1973,13 @@ const createRuntime = (
     const handleResize = () => {
       updateViewportSizing();
       scheduleEntryResize();
+      if (runtime.fitAddon) {
+        try {
+          runtime.fitAddon.fit();
+        } catch (error) {
+          console.warn('Failed to fit terminal on resize', error);
+        }
+      }
     };
     window.addEventListener('resize', handleResize);
     if (window.visualViewport) {
@@ -1978,6 +2083,28 @@ const createRuntime = (
       return;
     }
 
+    // Use xterm.js if available - it handles all ANSI sequences correctly
+    if (runtime.terminal) {
+      if (runtime.introSilenced) {
+        runtime.introBuffer += chunk;
+        if (runtime.introBuffer.length > INTRO_CAPTURE_LIMIT) {
+          runtime.introBuffer = runtime.introBuffer.slice(-INTRO_CAPTURE_LIMIT);
+        }
+        const markerIndex = runtime.introBuffer.indexOf(INTRO_MARKER);
+        if (markerIndex === -1) {
+          return;
+        }
+        const output = runtime.introBuffer.slice(markerIndex);
+        runtime.introBuffer = '';
+        runtime.introSilenced = false;
+        runtime.terminal.write(output);
+        return;
+      }
+      runtime.terminal.write(chunk);
+      return;
+    }
+
+    // Fallback to custom rendering for browsers that don't support xterm
     if (chunk.includes('\u001b[2J')) {
       const parts = chunk.split('\u001b[2J');
       let first = true;
@@ -2963,6 +3090,14 @@ const createRuntime = (
   });
 
   runtime.disposeResources = () => {
+    if (runtime.terminal) {
+      runtime.terminal.dispose();
+      runtime.terminal = null;
+    }
+    if (runtime.fitAddon) {
+      runtime.fitAddon.dispose();
+      runtime.fitAddon = null;
+    }
     detachThemeListener();
     applyLightPaletteOverride(false);
   };
