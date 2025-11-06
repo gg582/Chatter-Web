@@ -91,7 +91,8 @@ export const renderChatFeed = (store: ChatStore, container: HTMLElement) => {
       return;
     }
     form.reset();
-    container.dataset.feedback = 'Message posted.';
+    container.dataset.feedback = 'Message sent. It will appear when received from the server via SSH.';
     container.dataset.feedbackType = 'success';
+    renderChatFeed(store, container);
   });
 };
