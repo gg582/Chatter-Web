@@ -1949,19 +1949,23 @@ const createRuntime = (
     }
 
     const content = match[1] ?? '';
+    const normalisedContent = content.replace(/\s+$/u, '');
     const previous = runtime.asciiEditorLine;
-    runtime.asciiEditorLine = content;
+    runtime.asciiEditorLine = normalisedContent;
 
-    if (previous === content) {
+    if (previous === normalisedContent) {
       return;
     }
 
-    runtime.captureElement.value = content;
+    runtime.captureElement.value = normalisedContent;
     updateEntryControls();
     scheduleEntryResize();
 
     try {
-      runtime.captureElement.setSelectionRange(content.length, content.length);
+      runtime.captureElement.setSelectionRange(
+        normalisedContent.length,
+        normalisedContent.length
+      );
     } catch (error) {
       // Ignore selection errors for unsupported environments.
     }
