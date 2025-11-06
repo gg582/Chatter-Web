@@ -852,7 +852,7 @@ const applyTrailingBackground = (element: HTMLElement, trailingBackground: strin
   element.classList.remove('terminal__line--trailing-background');
 };
 
-const pendingLineRenders = new Map<HTMLElement, string>();
+const pendingLineRenders = new Map<HTMLElement, { content: string; runtime: TerminalRuntime }>();
 const lastRenderedLine = new WeakMap<HTMLElement, string>();
 let lineRenderScheduled = false;
 
@@ -865,13 +865,12 @@ const flushPendingLineRenders = () => {
   const entries = Array.from(pendingLineRenders.entries());
   pendingLineRenders.clear();
 
-  for (const [target, content] of entries) {
+  for (const [target, { content: nextContent, runtime }] of entries) {
     if (!target.isConnected) {
       lastRenderedLine.delete(target);
       continue;
     }
 
-    const nextContent = content ?? '';
     const previous = lastRenderedLine.get(target) ?? '';
     if (previous === nextContent) {
       continue;
@@ -912,8 +911,8 @@ const schedulePendingLineRenderFlush = () => {
   });
 };
 
-const renderAnsiLine = (target: HTMLElement, content: string) => {
-  pendingLineRenders.set(target, content);
+const renderAnsiLine = (target: HTMLElement, content: string, runtime: TerminalRuntime) => {
+  pendingLineRenders.set(target, { content, runtime });
   schedulePendingLineRenderFlush();
 };
 
@@ -1999,7 +1998,7 @@ const createRuntime = (
           runtime.incomingLineElement = runtime.asciiArtBlock.element;
         } else {
           const target = ensureIncomingLine();
-          renderAnsiLine(target, buffer);
+          renderAnsiLine(target, buffer, runtime);
           lineElement = runtime.incomingLineElement;
         }
         buffer = '';
@@ -2014,7 +2013,7 @@ const createRuntime = (
         } else {
           if (buffer || !lineElement) {
             const target = ensureIncomingLine();
-            renderAnsiLine(target, buffer);
+            renderAnsiLine(target, buffer, runtime);
             lineElement = runtime.incomingLineElement;
           }
           handleRegularLineCommit(buffer, lineElement);
@@ -2047,7 +2046,7 @@ const createRuntime = (
         runtime.incomingLineElement = runtime.asciiArtBlock.element;
       } else {
         const target = ensureIncomingLine();
-        renderAnsiLine(target, buffer);
+        renderAnsiLine(target, buffer, runtime);
         lineElement = target;
       }
     }
