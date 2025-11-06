@@ -1248,8 +1248,8 @@ summary::-webkit-details-marker {
 }
 
 .utility-section--commands .cheatsheet__item span {
-  word-break: break-word;
-  overflow-wrap: anywhere;
+  overflow-wrap: break-word;
+  word-wrap: break-word;
 }
 
 .utility-section__lead {
@@ -2310,7 +2310,8 @@ summary::-webkit-details-marker {
   width: 100%;
   box-shadow: none;
   white-space: pre-wrap;
-  word-break: break-word;
+  overflow-wrap: break-word;
+  word-wrap: break-word;
 }
 
 .terminal__segment {
