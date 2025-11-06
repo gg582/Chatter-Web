@@ -1705,7 +1705,7 @@ summary::-webkit-details-marker {
 .terminal-chat__output {
   flex: 1 1 auto;
   min-height: 0;
-  padding: clamp(1rem, 3vw, 2rem);
+  padding: clamp(0.5rem, 2vw, 1rem) clamp(0.5rem, 1vw, 0.75rem);
   font-family: 'IBM Plex Mono', 'SFMono-Regular', Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New', monospace;
   font-size: 0.92rem;
   color: var(--terminal-text);
@@ -2211,7 +2211,7 @@ summary::-webkit-details-marker {
 .terminal__output {
   flex: 1 1 auto;
   min-height: 0;
-  padding: 0;
+  padding: clamp(0.5rem, 2vw, 1rem) clamp(0.75rem, 2vw, 1.25rem);
   font-family: 'IBM Plex Mono', 'SFMono-Regular', Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New', monospace;
   font-size: 0.92rem;
   color: var(--terminal-text);
@@ -2222,7 +2222,8 @@ summary::-webkit-details-marker {
   display: flex;
   flex-direction: column;
   gap: 0;
-  align-items: stretch;
+  align-items: flex-start;
+  max-width: 120ch;
 }
 
 .terminal-chat__mobile-note {
