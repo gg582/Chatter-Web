@@ -2,6 +2,8 @@ import { ChatStore } from '../state/chatStore.js';
 import { pickRandomNickname } from '../data/nicknames.js';
 import { describeMobilePlatform, detectMobilePlatform, escapeHtml, isMobilePlatform } from './helpers.js';
 import type { MobilePlatform } from './helpers.js';
+import { Terminal } from '/lib/xterm.js';
+import { FitAddon } from '/lib/addon-fit.js';
 
 const runtimeMap = new WeakMap<HTMLElement, TerminalRuntime>();
 const textEncoder = new TextEncoder();
@@ -482,6 +484,8 @@ type TerminalRuntime = {
   statusElements: HTMLElement[];
   indicatorElements: HTMLElement[];
   outputElement: HTMLElement;
+  terminal: Terminal | null;
+  fitAddon: FitAddon | null;
   captureElement: HTMLTextAreaElement;
   entryElement: HTMLElement;
   entryForm: HTMLFormElement;

@@ -41,6 +41,33 @@ async function main() {
     }
   }
 
+  // Copy xterm.js library
+  const xtermJsSource = join(root, 'node_modules', '@xterm', 'xterm', 'lib', 'xterm.js');
+  const xtermJsDest = join(dist, 'lib', 'xterm.js');
+  try {
+    await mkdir(join(dist, 'lib'), { recursive: true });
+    await cp(xtermJsSource, xtermJsDest);
+  } catch (error) {
+    if (error && typeof error === 'object' && 'code' in error && error.code === 'ENOENT') {
+      console.warn('xterm.js not found; skipping copy.');
+    } else {
+      throw error;
+    }
+  }
+
+  // Copy xterm-addon-fit library
+  const fitAddonSource = join(root, 'node_modules', '@xterm', 'addon-fit', 'lib', 'addon-fit.js');
+  const fitAddonDest = join(dist, 'lib', 'addon-fit.js');
+  try {
+    await cp(fitAddonSource, fitAddonDest);
+  } catch (error) {
+    if (error && typeof error === 'object' && 'code' in error && error.code === 'ENOENT') {
+      console.warn('addon-fit.js not found; skipping copy.');
+    } else {
+      throw error;
+    }
+  }
+
   const serverSource = join(dist, 'src', 'server.js');
   const serverDestination = join(dist, 'server.js');
 
