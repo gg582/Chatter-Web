@@ -30,6 +30,16 @@ const runtimeMap = new WeakMap<HTMLElement, TerminalRuntime>();
 const textEncoder = new TextEncoder();
 const TARGET_STORAGE_KEY = 'chatter-terminal-target';
 const IDENTITY_STORAGE_KEY = 'chatter-terminal-identity';
+const ANSI_ESCAPE_SEQUENCE_PATTERN = /\u001b\[[0-9;?]*[ -\/]*[@-~]/gu;
+
+const stripAnsiSequences = (value: string): string => value.replace(ANSI_ESCAPE_SEQUENCE_PATTERN, '');
+
+const normaliseEchoText = (value: string): string =>
+  stripAnsiSequences(value)
+    .replace(/\u0008/g, '')
+    .replace(/\r/g, '')
+    .replace(/\s+/g, ' ')
+    .trim();
 
 const parseServiceDomain = (
   value: string
@@ -545,6 +555,8 @@ type TerminalRuntime = {
   pendingAutoScroll: boolean;
   identityKey: string | null;
   lastStoredUsername: string;
+  echoSuppressBuffer: string;
+  echoSuppressActiveCandidate: string | null;
   appendLine: (text: string, kind?: TerminalLineKind) => void;
   updateStatus: (label: string, state: 'disconnected' | 'connecting' | 'connected') => void;
   updateConnectAvailability?: () => void;
@@ -1406,6 +1418,7 @@ const createRuntime = (
 
   let scrollOutputToBottom: (force?: boolean) => void = () => {};
   let updateScrollLockState: () => void = () => {};
+  const pendingOutgoingEchoes: string[] = [];
 
   const runtime: TerminalRuntime = {
     socket: null,
@@ -1449,6 +1462,8 @@ const createRuntime = (
     pendingAutoScroll: false,
     identityKey: null,
     lastStoredUsername: '',
+    echoSuppressBuffer: '',
+    echoSuppressActiveCandidate: null,
     requestDisconnect: () => false,
     clearOutput: () => {
       if (runtime.terminal) {
@@ -1505,6 +1520,84 @@ const createRuntime = (
         indicator.setAttribute('data-state', state);
       }
     }
+  };
+
+  const registerOutgoingEchoCandidate = (value: string) => {
+    const normalised = normaliseEchoText(value);
+    if (!normalised) {
+      return;
+    }
+    pendingOutgoingEchoes.push(normalised);
+    const overflow = pendingOutgoingEchoes.length - 32;
+    if (overflow > 0) {
+      pendingOutgoingEchoes.splice(0, overflow);
+    }
+    if (!runtime.echoSuppressActiveCandidate) {
+      runtime.echoSuppressActiveCandidate = pendingOutgoingEchoes[0] ?? null;
+    }
+  };
+
+  const shouldSuppressOutgoingEcho = (line: string): boolean => {
+    const normalised = normaliseEchoText(line);
+    if (!normalised) {
+      return false;
+    }
+    const index = pendingOutgoingEchoes.findIndex((entry) => entry === normalised);
+    if (index === -1) {
+      return false;
+    }
+    pendingOutgoingEchoes.splice(index, 1);
+    if (runtime.echoSuppressActiveCandidate === normalised) {
+      runtime.echoSuppressActiveCandidate = pendingOutgoingEchoes[0] ?? null;
+      runtime.echoSuppressBuffer = '';
+    }
+    if (!runtime.echoSuppressActiveCandidate && pendingOutgoingEchoes.length > 0) {
+      runtime.echoSuppressActiveCandidate = pendingOutgoingEchoes[0];
+    }
+    return true;
+  };
+
+  const filterOutgoingEchoesFromChunk = (chunk: string): string => {
+    if (!chunk) {
+      return '';
+    }
+
+    let result = '';
+
+    for (const char of chunk) {
+      if (!runtime.echoSuppressActiveCandidate && pendingOutgoingEchoes.length > 0) {
+        runtime.echoSuppressActiveCandidate = pendingOutgoingEchoes[0];
+      }
+
+      const active = runtime.echoSuppressActiveCandidate;
+      if (active) {
+        runtime.echoSuppressBuffer += char;
+
+        if (char === '\n') {
+          const buffer = runtime.echoSuppressBuffer;
+          const line = buffer.replace(/\r?\n$/, '');
+          const suppressed = shouldSuppressOutgoingEcho(line);
+          runtime.echoSuppressBuffer = '';
+          runtime.echoSuppressActiveCandidate = pendingOutgoingEchoes[0] ?? null;
+          if (!suppressed) {
+            result += buffer;
+          }
+        } else {
+          const normalisedPartial = normaliseEchoText(runtime.echoSuppressBuffer);
+          if (!active.startsWith(normalisedPartial)) {
+            result += runtime.echoSuppressBuffer;
+            runtime.echoSuppressBuffer = '';
+            runtime.echoSuppressActiveCandidate = pendingOutgoingEchoes[0] ?? active;
+          }
+        }
+
+        continue;
+      }
+
+      result += char;
+    }
+
+    return result;
   };
 
   // Initialize xterm.js Terminal - load dynamically at runtime
@@ -2117,10 +2210,16 @@ const createRuntime = (
         const output = runtime.introBuffer.slice(markerIndex);
         runtime.introBuffer = '';
         runtime.introSilenced = false;
-        runtime.terminal.write(output);
+        const filteredOutput = filterOutgoingEchoesFromChunk(output);
+        if (filteredOutput) {
+          runtime.terminal.write(filteredOutput);
+        }
         return;
       }
-      runtime.terminal.write(chunk);
+      const filteredChunk = filterOutgoingEchoesFromChunk(chunk);
+      if (filteredChunk) {
+        runtime.terminal.write(filteredChunk);
+      }
       return;
     }
 
@@ -2198,12 +2297,24 @@ const createRuntime = (
           updateAsciiArtPreview(buffer);
           handleAsciiLineCommit(buffer);
         } else {
-          if (buffer || !lineElement) {
-            const target = ensureIncomingLine();
-            renderAnsiLine(target, buffer, runtime);
-            lineElement = runtime.incomingLineElement;
+          const suppressEcho = shouldSuppressOutgoingEcho(buffer);
+          if (suppressEcho) {
+            if (lineElement && lineElement.isConnected) {
+              const parent = lineElement.parentElement;
+              if (parent) {
+                parent.removeChild(lineElement);
+              }
+              lastRenderedLine.delete(lineElement);
+            }
+            lineElement = null;
+          } else {
+            if (buffer || !lineElement) {
+              const target = ensureIncomingLine();
+              renderAnsiLine(target, buffer, runtime);
+              lineElement = runtime.incomingLineElement;
+            }
+            handleRegularLineCommit(buffer, lineElement);
           }
-          handleRegularLineCommit(buffer, lineElement);
         }
 
         buffer = '';
@@ -2818,6 +2929,8 @@ const createRuntime = (
     if (!trimmed) {
       return;
     }
+
+    registerOutgoingEchoCandidate(trimmed);
 
     const paletteMatch = trimmed.match(/^\/?palette\s+(.*)$/i);
     if (!paletteMatch) {
