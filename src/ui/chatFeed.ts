@@ -91,7 +91,13 @@ export const renderChatFeed = (store: ChatStore, container: HTMLElement) => {
       return;
     }
     form.reset();
-    container.dataset.feedback = 'Message posted.';
-    container.dataset.feedbackType = 'success';
+    // Note: Message is not added to local state immediately.
+    // It will only appear when received back from the SSH server.
+    // No need to re-render here since the message list hasn't changed.
+    const feedbackElement = container.querySelector<HTMLElement>('.feedback');
+    if (feedbackElement) {
+      feedbackElement.textContent = 'Message sent. It will appear when received from the server via SSH.';
+      feedbackElement.className = 'feedback feedback--success';
+    }
   });
 };
