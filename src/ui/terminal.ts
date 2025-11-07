@@ -34,6 +34,8 @@ const ANSI_ESCAPE_SEQUENCE_PATTERN = /\u001b\[[0-9;?]*[ -\/]*[@-~]/gu;
 const ANSI_SGR_SEQUENCE_PATTERN = /\u001b\[[0-9:;?]*m/gu;
 const COLUMN_RESET_SEQUENCE = '\r';
 
+const WHITESPACE_COLLAPSE_PATTERN = /\s+/g;
+
 const stripAnsiSequences = (value: string): string => value.replace(ANSI_ESCAPE_SEQUENCE_PATTERN, '');
 
 const stripAnsiStyling = (value: string): string => value.replace(ANSI_SGR_SEQUENCE_PATTERN, '');
@@ -42,15 +44,16 @@ const normaliseEchoText = (value: string): string =>
   stripAnsiSequences(value)
     .replace(/\u0008/g, '')
     .replace(/\r/g, '')
-    .replace(/\s+/g, ' ')
+    .replace(WHITESPACE_COLLAPSE_PATTERN, ' ')
     .trim();
 
 const normaliseWhitespace = (value: string): string => {
   // Normalize excessive whitespace from server output
-  // Remove leading/trailing whitespace on each line and collapse multiple spaces
+  // Remove carriage returns, leading/trailing whitespace on each line, and collapse multiple spaces
   return value
+    .replace(/\r/g, '')
     .split('\n')
-    .map(line => line.trim().replace(/\s+/g, ' '))
+    .map(line => line.trim().replace(WHITESPACE_COLLAPSE_PATTERN, ' '))
     .join('\n');
 };
 
@@ -779,7 +782,7 @@ const schedulePendingLineRenderFlush = () => {
 };
 
 const renderAnsiLine = (target: HTMLElement, content: string, runtime: TerminalRuntime) => {
-  const normalisedContent = normaliseWhitespace(content.replace(/\r/g, ''));
+  const normalisedContent = normaliseWhitespace(content);
   pendingLineRenders.set(target, { content: normalisedContent, runtime });
   schedulePendingLineRenderFlush();
 };
