@@ -25,8 +25,26 @@ export const formatRelative = (iso: string): string => {
   return `${days} day${days === 1 ? '' : 's'} ago`;
 };
 
-export const escapeHtml = (text: string): string =>
-  text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#x27;');
+const ANSI_ESCAPE_PATTERN = /(?:\u001B|\u009B)[[\]()#;?]*(?:[0-9]{1,4}(?:;[0-9]{0,4})*)?[0-9A-PRZcf-ntqry=><]/g;
+
+const stripControlSequences = (value: string): string =>
+  value
+    .replace(ANSI_ESCAPE_PATTERN, '')
+    .replace(/\r/g, '')
+    .replace(/[\u0007\u0008]/g, '')
+    .replace(/\t+/g, ' ')
+    .replace(/[\u0000-\u0008\u000B-\u001F\u007F]/g, '');
+
+export const escapeHtml = (text: string): string => {
+  const cleaned = stripControlSequences(text);
+  const trimmed = cleaned.trim();
+  return trimmed
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#x27;');
+};
 
 export type MobilePlatform = 'ios' | 'android' | 'postmarketos' | 'ubports' | 'blackberry';
 
