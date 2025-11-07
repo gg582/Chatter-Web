@@ -45,6 +45,15 @@ const normaliseEchoText = (value: string): string =>
     .replace(/\s+/g, ' ')
     .trim();
 
+const normaliseWhitespace = (value: string): string => {
+  // Normalize excessive whitespace from server output
+  // Remove leading/trailing whitespace on each line and collapse multiple spaces
+  return value
+    .split('\n')
+    .map(line => line.trim().replace(/\s+/g, ' '))
+    .join('\n');
+};
+
 const parseServiceDomain = (
   value: string
 ): { host: string; pathPrefix: string } | null => {
@@ -770,7 +779,7 @@ const schedulePendingLineRenderFlush = () => {
 };
 
 const renderAnsiLine = (target: HTMLElement, content: string, runtime: TerminalRuntime) => {
-  const normalisedContent = content.replace(/\r/g, '');
+  const normalisedContent = normaliseWhitespace(content.replace(/\r/g, ''));
   pendingLineRenders.set(target, { content: normalisedContent, runtime });
   schedulePendingLineRenderFlush();
 };
@@ -1239,7 +1248,7 @@ const createRuntime = (
           kind === 'error' ? '[ERROR] ' : kind === 'outgoing' ? '> ' : kind === 'info' ? '[INFO] ' : '';
         const lines = text.replace(/\r\n?/g, '\n').split('\n');
         for (const line of lines) {
-          const normalisedLine = line.replace(/\r/g, '');
+          const normalisedLine = line.replace(/\r/g, '').trim();
           const plainLine = stripAnsiStyling(normalisedLine);
           const preparedLine = applyColumnResetToChunk(prefix + plainLine, runtime);
           runtime.terminal.writeln(preparedLine);
@@ -1251,7 +1260,7 @@ const createRuntime = (
       // Fallback to custom rendering
       const lines = text.replace(/\r\n?/g, '\n').split('\n');
       for (const line of lines) {
-        const normalisedLine = line.replace(/\r/g, '');
+        const normalisedLine = line.replace(/\r/g, '').trim();
         const entry = document.createElement('pre');
         entry.className = `terminal__line terminal__line--${kind}`;
         const fragment = createAnsiFragment(normalisedLine, runtime);
@@ -2023,7 +2032,8 @@ const createRuntime = (
         const filteredOutput = filterOutgoingEchoesFromChunk(output);
         if (filteredOutput) {
           const plainOutput = stripAnsiStyling(filteredOutput);
-          const preparedOutput = applyColumnResetToChunk(plainOutput, runtime);
+          const normalisedOutput = normaliseWhitespace(plainOutput);
+          const preparedOutput = applyColumnResetToChunk(normalisedOutput, runtime);
           runtime.terminal.write(preparedOutput);
         }
         return;
@@ -2031,7 +2041,8 @@ const createRuntime = (
       const filteredChunk = filterOutgoingEchoesFromChunk(chunk);
       if (filteredChunk) {
         const plainChunk = stripAnsiStyling(filteredChunk);
-        const preparedChunk = applyColumnResetToChunk(plainChunk, runtime);
+        const normalisedChunk = normaliseWhitespace(plainChunk);
+        const preparedChunk = applyColumnResetToChunk(normalisedChunk, runtime);
         runtime.terminal.write(preparedChunk);
       }
       return;
