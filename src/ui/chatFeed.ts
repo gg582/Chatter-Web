@@ -17,8 +17,8 @@ const renderReactions = (message: ChatMessage) => {
 
 export const renderChatFeed = (store: ChatStore, container: HTMLElement) => {
   const state = store.snapshot();
-  const feedback = container.dataset.feedback ?? '';
-  const feedbackType = container.dataset.feedbackType ?? 'info';
+  const feedback = (container.dataset.feedback ?? '').trim();
+  const feedbackType = (container.dataset.feedbackType ?? 'info').trim() || 'info';
 
   const messageItems = state.isServerScrolling ? '' : state.messages
     .map((message) => {
@@ -81,11 +81,11 @@ export const renderChatFeed = (store: ChatStore, container: HTMLElement) => {
   form?.addEventListener('submit', (event) => {
     event.preventDefault();
     const formData = new FormData(form);
-    const message = String(formData.get('message') ?? '');
-    const replyTo = String(formData.get('reply') ?? '');
+    const message = String(formData.get('message') ?? '').trim();
+    const replyTo = String(formData.get('reply') ?? '').trim();
     const result = store.sendMessage(message, replyTo || undefined);
     if (!result.ok) {
-      container.dataset.feedback = result.error ?? 'Unable to post message.';
+      container.dataset.feedback = (result.error ?? 'Unable to post message.').trim();
       container.dataset.feedbackType = 'error';
       renderChatFeed(store, container);
       return;
@@ -96,7 +96,7 @@ export const renderChatFeed = (store: ChatStore, container: HTMLElement) => {
     // No need to re-render here since the message list hasn't changed.
     const feedbackElement = container.querySelector<HTMLElement>('.feedback');
     if (feedbackElement) {
-      feedbackElement.textContent = 'Message sent. It will appear when received from the server via SSH.';
+      feedbackElement.textContent = 'Message sent. It will appear when received from the server via SSH.'.trim();
       feedbackElement.className = 'feedback feedback--success';
     }
   });

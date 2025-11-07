@@ -978,6 +978,7 @@ summary::-webkit-details-marker {
 .feedback {
   font-size: 0.9rem;
   color: var(--text-faint);
+  text-align: left;
 }
 
 .feedback--error {
@@ -1075,6 +1076,7 @@ summary::-webkit-details-marker {
 .chat-message__body {
   font-size: 1rem;
   color: var(--terminal-text);
+  text-align: left;
 }
 
 .session-panel__actions {
