@@ -31,9 +31,12 @@ const textEncoder = new TextEncoder();
 const TARGET_STORAGE_KEY = 'chatter-terminal-target';
 const IDENTITY_STORAGE_KEY = 'chatter-terminal-identity';
 const ANSI_ESCAPE_SEQUENCE_PATTERN = /\u001b\[[0-9;?]*[ -\/]*[@-~]/gu;
-const COLUMN_RESET_SEQUENCE = '\u001b[1G';
+const ANSI_SGR_SEQUENCE_PATTERN = /\u001b\[[0-9:;?]*m/gu;
+const COLUMN_RESET_SEQUENCE = '\r';
 
 const stripAnsiSequences = (value: string): string => value.replace(ANSI_ESCAPE_SEQUENCE_PATTERN, '');
+
+const stripAnsiStyling = (value: string): string => value.replace(ANSI_SGR_SEQUENCE_PATTERN, '');
 
 const normaliseEchoText = (value: string): string =>
   stripAnsiSequences(value)
@@ -296,12 +299,6 @@ const resolveDefaultUsername = () => {
   }
   return cachedDefaultUsername;
 };
-
-const palettesRequiringDarkText = new Set([
-  'moe',
-  'adwaita',
-  'neon-genesis-evangelion',
-]);
 
 const isPrivateIpv4 = (segments: number[]) => {
   if (segments.length !== 4 || segments.some((part) => Number.isNaN(part) || part < 0 || part > 255)) {
@@ -591,7 +588,6 @@ type TerminalRuntime = {
   passwordInput: HTMLInputElement;
   passwordField: HTMLElement;
   controlsHost: HTMLElement | null;
-  themeHost: HTMLElement | null;
   entryPreferences: EntryPreferences;
   binaryDecoder: TextDecoder;
   connected: boolean;
@@ -628,21 +624,6 @@ type TerminalRuntime = {
 
 type RenderTerminalOptions = {
   controlsHost?: HTMLElement | null;
-  themeHost?: HTMLElement | null;
-};
-
-type ThemeName = 'dark' | 'light';
-
-type AnsiState = {
-  color: string | null;
-  colorCode: number | null;
-  background: string | null;
-  bold: boolean;
-};
-
-type ParsedAnsiLine = {
-  fragment: DocumentFragment;
-  trailingBackground: string | null;
 };
 
 const applyColumnResetToChunk = (value: string, runtime: TerminalRuntime): string => {
@@ -674,121 +655,10 @@ const applyColumnResetToChunk = (value: string, runtime: TerminalRuntime): strin
   return result;
 };
 
-const ANSI_FOREGROUND_COLOR_MAP: Record<number, string> = {
-  30: '#000000',
-  31: '#aa0000',
-  32: '#00aa00',
-  33: '#aa5500',
-  34: '#0000aa',
-  35: '#aa00aa',
-  36: '#00aaaa',
-  37: '#aaaaaa',
-  90: '#555555',
-  91: '#ff5555',
-  92: '#55ff55',
-  93: '#ffff55',
-  94: '#5555ff',
-  95: '#ff55ff',
-  96: '#55ffff',
-  97: '#ffffff'
-};
-
-const ANSI_BACKGROUND_COLOR_MAP: Record<number, string> = {
-  40: '#000000',
-  41: '#aa0000',
-  42: '#00aa00',
-  43: '#aa5500',
-  44: '#0000aa',
-  45: '#aa00aa',
-  46: '#00aaaa',
-  47: '#aaaaaa',
-  100: '#555555',
-  101: '#ff5555',
-  102: '#55ff55',
-  103: '#ffff55',
-  104: '#5555ff',
-  105: '#ff55ff',
-  106: '#55ffff',
-  107: '#ffffff'
-};
-
-const ANSI_256_BASE_COLORS: readonly string[] = [
-  '#000000',
-  '#800000',
-  '#008000',
-  '#808000',
-  '#000080',
-  '#800080',
-  '#008080',
-  '#c0c0c0',
-  '#808080',
-  '#ff0000',
-  '#00ff00',
-  '#ffff00',
-  '#0000ff',
-  '#ff00ff',
-  '#00ffff',
-  '#ffffff'
-];
-
-const ANSI_256_COMPONENT_VALUES = [0, 95, 135, 175, 215, 255];
-
-const toHexComponent = (value: number) => value.toString(16).padStart(2, '0');
-
-const clampColorComponent = (value: number) => Math.max(0, Math.min(255, Math.round(value)));
-
-const rgbToHex = (r: number, g: number, b: number) =>
-  `#${toHexComponent(clampColorComponent(r))}${toHexComponent(clampColorComponent(g))}${toHexComponent(
-    clampColorComponent(b)
-  )}`;
-
-const resolveAnsi256Color = (index: number): string | null => {
-  if (!Number.isInteger(index) || index < 0 || index > 255) {
-    return null;
-  }
-
-  if (index < ANSI_256_BASE_COLORS.length) {
-    return ANSI_256_BASE_COLORS[index];
-  }
-
-  if (index < 232) {
-    const offset = index - 16;
-    const r = Math.floor(offset / 36);
-    const g = Math.floor((offset % 36) / 6);
-    const b = offset % 6;
-
-    return rgbToHex(
-      ANSI_256_COMPONENT_VALUES[r],
-      ANSI_256_COMPONENT_VALUES[g],
-      ANSI_256_COMPONENT_VALUES[b]
-    );
-  }
-
-  const level = 8 + (index - 232) * 10;
-  return rgbToHex(level, level, level);
-};
-
 const ANSI_PATTERN = /\u001b\[([0-9;]*)([A-Za-z])/g;
 
-const ANSI_BOLD_FOREGROUND_ALIASES: Record<number, number> = {
-  30: 90,
-  31: 91,
-  32: 92,
-  33: 93,
-  34: 94,
-  35: 95,
-  36: 96,
-  37: 97
-};
-
-const resolveForegroundColor = (code: number, bold: boolean): string | null => {
-  const effectiveCode = bold ? ANSI_BOLD_FOREGROUND_ALIASES[code] ?? code : code;
-  return ANSI_FOREGROUND_COLOR_MAP[effectiveCode] ?? null;
-};
-
-const createAnsiFragment = (line: string, runtime: TerminalRuntime): ParsedAnsiLine => {
+const createAnsiFragment = (line: string, runtime: TerminalRuntime): DocumentFragment => {
   const fragment = document.createDocumentFragment();
-  const state: AnsiState = { color: null, colorCode: null, background: null, bold: false };
   let lastIndex = 0;
   let match: RegExpExecArray | null;
 
@@ -796,167 +666,42 @@ const createAnsiFragment = (line: string, runtime: TerminalRuntime): ParsedAnsiL
     if (!segment) {
       return;
     }
-    if (!state.color && !state.background && !state.bold) {
-      fragment.append(document.createTextNode(segment));
-      return;
-    }
-    const span = document.createElement('span');
-    span.className = 'terminal__segment';
-    span.textContent = segment;
-    if (state.color) {
-      span.style.color = state.color;
-    }
-    if (state.background) {
-      span.style.setProperty('--segment-bg', state.background);
-      span.classList.add('terminal__segment--background');
-    }
-    if (state.bold) {
-      span.style.fontWeight = '700';
-    }
-    fragment.append(span);
+    fragment.append(document.createTextNode(segment));
   };
+
+  ANSI_PATTERN.lastIndex = 0;
 
   while ((match = ANSI_PATTERN.exec(line)) !== null) {
     const matchIndex = match.index;
     if (matchIndex > lastIndex) {
       pushSegment(line.slice(lastIndex, matchIndex));
     }
-        lastIndex = ANSI_PATTERN.lastIndex;
-    
-        const command = match[2];
-        const codes = match[1] ? match[1].split(';') : ['0'];
-    
-        if (command === 'J') { // Erase in Display
-          const code = Number.parseInt(codes[0], 10);
-          if (code === 2) { // Clear entire screen
-            runtime.clearOutput();
-          }
-          continue;
-        }
-    
-        if (command === 'K') { // Erase in Line
-          const code = Number.parseInt(codes[0], 10);
-          if (code === 2) { // Clear entire line
-            if (runtime.incomingLineElement) {
-              runtime.incomingLineElement.textContent = '';
-              runtime.incomingBuffer = '';
-            }
-          }
-          continue;
-        }
-    
-        if (command !== 'm') { // Only process 'm' (SGR) commands if not J or K
-          continue;
-        }
+    lastIndex = ANSI_PATTERN.lastIndex;
 
-    let codeIndex = 0;
+    const command = match[2];
+    const codes = match[1] ? match[1].split(';') : ['0'];
 
-    while (codeIndex < codes.length) {
-      const codeText = codes[codeIndex];
-      codeIndex += 1;
+    if (command === 'J') {
+      const code = Number.parseInt(codes[0], 10);
+      if (code === 2) {
+        runtime.clearOutput();
+      }
+      continue;
+    }
 
-      const code = Number.parseInt(codeText, 10);
-      if (!Number.isFinite(code)) {
-        continue;
-      }
-      if (code === 0) {
-        state.color = null;
-        state.colorCode = null;
-        state.background = null;
-        state.bold = false;
-        continue;
-      }
-      if (code === 1) {
-        state.bold = true;
-        if (state.colorCode !== null) {
-          const resolved = resolveForegroundColor(state.colorCode, state.bold);
-          state.color = resolved;
+    if (command === 'K') {
+      const code = Number.parseInt(codes[0], 10);
+      if (code === 2) {
+        if (runtime.incomingLineElement) {
+          runtime.incomingLineElement.textContent = '';
+          runtime.incomingBuffer = '';
         }
-        continue;
       }
-      if (code === 22) {
-        state.bold = false;
-        if (state.colorCode !== null) {
-          const resolved = resolveForegroundColor(state.colorCode, state.bold);
-          state.color = resolved;
-        }
-        continue;
-      }
-      if (code === 39) {
-        state.color = null;
-        state.colorCode = null;
-        continue;
-      }
-      if (code === 49) {
-        state.background = null;
-        continue;
-      }
-      if (code === 38 || code === 48) {
-        const modeText = codes[codeIndex];
-        const mode = modeText ? Number.parseInt(modeText, 10) : Number.NaN;
-        if (!Number.isFinite(mode)) {
-          continue;
-        }
-        codeIndex += 1;
+      continue;
+    }
 
-        if (mode === 5) {
-          const colorIndexText = codes[codeIndex];
-          const colorIndex = colorIndexText ? Number.parseInt(colorIndexText, 10) : Number.NaN;
-          if (Number.isFinite(colorIndex)) {
-            const resolved = resolveAnsi256Color(colorIndex);
-            if (resolved) {
-              if (code === 38) {
-                state.color = resolved;
-                state.colorCode = null;
-              } else {
-                state.background = resolved;
-              }
-            }
-          }
-          codeIndex += 1;
-          continue;
-        }
-
-        if (mode === 2) {
-          const rText = codes[codeIndex];
-          const gText = codes[codeIndex + 1];
-          const bText = codes[codeIndex + 2];
-          if (typeof rText === 'string' && typeof gText === 'string' && typeof bText === 'string') {
-            const r = Number.parseInt(rText, 10);
-            const g = Number.parseInt(gText, 10);
-            const b = Number.parseInt(bText, 10);
-            if (Number.isFinite(r) && Number.isFinite(g) && Number.isFinite(b)) {
-              const resolved = rgbToHex(r, g, b);
-              if (code === 38) {
-                state.color = resolved;
-                state.colorCode = null;
-              } else {
-                state.background = resolved;
-              }
-            }
-          }
-          codeIndex += 3;
-          continue;
-        }
-
-        continue;
-      }
-      const foreground = resolveForegroundColor(code, state.bold);
-      if ((code >= 30 && code <= 37) || (code >= 90 && code <= 97)) {
-        state.colorCode = code;
-        state.color = foreground;
-        continue;
-      }
-      if (foreground) {
-        state.color = foreground;
-        state.colorCode = code;
-        continue;
-      }
-      const background = ANSI_BACKGROUND_COLOR_MAP[code];
-      if (background) {
-        state.background = background;
-        continue;
-      }
+    if (command === 'm') {
+      continue;
     }
   }
 
@@ -964,18 +709,7 @@ const createAnsiFragment = (line: string, runtime: TerminalRuntime): ParsedAnsiL
     pushSegment(line.slice(lastIndex));
   }
 
-  return { fragment, trailingBackground: state.background };
-};
-
-const applyTrailingBackground = (element: HTMLElement, trailingBackground: string | null) => {
-  if (trailingBackground) {
-    element.style.setProperty('--terminal-trailing-bg', trailingBackground);
-    element.classList.add('terminal__line--trailing-background');
-    return;
-  }
-
-  element.style.removeProperty('--terminal-trailing-bg');
-  element.classList.remove('terminal__line--trailing-background');
+  return fragment;
 };
 
 const pendingLineRenders = new Map<HTMLElement, { content: string; runtime: TerminalRuntime }>();
@@ -1004,14 +738,12 @@ const flushPendingLineRenders = () => {
 
     if (!nextContent) {
       target.replaceChildren();
-      applyTrailingBackground(target, null);
       lastRenderedLine.set(target, '');
       continue;
     }
 
-    const { fragment, trailingBackground } = createAnsiFragment(nextContent, runtime);
+    const fragment = createAnsiFragment(nextContent, runtime);
     target.replaceChildren(fragment);
-    applyTrailingBackground(target, trailingBackground);
     lastRenderedLine.set(target, nextContent);
   }
 };
@@ -1080,83 +812,6 @@ const createRuntime = (
   const containerDatasetLabel = container.dataset.mobilePlatformLabel;
   const rootDatasetPlatform = root?.dataset.mobilePlatform;
   const rootDatasetLabel = root?.dataset.mobilePlatformLabel;
-
-  const fallbackDocumentElement =
-    typeof document !== 'undefined' ? (document.documentElement as HTMLElement | null) : null;
-  const themeHost = (options?.themeHost ?? root ?? fallbackDocumentElement) ?? null;
-
-  const readTheme = (): ThemeName => {
-    if (themeHost?.dataset.theme === 'light') {
-      return 'light';
-    }
-    if (fallbackDocumentElement?.dataset.theme === 'light') {
-      return 'light';
-    }
-    return 'dark';
-  };
-
-  let currentTheme: ThemeName = readTheme();
-  let paletteOverrideApplied = false;
-  let paletteAutoCommandSent = false;
-  let paletteDarkTextApplied = container.dataset.paletteForceDarkText === 'true';
-
-  if (!paletteDarkTextApplied && 'paletteForceDarkText' in container.dataset) {
-    delete container.dataset.paletteForceDarkText;
-  }
-
-  const applyLightPaletteOverride = (enabled: boolean) => {
-    if (enabled === paletteOverrideApplied) {
-      return;
-    }
-    paletteOverrideApplied = enabled;
-    if (enabled) {
-      container.dataset.lightPaletteOverride = 'true';
-    } else {
-      delete container.dataset.lightPaletteOverride;
-    }
-  };
-
-  const applyPaletteDarkText = (enabled: boolean) => {
-    if (paletteDarkTextApplied === enabled) {
-      return;
-    }
-    paletteDarkTextApplied = enabled;
-    if (enabled) {
-      container.dataset.paletteForceDarkText = 'true';
-    } else {
-      delete container.dataset.paletteForceDarkText;
-    }
-  };
-
-  const syncLightPaletteOverride = () => {
-    const shouldApply = currentTheme === 'light' && !paletteAutoCommandSent;
-    applyLightPaletteOverride(shouldApply);
-  };
-
-  const resetLightPaletteAutoState = () => {
-    paletteAutoCommandSent = false;
-    syncLightPaletteOverride();
-  };
-
-  syncLightPaletteOverride();
-
-  const handleThemeChange = (event: Event) => {
-    const detail = (event as CustomEvent<{ theme?: string }>).detail;
-    const nextThemeName = detail?.theme === 'light' ? 'light' : detail?.theme === 'dark' ? 'dark' : readTheme();
-    currentTheme = nextThemeName;
-    if (nextThemeName === 'light') {
-      resetLightPaletteAutoState();
-    } else {
-      paletteAutoCommandSent = false;
-      applyLightPaletteOverride(false);
-    }
-  };
-
-  themeHost?.addEventListener('chatter:theme-change', handleThemeChange as EventListener);
-
-  const detachThemeListener = () => {
-    themeHost?.removeEventListener('chatter:theme-change', handleThemeChange as EventListener);
-  };
 
   let detectedPlatform: MobilePlatform | null = null;
   let detectedLabel = '';
@@ -1539,7 +1194,6 @@ const createRuntime = (
     passwordInput,
     passwordField,
     controlsHost,
-    themeHost,
     entryPreferences: { ...entryPreferences },
     mobilePlatform,
     binaryDecoder: new TextDecoder(),
@@ -1581,12 +1235,13 @@ const createRuntime = (
 
       // Use xterm if available
       if (runtime.terminal) {
-        const prefix = kind === 'error' ? '\x1b[31m[ERROR] ' : kind === 'outgoing' ? '\x1b[32m> ' : '\x1b[90m';
-        const suffix = kind === 'error' || kind === 'outgoing' || kind === 'info' ? '\x1b[0m' : '';
+        const prefix =
+          kind === 'error' ? '[ERROR] ' : kind === 'outgoing' ? '> ' : kind === 'info' ? '[INFO] ' : '';
         const lines = text.replace(/\r\n?/g, '\n').split('\n');
         for (const line of lines) {
           const normalisedLine = line.replace(/\r/g, '');
-          const preparedLine = applyColumnResetToChunk(prefix + normalisedLine + suffix, runtime);
+          const plainLine = stripAnsiStyling(normalisedLine);
+          const preparedLine = applyColumnResetToChunk(prefix + plainLine, runtime);
           runtime.terminal.writeln(preparedLine);
           runtime.xtermColumnResetPending = true;
         }
@@ -1599,9 +1254,8 @@ const createRuntime = (
         const normalisedLine = line.replace(/\r/g, '');
         const entry = document.createElement('pre');
         entry.className = `terminal__line terminal__line--${kind}`;
-        const { fragment, trailingBackground } = createAnsiFragment(normalisedLine, runtime);
+        const fragment = createAnsiFragment(normalisedLine, runtime);
         entry.append(fragment);
-        applyTrailingBackground(entry, trailingBackground);
         runtime.outputElement.append(entry);
       }
       limitOutputLines(runtime.outputElement, runtime.maxOutputLines);
@@ -1718,12 +1372,6 @@ const createRuntime = (
         scrollback: 10000,
         fontSize: 14,
         fontFamily: '"IBM Plex Mono", "Courier New", Courier, monospace',
-        theme: {
-          background: currentTheme === 'dark' ? '#1a1a1a' : '#ffffff',
-          foreground: currentTheme === 'dark' ? '#e0e0e0' : '#000000',
-          cursor: currentTheme === 'dark' ? '#00ff00' : '#000000',
-          selection: currentTheme === 'dark' ? 'rgba(255, 255, 255, 0.3)' : 'rgba(0, 0, 0, 0.3)'
-        },
         convertEol: false,
         disableStdin: true
       });
@@ -1747,16 +1395,6 @@ const createRuntime = (
       runtime.terminal = term;
       runtime.fitAddon = fitAddon;
 
-      // Handle theme changes
-      const updateTerminalTheme = () => {
-        if (!runtime.terminal) {
-          return;
-        }
-        runtime.terminal.write('\x1b[0m'); // Reset any formatting
-      };
-
-      // Trigger initial theme update
-      updateTerminalTheme();
     } catch (error) {
       console.error('Failed to initialize xterm.js, falling back to custom rendering', error);
       runtime.outputElement.classList.remove('terminal-chat__output--xterm');
@@ -2303,7 +1941,6 @@ const createRuntime = (
     };
     element.classList.add('terminal__line--ascii-art');
     element.dataset.terminalBlock = 'ascii-art';
-    applyTrailingBackground(element, null);
     element.textContent = headerLine;
     lastRenderedLine.set(element, headerLine);
     runtime.incomingLineElement = element;
@@ -2341,9 +1978,8 @@ const createRuntime = (
     const normalisedLine = line.replace(/\r/g, '');
     const entry = document.createElement('pre');
     entry.className = 'terminal__line terminal__line--incoming';
-    const { fragment, trailingBackground } = createAnsiFragment(normalisedLine, runtime);
+    const fragment = createAnsiFragment(normalisedLine, runtime);
     entry.append(fragment);
-    applyTrailingBackground(entry, trailingBackground);
     lastRenderedLine.set(entry, normalisedLine);
     runtime.outputElement.append(entry);
     limitOutputLines(runtime.outputElement, runtime.maxOutputLines);
@@ -2386,14 +2022,16 @@ const createRuntime = (
         runtime.introSilenced = false;
         const filteredOutput = filterOutgoingEchoesFromChunk(output);
         if (filteredOutput) {
-          const preparedOutput = applyColumnResetToChunk(filteredOutput, runtime);
+          const plainOutput = stripAnsiStyling(filteredOutput);
+          const preparedOutput = applyColumnResetToChunk(plainOutput, runtime);
           runtime.terminal.write(preparedOutput);
         }
         return;
       }
       const filteredChunk = filterOutgoingEchoesFromChunk(chunk);
       if (filteredChunk) {
-        const preparedChunk = applyColumnResetToChunk(filteredChunk, runtime);
+        const plainChunk = stripAnsiStyling(filteredChunk);
+        const preparedChunk = applyColumnResetToChunk(plainChunk, runtime);
         runtime.terminal.write(preparedChunk);
       }
       return;
@@ -2823,7 +2461,6 @@ const createRuntime = (
           updateConnectAvailability();
           setEntryStatus('Connected. Press Enter to forward the next line.', 'muted');
           updateEntryControls();
-          resetLightPaletteAutoState();
         });
         socket.addEventListener('message', (event) => {
           markBridgeActivity();
@@ -2857,7 +2494,6 @@ const createRuntime = (
           updateConnectAvailability();
           setEntryStatus('Disconnected. Buffer stays queued until you reconnect.', 'muted');
           updateEntryControls();
-          resetLightPaletteAutoState();
         });
         socket.addEventListener('error', () => {
           stopKeepAliveTimer();
@@ -3073,33 +2709,10 @@ const createRuntime = (
     }
   }
 
-  const maybeSendLightModePaletteCommand = () => {
-    if (currentTheme !== 'light') {
-      return;
-    }
-    if (paletteAutoCommandSent) {
-      return;
-    }
-
-    paletteAutoCommandSent = true;
-    const sentPalette = sendTextPayload('/palette adwaita\n');
-    if (!sentPalette) {
-      paletteAutoCommandSent = false;
-      syncLightPaletteOverride();
-      return;
-    }
-
-    setEntryStatus('Applied the Adwaita palette for light mode readability.', 'muted');
-    applyLightPaletteOverride(false);
-    applyPaletteDarkText(true);
-  };
-
   const handleUserLineSent = (value: string) => {
     if (!value || !value.trim()) {
       return;
     }
-
-    maybeSendLightModePaletteCommand();
 
     const trimmed = value.trim();
     if (!trimmed) {
@@ -3107,23 +2720,6 @@ const createRuntime = (
     }
 
     registerOutgoingEchoCandidate(trimmed);
-
-    const paletteMatch = trimmed.match(/^\/?palette\s+(.*)$/i);
-    if (!paletteMatch) {
-      return;
-    }
-
-    const paletteName = paletteMatch[1]?.trim().split(/\s+/u, 1)[0]?.toLowerCase() ?? '';
-    if (!paletteName) {
-      applyPaletteDarkText(false);
-      return;
-    }
-
-    if (palettesRequiringDarkText.has(paletteName)) {
-      applyPaletteDarkText(true);
-    } else {
-      applyPaletteDarkText(false);
-    }
   };
 
   function flushNextBufferedLine(allowBlank = false, flushAll = false): boolean {
@@ -3465,8 +3061,6 @@ const createRuntime = (
     runtime.outputElement.classList.remove('terminal-chat__output--xterm');
     runtime.shellElement.classList.remove('terminal-chat--xterm-ready');
     runtime.outputElement.replaceChildren();
-    detachThemeListener();
-    applyLightPaletteOverride(false);
   };
 
   return runtime;
@@ -3478,13 +3072,12 @@ export const renderTerminal = (
   options?: RenderTerminalOptions
 ): TerminalRuntime => {
   const controlsHost = options?.controlsHost ?? null;
-  const themeHost = options?.themeHost ?? null;
 
   let runtime = runtimeMap.get(container);
-  if (!runtime || runtime.controlsHost !== controlsHost || runtime.themeHost !== themeHost) {
+  if (!runtime || runtime.controlsHost !== controlsHost) {
     runtime?.disposeResources?.();
     runtime?.requestDisconnect('Rebuilding terminal controls');
-    runtime = createRuntime(store, container, { controlsHost, themeHost });
+    runtime = createRuntime(store, container, { controlsHost });
     runtimeMap.set(container, runtime);
   }
 

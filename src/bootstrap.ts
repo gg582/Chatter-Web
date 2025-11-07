@@ -118,8 +118,7 @@ export const mountChatter = (root: HTMLElement) => {
 
   const render = () => {
     runtime = renderTerminal(store, terminalElement, {
-      controlsHost: bridgeControlsElement,
-      themeHost: root
+      controlsHost: bridgeControlsElement
     });
     renderSession(store, sessionElement, root);
     renderUtilityPanel(store, utilityElement);
