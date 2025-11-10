@@ -2451,6 +2451,7 @@ const createRuntime = (
     let buffer = runtime.incomingBuffer;
     let lineElement = runtime.incomingLineElement;
     let needsRender = false;
+    let lastLineBuffer = ''; // Track the last line content for echo suppression
 
     for (const char of chunk) {
       if (char === '\r') {
@@ -2463,6 +2464,7 @@ const createRuntime = (
           renderAnsiLine(target, buffer, runtime);
           lineElement = runtime.incomingLineElement;
         }
+        lastLineBuffer = buffer; // Save the line content before clearing
         buffer = '';
         needsRender = false;
         continue;
@@ -2473,7 +2475,9 @@ const createRuntime = (
           updateAsciiArtPreview(buffer);
           handleAsciiLineCommit(buffer);
         } else {
-          const suppressEcho = shouldSuppressOutgoingEcho(buffer);
+          // Use the saved line content if buffer is empty (after \r)
+          const lineToCheck = buffer || lastLineBuffer;
+          const suppressEcho = shouldSuppressOutgoingEcho(lineToCheck);
           if (suppressEcho) {
             if (lineElement && lineElement.isConnected) {
               const parent = lineElement.parentElement;
@@ -2489,11 +2493,12 @@ const createRuntime = (
               renderAnsiLine(target, buffer, runtime);
               lineElement = runtime.incomingLineElement;
             }
-            handleRegularLineCommit(buffer, lineElement);
+            handleRegularLineCommit(buffer || lastLineBuffer, lineElement);
           }
         }
 
         buffer = '';
+        lastLineBuffer = ''; // Clear the saved content
         lineElement = runtime.asciiArtBlock ? runtime.asciiArtBlock.element : null;
         runtime.incomingBuffer = '';
         runtime.incomingLineElement = runtime.asciiArtBlock ? runtime.asciiArtBlock.element : null;
