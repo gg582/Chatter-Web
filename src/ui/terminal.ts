@@ -35,7 +35,7 @@ const COLUMN_RESET_SEQUENCE = '\u001b[1G';
 
 const stripAnsiSequences = (value: string): string => value.replace(ANSI_ESCAPE_SEQUENCE_PATTERN, '');
 
-const normaliseEchoText = (value: string): string =>
+const normaliseEchoText = (value: string):
   stripAnsiSequences(value)
     .replace(/\u0008/g, '')
     .replace(/\r/g, '')
@@ -721,7 +721,7 @@ const ANSI_256_BASE_COLORS: readonly string[] = [
   '#800080',
   '#008080',
   '#c0c0c0',
-  '#808080',
+  '#808000',
   '#ff0000',
   '#00ff00',
   '#ffff00',
@@ -796,13 +796,20 @@ const createAnsiFragment = (line: string, runtime: TerminalRuntime): ParsedAnsiL
     if (!segment) {
       return;
     }
+    // Custom trim to remove spaces and tabs, but preserve \r
+    const trimmedSegment = segment.replace(/^[ \t]+|[ \t]+$/g, '');
+
+    if (!trimmedSegment) { // If the segment was only whitespace (spaces/tabs), skip it.
+      return;
+    }
+
     if (!state.color && !state.background && !state.bold) {
-      fragment.append(document.createTextNode(segment));
+      fragment.append(document.createTextNode(trimmedSegment));
       return;
     }
     const span = document.createElement('span');
     span.className = 'terminal__segment';
-    span.textContent = segment;
+    span.textContent = trimmedSegment; // Use the trimmed segment
     if (state.color) {
       span.style.color = state.color;
     }
@@ -1296,14 +1303,16 @@ const createRuntime = (
         </nav>`;
 
   if (controlsHost) {
-    controlsHost.innerHTML = `
+    controlsHost.innerHTML =
+      `
       <div class="settings-screen__bridge-panel">
         ${controlBarMarkup}
       </div>
     `;
   }
 
-  container.innerHTML = `
+  container.innerHTML =
+    `
     <section class="${shellClasses.join(' ')}" data-terminal-shell>
       <div class="terminal-chat__fullscreen">
         ${controlsHost ? '' : controlBarMarkup}
@@ -1581,11 +1590,11 @@ const createRuntime = (
 
       // Use xterm if available
       if (runtime.terminal) {
-        const prefix = kind === 'error' ? '\x1b[31m[ERROR] ' : kind === 'outgoing' ? '\x1b[32m> ' : '\x1b[90m';
-        const suffix = kind === 'error' || kind === 'outgoing' || kind === 'info' ? '\x1b[0m' : '';
-        const lines = text.replace(/\r\n?/g, '\n').split('\n');
+        const prefix = kind === 'error' ? '\u001b[31m[ERROR] ' : kind === 'outgoing' ? '\u001b[32m> ' : '\u001b[90m';
+        const suffix = kind === 'error' || kind === 'outgoing' || kind === 'info' ? '\u001b[0m' : '';
+        const lines = text.split('\n');
         for (const line of lines) {
-          const normalisedLine = line.replace(/\r/g, '');
+          const normalisedLine = line.trimStart();
           const preparedLine = applyColumnResetToChunk(prefix + normalisedLine + suffix, runtime);
           runtime.terminal.writeln(preparedLine);
           runtime.xtermColumnResetPending = true;
@@ -1594,9 +1603,9 @@ const createRuntime = (
       }
 
       // Fallback to custom rendering
-      const lines = text.replace(/\r\n?/g, '\n').split('\n');
+      const lines = text.split('\n');
       for (const line of lines) {
-        const normalisedLine = line.replace(/\r/g, '');
+        const normalisedLine = line.trimStart();
         const entry = document.createElement('pre');
         entry.className = `terminal__line terminal__line--${kind}`;
         const { fragment, trailingBackground } = createAnsiFragment(normalisedLine, runtime);
@@ -1752,7 +1761,7 @@ const createRuntime = (
         if (!runtime.terminal) {
           return;
         }
-        runtime.terminal.write('\x1b[0m'); // Reset any formatting
+        runtime.terminal.write('\u001b[0m'); // Reset any formatting
       };
 
       // Trigger initial theme update
@@ -1879,8 +1888,8 @@ const createRuntime = (
       accumY = 0;
     };
 
-    const applyAxisDispatch = (
-      accumulator: number,
+    const applyAxisDispatch =
+      (accumulator: number,
       positiveKey: 'ArrowUp' | 'ArrowDown' | 'ArrowLeft' | 'ArrowRight',
       negativeKey: 'ArrowUp' | 'ArrowDown' | 'ArrowLeft' | 'ArrowRight'
     ) => {
@@ -2084,6 +2093,15 @@ const createRuntime = (
       revealKeyboardPanel();
     }
 
+    // New logic to control individual button visibility
+    const showConditionalButtons = open || runtime.mobilePlatform;
+    for (const button of keyboardButtons) {
+      const key = button.dataset.terminalKbdKey;
+      if (key && conditionallyVisibleKeys.has(key)) {
+        button.hidden = !showConditionalButtons;
+      }
+    }
+
     if (open && keyboardButtons.length > 0) {
       keyboardButtons[0].focus();
     } else if (
@@ -2229,7 +2247,7 @@ const createRuntime = (
 
   const asciiArtHeaderPattern = /shared ascii art:/i;
   const asciiArtPromptPattern = /^│\s*>/i;
-  const asciiArtMessagePattern = /^#\d+\]/;
+  const asciiArtMessagePattern = /^#\d+]/;
   const asciiEditorLinePattern = /^\s*(?:│\s*)?>\s?(.*)$/;
 
   const syncAsciiEditorEntry = (line: string) => {
@@ -2536,7 +2554,10 @@ const createRuntime = (
   }
 
   const collectOverridesFromInputs = (): { overrides: TargetOverrides; errors: string[] } => {
-    const protocolValue = protocolSelect.value.trim().toLowerCase();
+    const protocolValue =
+      (protocolSelect.value === 'ssh' || protocolSelect.value === 'telnet'
+        ? protocolSelect.value
+        : runtime.target.defaults.protocol) ?? 'telnet';
     const hostValue = hostInput.value.trim();
     const portValue = portInput.value.trim();
     const errors: string[] = [];
