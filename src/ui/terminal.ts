@@ -35,7 +35,7 @@ const COLUMN_RESET_SEQUENCE = '\u001b[1G';
 
 const stripAnsiSequences = (value: string): string => value.replace(ANSI_ESCAPE_SEQUENCE_PATTERN, '');
 
-const normaliseEchoText = (value: string):
+const normaliseEchoText = (value: string): string =>
   stripAnsiSequences(value)
     .replace(/\u0008/g, '')
     .replace(/\r/g, '')
@@ -1999,9 +1999,10 @@ const createRuntime = (
     });
   };
 
-  const keyboardButtons = Array.from(
-    keyboardPanel.querySelectorAll<HTMLButtonElement>('[data-terminal-kbd-key]')
-  );
+      const conditionallyVisibleKeys = new Set(['arrow-up', 'arrow-down', 'arrow-left', 'arrow-right']);
+      const keyboardButtons = Array.from(
+        keyboardPanel.querySelectorAll<HTMLButtonElement>('[data-terminal-kbd-key]')
+      );
   const terminateShortcutButton = keyboardPanel.querySelector<HTMLButtonElement>(
     '[data-terminal-terminate-shortcut]'
   );
@@ -2357,13 +2358,13 @@ const createRuntime = (
 
   const appendStandaloneLine = (line: string) => {
     const normalisedLine = line.replace(/\r/g, '');
-    const entry = document.createElement('pre');
-    entry.className = 'terminal__line terminal__line--incoming';
+    const entry = ensureIncomingLine(); // Use the element from ensureIncomingLine
     const { fragment, trailingBackground } = createAnsiFragment(normalisedLine, runtime);
-    entry.append(fragment);
+    entry.replaceChildren(fragment); // Replace content of existing element
     applyTrailingBackground(entry, trailingBackground);
     lastRenderedLine.set(entry, normalisedLine);
-    runtime.outputElement.append(entry);
+    // No need to append again, ensureIncomingLine already did if it was new
+    // If it was an existing element, it's already in the DOM.
     limitOutputLines(runtime.outputElement, runtime.maxOutputLines);
   };
 
