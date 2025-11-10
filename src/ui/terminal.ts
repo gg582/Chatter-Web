@@ -3191,6 +3191,10 @@ const createRuntime = (
       sentCount += 1;
     }
 
+    if (sentCount > 0) {
+      runtime.clearOutput();
+    }
+
     runtime.captureElement.value = remainder;
     scheduleEntryResize();
     try {
