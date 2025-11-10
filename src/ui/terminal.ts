@@ -803,13 +803,12 @@ const createAnsiFragment = (line: string, runtime: TerminalRuntime): ParsedAnsiL
       return;
     }
 
-    if (!state.color && !state.background && !state.bold) {
-      fragment.append(document.createTextNode(trimmedSegment));
-      return;
-    }
+    // Always create a span element, even for unstyled text
+    // This ensures consistent rendering and styling inheritance
     const span = document.createElement('span');
     span.className = 'terminal__segment';
-    span.textContent = trimmedSegment; // Use the trimmed segment
+    span.textContent = trimmedSegment;
+    
     if (state.color) {
       span.style.color = state.color;
     }
@@ -820,6 +819,7 @@ const createAnsiFragment = (line: string, runtime: TerminalRuntime): ParsedAnsiL
     if (state.bold) {
       span.style.fontWeight = '700';
     }
+    
     fragment.append(span);
   };
 
