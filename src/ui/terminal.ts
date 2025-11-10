@@ -3,10 +3,44 @@ import { pickRandomNickname } from '../data/nicknames.js';
 import { describeMobilePlatform, detectMobilePlatform, escapeHtml, isMobilePlatform } from './helpers.js';
 import type { MobilePlatform } from './helpers.js';
 
+// xterm.js types - modules will be loaded dynamically at runtime
+interface ITerminal {
+  open(container: HTMLElement): void;
+  write(data: string | Uint8Array): void;
+  writeln(data: string): void;
+  clear(): void;
+  dispose(): void;
+  loadAddon(addon: unknown): void;
+}
+
+interface IFitAddon {
+  fit(): void;
+  dispose(): void;
+}
+
+interface TerminalConstructor {
+  new(options?: Record<string, unknown>): ITerminal;
+}
+
+interface FitAddonConstructor {
+  new(): IFitAddon;
+}
+
 const runtimeMap = new WeakMap<HTMLElement, TerminalRuntime>();
 const textEncoder = new TextEncoder();
 const TARGET_STORAGE_KEY = 'chatter-terminal-target';
 const IDENTITY_STORAGE_KEY = 'chatter-terminal-identity';
+const ANSI_ESCAPE_SEQUENCE_PATTERN = /\u001b\[[0-9;?]*[ -\/]*[@-~]/gu;
+const COLUMN_RESET_SEQUENCE = '\u001b[1G';
+
+const stripAnsiSequences = (value: string): string => value.replace(ANSI_ESCAPE_SEQUENCE_PATTERN, '');
+
+const normaliseEchoText = (value: string): string =>
+  stripAnsiSequences(value)
+    .replace(/\u0008/g, '')
+    .replace(/\r/g, '')
+    .replace(/\s+/g, ' ')
+    .trim();
 
 const parseServiceDomain = (
   value: string
@@ -401,7 +435,7 @@ const resolveTarget = (): TerminalTarget => {
     username: defaultUsername
   };
 
-  const hostPlaceholder = configuredHostPlaceholder || defaultHost || 'bbs.example.com';
+  const hostPlaceholder = configuredHostPlaceholder || defaultHost || 'chat.korokorok.com';
   const portPlaceholder = defaultPort || (defaultProtocol === 'ssh' ? '22' : '23');
 
   const descriptorParts: string[] = [protocol.toUpperCase()];
@@ -537,6 +571,9 @@ type TerminalRuntime = {
   statusElements: HTMLElement[];
   indicatorElements: HTMLElement[];
   outputElement: HTMLElement;
+  shellElement: HTMLElement;
+  terminal: ITerminal | null;
+  fitAddon: IFitAddon | null;
   captureElement: HTMLTextAreaElement;
   entryElement: HTMLElement;
   entryForm: HTMLFormElement;
@@ -576,6 +613,9 @@ type TerminalRuntime = {
   pendingAutoScroll: boolean;
   identityKey: string | null;
   lastStoredUsername: string;
+  echoSuppressBuffer: string;
+  echoSuppressActiveCandidate: string | null;
+  xtermColumnResetPending: boolean;
   appendLine: (text: string, kind?: TerminalLineKind) => void;
   updateStatus: (label: string, state: 'disconnected' | 'connecting' | 'connected') => void;
   updateConnectAvailability?: () => void;
@@ -583,6 +623,7 @@ type TerminalRuntime = {
   mobilePlatform: MobilePlatform | null;
   requestDisconnect: (reason?: string) => boolean;
   disposeResources?: () => void;
+  clearOutput: () => void;
 };
 
 type RenderTerminalOptions = {
@@ -602,6 +643,35 @@ type AnsiState = {
 type ParsedAnsiLine = {
   fragment: DocumentFragment;
   trailingBackground: string | null;
+};
+
+const applyColumnResetToChunk = (value: string, runtime: TerminalRuntime): string => {
+  if (!value) {
+    if (runtime.xtermColumnResetPending) {
+      runtime.xtermColumnResetPending = false;
+      return COLUMN_RESET_SEQUENCE;
+    }
+    return value;
+  }
+
+  let needsReset = runtime.xtermColumnResetPending;
+  let result = '';
+
+  for (const char of value) {
+    if (needsReset && char !== '\n' && char !== '\r') {
+      result += COLUMN_RESET_SEQUENCE;
+      needsReset = false;
+    }
+
+    result += char;
+
+    if (char === '\n' || char === '\r') {
+      needsReset = true;
+    }
+  }
+
+  runtime.xtermColumnResetPending = needsReset;
+  return result;
 };
 
 const ANSI_FOREGROUND_COLOR_MAP: Record<number, string> = {
@@ -716,7 +786,7 @@ const resolveForegroundColor = (code: number, bold: boolean): string | null => {
   return ANSI_FOREGROUND_COLOR_MAP[effectiveCode] ?? null;
 };
 
-const createAnsiFragment = (line: string): ParsedAnsiLine => {
+const createAnsiFragment = (line: string, runtime: TerminalRuntime): ParsedAnsiLine => {
   const fragment = document.createDocumentFragment();
   const state: AnsiState = { color: null, colorCode: null, background: null, bold: false };
   let lastIndex = 0;
@@ -751,13 +821,33 @@ const createAnsiFragment = (line: string): ParsedAnsiLine => {
     if (matchIndex > lastIndex) {
       pushSegment(line.slice(lastIndex, matchIndex));
     }
-    lastIndex = ANSI_PATTERN.lastIndex;
-
-    if (match[2] !== 'm') {
-      continue;
-    }
-
-    const codes = match[1] ? match[1].split(';') : ['0'];
+        lastIndex = ANSI_PATTERN.lastIndex;
+    
+        const command = match[2];
+        const codes = match[1] ? match[1].split(';') : ['0'];
+    
+        if (command === 'J') { // Erase in Display
+          const code = Number.parseInt(codes[0], 10);
+          if (code === 2) { // Clear entire screen
+            runtime.clearOutput();
+          }
+          continue;
+        }
+    
+        if (command === 'K') { // Erase in Line
+          const code = Number.parseInt(codes[0], 10);
+          if (code === 2) { // Clear entire line
+            if (runtime.incomingLineElement) {
+              runtime.incomingLineElement.textContent = '';
+              runtime.incomingBuffer = '';
+            }
+          }
+          continue;
+        }
+    
+        if (command !== 'm') { // Only process 'm' (SGR) commands if not J or K
+          continue;
+        }
 
     let codeIndex = 0;
 
@@ -888,16 +978,69 @@ const applyTrailingBackground = (element: HTMLElement, trailingBackground: strin
   element.classList.remove('terminal__line--trailing-background');
 };
 
-const renderAnsiLine = (target: HTMLElement, content: string) => {
-  if (!content) {
-    target.replaceChildren();
-    applyTrailingBackground(target, null);
+const pendingLineRenders = new Map<HTMLElement, { content: string; runtime: TerminalRuntime }>();
+const lastRenderedLine = new WeakMap<HTMLElement, string>();
+let lineRenderScheduled = false;
+
+const flushPendingLineRenders = () => {
+  lineRenderScheduled = false;
+  if (pendingLineRenders.size === 0) {
     return;
   }
 
-  const { fragment, trailingBackground } = createAnsiFragment(content);
-  target.replaceChildren(fragment);
-  applyTrailingBackground(target, trailingBackground);
+  const entries = Array.from(pendingLineRenders.entries());
+  pendingLineRenders.clear();
+
+  for (const [target, { content: nextContent, runtime }] of entries) {
+    if (!target.isConnected) {
+      lastRenderedLine.delete(target);
+      continue;
+    }
+
+    const previous = lastRenderedLine.get(target) ?? '';
+    if (previous === nextContent) {
+      continue;
+    }
+
+    if (!nextContent) {
+      target.replaceChildren();
+      applyTrailingBackground(target, null);
+      lastRenderedLine.set(target, '');
+      continue;
+    }
+
+    const { fragment, trailingBackground } = createAnsiFragment(nextContent, runtime);
+    target.replaceChildren(fragment);
+    applyTrailingBackground(target, trailingBackground);
+    lastRenderedLine.set(target, nextContent);
+  }
+};
+
+const schedulePendingLineRenderFlush = () => {
+  if (lineRenderScheduled) {
+    return;
+  }
+  lineRenderScheduled = true;
+
+  const schedule =
+    typeof window !== 'undefined' && typeof window.requestAnimationFrame === 'function'
+      ? window.requestAnimationFrame.bind(window)
+      : (callback: FrameRequestCallback) => {
+          setTimeout(() => {
+            const timestamp = typeof performance !== 'undefined' ? performance.now() : Date.now();
+            callback(timestamp);
+          }, 0);
+        };
+
+  schedule(() => {
+    flushPendingLineRenders();
+  });
+};
+
+const renderAnsiLine = (target: HTMLElement, content: string, runtime: TerminalRuntime) => {
+  const normalisedContent = content.replace(/\r/g, '');
+  pendingLineRenders.set(target, { content: normalisedContent, runtime });
+  schedulePendingLineRenderFlush();
 };
 
 const limitOutputLines = (output: HTMLElement, maxLines = 600) => {
@@ -921,13 +1064,14 @@ const normaliseLineBreaks = (value: string): string =>
   value.replace(/\r\n?|\n/g, '\r\n');
 
 const createRuntime = (
+  store: ChatStore,
   container: HTMLElement,
   options?: RenderTerminalOptions
 ): TerminalRuntime => {
   const controlsHost = options?.controlsHost ?? null;
   const target = resolveTarget();
   const socketUrl = resolveSocketUrl(container);
-  const hostPlaceholderText = target.placeholders.host || 'bbs.example.com';
+  const hostPlaceholderText = target.placeholders.host || 'chat.korokorok.com';
   const portPlaceholderText =
     target.placeholders.port || (target.defaults.protocol === 'ssh' ? '22' : '23');
 
@@ -1104,79 +1248,40 @@ const createRuntime = (
               <p class="terminal-chat__menu-note">${settingsHint}</p>
               <p class="terminal-chat__menu-game terminal__game" data-terminal-game></p>
             </div>
-            <div class="terminal-chat__menu-block terminal-chat__menu-block--identity" role="group" aria-label="Identity controls">
-              <span class="terminal-chat__menu-block-title">Identity</span>
-              <div class="terminal-chat__menu-inline-fields">
-                <label class="terminal-chat__field terminal__field--compact" data-terminal-username-field>
-                  <span class="terminal-chat__field-label">Username</span>
-                  <input
-                    type="text"
-                    data-terminal-username
-                    placeholder="Enter your handle"
-                    value="${escapeHtml(target.defaultUsername)}"
-                    autocomplete="off"
-                    autocapitalize="none"
-                    spellcheck="false"
-                  />
-                </label>
-                <label class="terminal-chat__field terminal__field--compact" data-terminal-password-field>
-                  <span class="terminal-chat__field-label">Password</span>
-                  <input
-                    type="password"
-                    data-terminal-password
-                    placeholder="Optional password"
-                    autocomplete="current-password"
-                    autocapitalize="none"
-                    spellcheck="false"
-                  />
-                </label>
-              </div>
-              <p class="terminal-chat__hint terminal__note terminal__note--muted">
-                Usernames and passwords never leave the browser. They're sent directly to the terminal bridge.
-              </p>
-            </div>
-            <form
-              class="terminal-chat__menu-block terminal-chat__menu-block--target terminal-chat__target-form terminal__target-form"
-              data-terminal-target-form
-            >
-              <span class="terminal-chat__menu-block-title">Connection settings</span>
-              <p class="terminal-chat__hint terminal__note terminal__note--muted" data-terminal-target-status></p>
-              <div class="terminal-chat__menu-inline-fields">
+            <div class="terminal-chat__menu-block terminal-chat__menu-block--connection" role="group" aria-label="Connection options">
+              <span class="terminal-chat__menu-block-title">Connection options</span>
+              <form class="terminal-chat__target-form" data-terminal-target-form>
                 <label class="terminal-chat__field">
                   <span class="terminal-chat__field-label">Protocol</span>
-                  <select data-terminal-protocol>
-                    <option value="telnet">Telnet</option>
+                  <select class="terminal-chat__input" data-terminal-protocol>
                     <option value="ssh">SSH</option>
+                    <option value="telnet">Telnet</option>
                   </select>
                 </label>
                 <label class="terminal-chat__field">
                   <span class="terminal-chat__field-label">Host</span>
-                  <input
-                    type="text"
-                    data-terminal-host
-                    placeholder="${escapeHtml(hostPlaceholderText)}"
-                    autocomplete="off"
-                    autocapitalize="none"
-                    autocorrect="off"
-                    spellcheck="false"
-                  />
+                  <input type="text" class="terminal-chat__input" data-terminal-host placeholder="${escapeHtml(hostPlaceholderText)}" />
                 </label>
                 <label class="terminal-chat__field">
                   <span class="terminal-chat__field-label">Port</span>
-                  <input
-                    type="text"
-                    data-terminal-port
-                    placeholder="${escapeHtml(portPlaceholderText)}"
-                    autocomplete="off"
-                    autocorrect="off"
-                    inputmode="numeric"
-                    pattern="[0-9]*"
-                  />
+                  <input type="number" min="1" max="65535" class="terminal-chat__input" data-terminal-port placeholder="${escapeHtml(portPlaceholderText)}" />
                 </label>
+                <div class="terminal-chat__field-actions">
+                  <button type="submit" class="terminal-chat__menu-button">Apply</button>
+                  <button type="button" class="terminal-chat__menu-button" data-terminal-target-reset>Reset</button>
+                </div>
+                <p class="terminal__note" data-terminal-target-status></p>
+              </form>
+            </div>
+            <div class="terminal-chat__menu-block terminal-chat__menu-block--identity" role="group" aria-label="Identity">
+              <span class="terminal-chat__menu-block-title">Identity</span>
+              <div class="terminal-chat__field" data-terminal-username-field>
+                <label class="terminal-chat__field-label" for="terminal-username">Username</label>
+                <input type="text" id="terminal-username" class="terminal-chat__input" data-terminal-username placeholder="Enter username" autocomplete="off" />
               </div>
-              <div class="terminal-chat__menu-actions terminal-chat__menu-actions--target">
-                <button type="submit" class="terminal-chat__menu-button terminal-chat__menu-button--primary">Save target</button>
-                <button type="button" class="terminal-chat__menu-button" data-terminal-target-reset>Reset to server</button>
+              <div class="terminal-chat__field" data-terminal-password-field>
+                <label class="terminal-chat__field-label" for="terminal-password">Password</label>
+                <input type="password" id="terminal-password" class="terminal-chat__input" data-terminal-password placeholder="Optional" autocomplete="off" />
               </div>
             </form>
             <div class="terminal-chat__menu-block terminal-chat__menu-block--entry" role="group" aria-label="Entry preferences">
@@ -1207,7 +1312,7 @@ const createRuntime = (
         </div>
         <div class="terminal-chat__entry-region">
           <div class="terminal-chat__entry-main">
-            <div class="terminal-chat__keyboard" id="${entryStatusId}-kbd" data-terminal-kbd>
+            <div class="terminal-chat__keyboard" id="${entryStatusId}-kbd" data-terminal-kbd hidden>
               <div class="terminal-chat__keyboard-grid">
                 <button type="button" data-terminal-kbd-key="ctrl-c" data-terminal-kbd-group="entry-buffer">Cancel</button>
                 <button type="button" data-terminal-kbd-key="ctrl-z" data-terminal-kbd-group="entry-buffer" data-terminal-terminate-shortcut ${showTerminateShortcut ? '' : 'hidden'}>Terminate</button>
@@ -1277,6 +1382,7 @@ const createRuntime = (
   const statusElements = queryAll<HTMLElement>('[data-terminal-status]');
   const indicatorElements = queryAll<HTMLElement>('[data-terminal-indicator]');
   const outputElement = query<HTMLElement>('[data-terminal-output]');
+  const shellElement = query<HTMLElement>('[data-terminal-shell]');
   const connectButtons = queryAll<HTMLButtonElement>('[data-terminal-connect]');
   const disconnectButtons = queryAll<HTMLButtonElement>('[data-terminal-disconnect]');
   const focusButton = query<HTMLButtonElement>('[data-terminal-focus]');
@@ -1309,6 +1415,7 @@ const createRuntime = (
   if (
     statusElements.length === 0 ||
     indicatorElements.length === 0 ||
+    !shellElement ||
     !outputElement ||
     !entryBufferElement ||
     connectButtons.length === 0 ||
@@ -1405,12 +1512,16 @@ const createRuntime = (
 
   let scrollOutputToBottom: (force?: boolean) => void = () => {};
   let updateScrollLockState: () => void = () => {};
+  const pendingOutgoingEchoes: string[] = [];
 
   const runtime: TerminalRuntime = {
     socket: null,
     statusElements,
     indicatorElements,
     outputElement,
+    shellElement,
+    terminal: null,
+    fitAddon: null,
     captureElement,
     entryElement,
     entryForm,
@@ -1447,18 +1558,48 @@ const createRuntime = (
     pendingAutoScroll: false,
     identityKey: null,
     lastStoredUsername: '',
+    echoSuppressBuffer: '',
+    echoSuppressActiveCandidate: null,
+    xtermColumnResetPending: true,
     requestDisconnect: () => false,
+    clearOutput: () => {
+      runtime.xtermColumnResetPending = true;
+      if (runtime.terminal) {
+        runtime.terminal.clear();
+      } else {
+        runtime.outputElement.innerHTML = '';
+        runtime.incomingLineElement = null;
+        runtime.incomingBuffer = '';
+      }
+      scrollOutputToBottom(true);
+    },
     appendLine: (text: string, kind: TerminalLineKind = 'info') => {
       if (kind === 'incoming') {
         deliverIncomingPayload(text);
         return;
       }
 
-      const lines = text.replace(/\r\n/g, '\n').split('\n');
+      // Use xterm if available
+      if (runtime.terminal) {
+        const prefix = kind === 'error' ? '\x1b[31m[ERROR] ' : kind === 'outgoing' ? '\x1b[32m> ' : '\x1b[90m';
+        const suffix = kind === 'error' || kind === 'outgoing' || kind === 'info' ? '\x1b[0m' : '';
+        const lines = text.replace(/\r\n?/g, '\n').split('\n');
+        for (const line of lines) {
+          const normalisedLine = line.replace(/\r/g, '');
+          const preparedLine = applyColumnResetToChunk(prefix + normalisedLine + suffix, runtime);
+          runtime.terminal.writeln(preparedLine);
+          runtime.xtermColumnResetPending = true;
+        }
+        return;
+      }
+
+      // Fallback to custom rendering
+      const lines = text.replace(/\r\n?/g, '\n').split('\n');
       for (const line of lines) {
+        const normalisedLine = line.replace(/\r/g, '');
         const entry = document.createElement('pre');
         entry.className = `terminal__line terminal__line--${kind}`;
-        const { fragment, trailingBackground } = createAnsiFragment(line);
+        const { fragment, trailingBackground } = createAnsiFragment(normalisedLine, runtime);
         entry.append(fragment);
         applyTrailingBackground(entry, trailingBackground);
         runtime.outputElement.append(entry);
@@ -1480,6 +1621,154 @@ const createRuntime = (
       }
     }
   };
+
+  const registerOutgoingEchoCandidate = (value: string) => {
+    const normalised = normaliseEchoText(value);
+    if (!normalised) {
+      return;
+    }
+    pendingOutgoingEchoes.push(normalised);
+    const overflow = pendingOutgoingEchoes.length - 32;
+    if (overflow > 0) {
+      pendingOutgoingEchoes.splice(0, overflow);
+    }
+    if (!runtime.echoSuppressActiveCandidate) {
+      runtime.echoSuppressActiveCandidate = pendingOutgoingEchoes[0] ?? null;
+    }
+  };
+
+  const shouldSuppressOutgoingEcho = (line: string): boolean => {
+    const normalised = normaliseEchoText(line);
+    if (!normalised) {
+      return false;
+    }
+    const index = pendingOutgoingEchoes.findIndex((entry) => entry === normalised);
+    if (index === -1) {
+      return false;
+    }
+    pendingOutgoingEchoes.splice(index, 1);
+    if (runtime.echoSuppressActiveCandidate === normalised) {
+      runtime.echoSuppressActiveCandidate = pendingOutgoingEchoes[0] ?? null;
+      runtime.echoSuppressBuffer = '';
+    }
+    if (!runtime.echoSuppressActiveCandidate && pendingOutgoingEchoes.length > 0) {
+      runtime.echoSuppressActiveCandidate = pendingOutgoingEchoes[0];
+    }
+    return true;
+  };
+
+  const filterOutgoingEchoesFromChunk = (chunk: string): string => {
+    if (!chunk) {
+      return '';
+    }
+
+    let result = '';
+
+    for (const char of chunk) {
+      if (!runtime.echoSuppressActiveCandidate && pendingOutgoingEchoes.length > 0) {
+        runtime.echoSuppressActiveCandidate = pendingOutgoingEchoes[0];
+      }
+
+      const active = runtime.echoSuppressActiveCandidate;
+      if (active) {
+        runtime.echoSuppressBuffer += char;
+
+        if (char === '\n') {
+          const buffer = runtime.echoSuppressBuffer;
+          const line = buffer.replace(/\r?\n$/, '');
+          const suppressed = shouldSuppressOutgoingEcho(line);
+          runtime.echoSuppressBuffer = '';
+          runtime.echoSuppressActiveCandidate = pendingOutgoingEchoes[0] ?? null;
+          if (!suppressed) {
+            result += buffer;
+          }
+        } else {
+          const normalisedPartial = normaliseEchoText(runtime.echoSuppressBuffer);
+          if (!active.startsWith(normalisedPartial)) {
+            result += runtime.echoSuppressBuffer;
+            runtime.echoSuppressBuffer = '';
+            runtime.echoSuppressActiveCandidate = pendingOutgoingEchoes[0] ?? active;
+          }
+        }
+
+        continue;
+      }
+
+      result += char;
+    }
+
+    return result;
+  };
+
+  // Initialize xterm.js Terminal - load dynamically at runtime
+  const initializeXterm = async () => {
+    try {
+      // Dynamic imports resolved at browser runtime, not during TypeScript compilation
+      // @ts-expect-error - xterm.js modules are copied to dist/lib but not available during TS compilation
+      const xtermModule = await import('../../lib/xterm.js') as any;
+      // @ts-expect-error - addon-fit.js module is copied to dist/lib but not available during TS compilation
+      const fitModule = await import('../../lib/addon-fit.js') as any;
+
+      const Terminal = xtermModule.Terminal as TerminalConstructor;
+      const FitAddon = fitModule.FitAddon as FitAddonConstructor;
+
+      const term = new Terminal({
+        cursorBlink: true,
+        cursorStyle: 'block',
+        scrollback: 10000,
+        fontSize: 14,
+        fontFamily: '"IBM Plex Mono", "Courier New", Courier, monospace',
+        theme: {
+          background: currentTheme === 'dark' ? '#1a1a1a' : '#ffffff',
+          foreground: currentTheme === 'dark' ? '#e0e0e0' : '#000000',
+          cursor: currentTheme === 'dark' ? '#00ff00' : '#000000',
+          selection: currentTheme === 'dark' ? 'rgba(255, 255, 255, 0.3)' : 'rgba(0, 0, 0, 0.3)'
+        },
+        convertEol: false,
+        disableStdin: true
+      });
+
+      const fitAddon = new FitAddon();
+      term.loadAddon(fitAddon);
+
+      const host = document.createElement('div');
+      host.className = 'terminal-chat__xterm';
+      runtime.outputElement.replaceChildren(host);
+      runtime.outputElement.classList.add('terminal-chat__output--xterm');
+      runtime.shellElement.classList.add('terminal-chat--xterm-ready');
+      term.open(host);
+
+      try {
+        fitAddon.fit();
+      } catch (error) {
+        console.warn('Failed to fit terminal on init', error);
+      }
+
+      runtime.terminal = term;
+      runtime.fitAddon = fitAddon;
+
+      // Handle theme changes
+      const updateTerminalTheme = () => {
+        if (!runtime.terminal) {
+          return;
+        }
+        runtime.terminal.write('\x1b[0m'); // Reset any formatting
+      };
+
+      // Trigger initial theme update
+      updateTerminalTheme();
+    } catch (error) {
+      console.error('Failed to initialize xterm.js, falling back to custom rendering', error);
+      runtime.outputElement.classList.remove('terminal-chat__output--xterm');
+      runtime.shellElement.classList.remove('terminal-chat--xterm-ready');
+      runtime.outputElement.replaceChildren();
+      runtime.terminal = null;
+      runtime.fitAddon = null;
+    }
+  };
+
+  // Start xterm initialization asynchronously
+  void initializeXterm();
 
   updateScrollLockState = () => {
     const { scrollHeight, scrollTop, clientHeight } = runtime.outputElement;
@@ -1923,6 +2212,13 @@ const createRuntime = (
     const handleResize = () => {
       updateViewportSizing();
       scheduleEntryResize();
+      if (runtime.fitAddon) {
+        try {
+          runtime.fitAddon.fit();
+        } catch (error) {
+          console.warn('Failed to fit terminal on resize', error);
+        }
+      }
     };
     window.addEventListener('resize', handleResize);
     if (window.visualViewport) {
@@ -1949,19 +2245,23 @@ const createRuntime = (
     }
 
     const content = match[1] ?? '';
+    const normalisedContent = content.replace(/\s+$/u, '');
     const previous = runtime.asciiEditorLine;
-    runtime.asciiEditorLine = content;
+    runtime.asciiEditorLine = normalisedContent;
 
-    if (previous === content) {
+    if (previous === normalisedContent) {
       return;
     }
 
-    runtime.captureElement.value = content;
+    runtime.captureElement.value = normalisedContent;
     updateEntryControls();
     scheduleEntryResize();
 
     try {
-      runtime.captureElement.setSelectionRange(content.length, content.length);
+      runtime.captureElement.setSelectionRange(
+        normalisedContent.length,
+        normalisedContent.length
+      );
     } catch (error) {
       // Ignore selection errors for unsupported environments.
     }
@@ -1990,8 +2290,9 @@ const createRuntime = (
     }
     block.currentLine = currentLine;
     const visibleLines = currentLine ? [...block.lines, currentLine] : [...block.lines];
-    block.element.textContent = visibleLines.join('\n');
-    syncAsciiEditorEntry(currentLine);
+    const content = visibleLines.join('\n');
+    block.element.textContent = content;
+    lastRenderedLine.set(block.element, content);
   };
 
   const startAsciiArtBlock = (headerLine: string, element: HTMLPreElement) => {
@@ -2004,6 +2305,7 @@ const createRuntime = (
     element.dataset.terminalBlock = 'ascii-art';
     applyTrailingBackground(element, null);
     element.textContent = headerLine;
+    lastRenderedLine.set(element, headerLine);
     runtime.incomingLineElement = element;
     runtime.incomingBuffer = '';
   };
@@ -2015,7 +2317,9 @@ const createRuntime = (
     }
     block.lines.push(line);
     block.currentLine = '';
-    block.element.textContent = block.lines.join('\n');
+    const content = block.lines.join('\n');
+    block.element.textContent = content;
+    lastRenderedLine.set(block.element, content);
   };
 
   const finishAsciiArtBlock = () => {
@@ -2024,7 +2328,9 @@ const createRuntime = (
       return;
     }
     block.currentLine = '';
-    block.element.textContent = block.lines.join('\n');
+    const content = block.lines.join('\n');
+    block.element.textContent = content;
+    lastRenderedLine.set(block.element, content);
     runtime.asciiArtBlock = null;
     runtime.incomingLineElement = null;
     runtime.incomingBuffer = '';
@@ -2032,11 +2338,13 @@ const createRuntime = (
   };
 
   const appendStandaloneLine = (line: string) => {
+    const normalisedLine = line.replace(/\r/g, '');
     const entry = document.createElement('pre');
     entry.className = 'terminal__line terminal__line--incoming';
-    const { fragment, trailingBackground } = createAnsiFragment(line);
+    const { fragment, trailingBackground } = createAnsiFragment(normalisedLine, runtime);
     entry.append(fragment);
     applyTrailingBackground(entry, trailingBackground);
+    lastRenderedLine.set(entry, normalisedLine);
     runtime.outputElement.append(entry);
     limitOutputLines(runtime.outputElement, runtime.maxOutputLines);
   };
@@ -2059,6 +2367,51 @@ const createRuntime = (
 
   function deliverIncomingPayload(chunk: string) {
     if (!chunk) {
+      return;
+    }
+
+    // Use xterm.js if available - it handles all ANSI sequences correctly
+    if (runtime.terminal) {
+      if (runtime.introSilenced) {
+        runtime.introBuffer += chunk;
+        if (runtime.introBuffer.length > INTRO_CAPTURE_LIMIT) {
+          runtime.introBuffer = runtime.introBuffer.slice(-INTRO_CAPTURE_LIMIT);
+        }
+        const markerIndex = runtime.introBuffer.indexOf(INTRO_MARKER);
+        if (markerIndex === -1) {
+          return;
+        }
+        const output = runtime.introBuffer.slice(markerIndex);
+        runtime.introBuffer = '';
+        runtime.introSilenced = false;
+        const filteredOutput = filterOutgoingEchoesFromChunk(output);
+        if (filteredOutput) {
+          const preparedOutput = applyColumnResetToChunk(filteredOutput, runtime);
+          runtime.terminal.write(preparedOutput);
+        }
+        return;
+      }
+      const filteredChunk = filterOutgoingEchoesFromChunk(chunk);
+      if (filteredChunk) {
+        const preparedChunk = applyColumnResetToChunk(filteredChunk, runtime);
+        runtime.terminal.write(preparedChunk);
+      }
+      return;
+    }
+
+    // Fallback to custom rendering for browsers that don't support xterm
+    if (chunk.includes('\u001b[2J')) {
+      const parts = chunk.split('\u001b[2J');
+      let first = true;
+      for (const part of parts) {
+        if (!first) {
+          runtime.clearOutput();
+        }
+        first = false;
+        if (part) {
+          deliverIncomingPayload(part);
+        }
+      }
       return;
     }
 
@@ -2107,7 +2460,7 @@ const createRuntime = (
           runtime.incomingLineElement = runtime.asciiArtBlock.element;
         } else {
           const target = ensureIncomingLine();
-          renderAnsiLine(target, buffer);
+          renderAnsiLine(target, buffer, runtime);
           lineElement = runtime.incomingLineElement;
         }
         buffer = '';
@@ -2120,12 +2473,24 @@ const createRuntime = (
           updateAsciiArtPreview(buffer);
           handleAsciiLineCommit(buffer);
         } else {
-          if (buffer || !lineElement) {
-            const target = ensureIncomingLine();
-            renderAnsiLine(target, buffer);
-            lineElement = runtime.incomingLineElement;
+          const suppressEcho = shouldSuppressOutgoingEcho(buffer);
+          if (suppressEcho) {
+            if (lineElement && lineElement.isConnected) {
+              const parent = lineElement.parentElement;
+              if (parent) {
+                parent.removeChild(lineElement);
+              }
+              lastRenderedLine.delete(lineElement);
+            }
+            lineElement = null;
+          } else {
+            if (buffer || !lineElement) {
+              const target = ensureIncomingLine();
+              renderAnsiLine(target, buffer, runtime);
+              lineElement = runtime.incomingLineElement;
+            }
+            handleRegularLineCommit(buffer, lineElement);
           }
-          handleRegularLineCommit(buffer, lineElement);
         }
 
         buffer = '';
@@ -2155,7 +2520,7 @@ const createRuntime = (
         runtime.incomingLineElement = runtime.asciiArtBlock.element;
       } else {
         const target = ensureIncomingLine();
-        renderAnsiLine(target, buffer);
+        renderAnsiLine(target, buffer, runtime);
         lineElement = target;
       }
     }
@@ -2741,6 +3106,8 @@ const createRuntime = (
       return;
     }
 
+    registerOutgoingEchoCandidate(trimmed);
+
     const paletteMatch = trimmed.match(/^\/?palette\s+(.*)$/i);
     if (!paletteMatch) {
       return;
@@ -2759,30 +3126,69 @@ const createRuntime = (
     }
   };
 
-  function flushNextBufferedLine(allowBlank = false): boolean {
+  function flushNextBufferedLine(allowBlank = false, flushAll = false): boolean {
     const buffered = normaliseBufferValue(runtime.captureElement.value);
-    if (!buffered && !allowBlank) {
-      setEntryStatus('Buffer is empty. Type a command first or press Enter to send a blank line.', 'muted');
-      return false;
+
+    if (!buffered) {
+      if (!allowBlank) {
+        setEntryStatus('Buffer is empty. Type a command first or press Enter to send a blank line.', 'muted');
+        return false;
+      }
+
+      const sentBlank = sendTextPayload('\n');
+      if (!sentBlank) {
+        return false;
+      }
+
+      setEntryStatus('Sent a blank line to the bridge.', 'default');
+      handleUserLineSent('');
+      updateEntryControls();
+      scheduleEntryResize();
+      return true;
     }
 
-    let line = '';
     let remainder = '';
+    const linesToSend: string[] = [];
 
-    if (buffered) {
+    if (flushAll) {
+      linesToSend.push(...buffered.split('\n'));
+    } else {
       const newlineIndex = buffered.indexOf('\n');
       if (newlineIndex === -1) {
-        line = buffered;
-        remainder = '';
+        linesToSend.push(buffered);
       } else {
-        line = buffered.slice(0, newlineIndex);
+        linesToSend.push(buffered.slice(0, newlineIndex));
         remainder = buffered.slice(newlineIndex + 1);
       }
     }
 
-    const sent = sendTextPayload(`${line}\n`);
-    if (!sent) {
-      return false;
+    if (flushAll) {
+      remainder = '';
+    }
+
+    let sentCount = 0;
+    for (const line of linesToSend) {
+      const sent = sendTextPayload(`${line}\n`);
+      if (!sent) {
+        const unsentLines = linesToSend.slice(sentCount).join('\n');
+        const newBuffer = flushAll
+          ? [unsentLines, remainder].filter(Boolean).join('\n')
+          : [line, remainder].filter(Boolean).join('\n');
+        runtime.captureElement.value = newBuffer;
+        scheduleEntryResize();
+        try {
+          const position = runtime.captureElement.value.length;
+          runtime.captureElement.setSelectionRange(position, position);
+        } catch (error) {
+          // Ignore selection errors
+        }
+        runtime.captureElement.focus();
+        updateEntryControls();
+        return false;
+      }
+
+      handleUserLineSent(line);
+      sentCount += 1;
     }
 
     runtime.captureElement.value = remainder;
@@ -2795,24 +3201,103 @@ const createRuntime = (
     }
     runtime.captureElement.focus();
 
-    if (line) {
+    if (flushAll && linesToSend.length > 1) {
+      setEntryStatus(`Sent ${linesToSend.length} lines to the bridge.`, 'default');
+    } else if (linesToSend[0]) {
       setEntryStatus('Sent the next line to the bridge.', 'default');
     } else {
       setEntryStatus('Sent a blank line to the bridge.', 'default');
     }
-
-    handleUserLineSent(line);
 
     updateEntryControls();
     scheduleEntryResize();
     return true;
   }
 
+    const hasMultipleBufferedLines = () =>
+      normaliseBufferValue(runtime.captureElement.value).includes('\n');
+
+    const LOCAL_EDITING_KEYS = new Set([
+      'ArrowUp',
+      'ArrowDown',
+      'ArrowLeft',
+      'ArrowRight',
+      'Home',
+      'End',
+      'PageUp',
+      'PageDown',
+      'Delete',
+      'Insert'
+    ]);
+
+    const insertTabCharacter = (target: HTMLTextAreaElement) => {
+      const start = target.selectionStart ?? target.value.length;
+      const end = target.selectionEnd ?? target.value.length;
+      const before = target.value.slice(0, start);
+      const after = target.value.slice(end);
+      target.value = `${before}\t${after}`;
+      try {
+        const nextPosition = start + 1;
+        target.setSelectionRange(nextPosition, nextPosition);
+      } catch (error) {
+        // Ignore selection errors when environments do not support setSelectionRange
+      }
+      updateEntryControls();
+      scheduleEntryResize();
+    };
+
+    const isEditingMultilineBuffer = () => {
+      const target = runtime.captureElement;
+      const value = target.value;
+      if (!value) {
+        return false;
+      }
+
+      if (value.includes('\n')) {
+        return true;
+      }
+
+      const selectionStart = target.selectionStart;
+      const selectionEnd = target.selectionEnd;
+
+      if (typeof selectionStart !== 'number' || typeof selectionEnd !== 'number') {
+        return false;
+      }
+
+      const caretAtEnd = selectionStart === value.length && selectionEnd === value.length;
+      return !caretAtEnd;
+    };
+
     runtime.captureElement.addEventListener('keydown', (event) => {
-      if (event.key === 'Enter' && !event.shiftKey && !event.altKey) {
+      const editingBuffer = isEditingMultilineBuffer();
+
+      if (event.key === 'Enter') {
+        if ((event.ctrlKey || event.metaKey) && !event.shiftKey && !event.altKey) {
+          event.preventDefault();
+          const flushAll = editingBuffer || hasMultipleBufferedLines();
+          flushNextBufferedLine(true, flushAll);
+          return;
+        }
+
+        if (event.altKey || event.metaKey || event.shiftKey || editingBuffer) {
+          return;
+        }
+
         event.preventDefault();
         flushNextBufferedLine(true);
         return;
+      }
+
+      if (editingBuffer && !event.ctrlKey && !event.metaKey) {
+        if (event.key === 'Tab') {
+          event.preventDefault();
+          insertTabCharacter(runtime.captureElement);
+          return;
+        }
+
+        if (LOCAL_EDITING_KEYS.has(event.key)) {
+          return;
+        }
       }
 
       if (event.key === 'Backspace') {
@@ -2855,22 +3340,18 @@ const createRuntime = (
       if (!isSocketOpen()) {
         if (event.key === 'Tab') {
           event.preventDefault();
-          const target = runtime.captureElement;
-          const start = target.selectionStart ?? target.value.length;
-          const end = target.selectionEnd ?? target.value.length;
-          target.value = `${target.value.slice(0, start)}\t${target.value.slice(end)}`;
-          try {
-            target.setSelectionRange(start + 1, start + 1);
-          } catch (error) {
-            // Ignore selection errors when environments do not support setSelectionRange
-          }
-          updateEntryControls();
+          insertTabCharacter(runtime.captureElement);
+          return;
         }
         return;
       }
 
       if (sendTextPayload(payload)) {
         if (ARROW_KEY_NAMES.has(event.key)) {
+          store.setServerScrolling(true);
+          setTimeout(() => {
+            store.setServerScrolling(false);
+          }, 500);
           resetOutputScroll();
         }
         event.preventDefault();
@@ -2948,12 +3429,14 @@ const createRuntime = (
       }
 
       event.preventDefault();
-      flushNextBufferedLine(true);
+      const flushAll = hasMultipleBufferedLines();
+      flushNextBufferedLine(true, flushAll);
     });
 
     runtime.entryForm.addEventListener('submit', (event) => {
       event.preventDefault();
-      flushNextBufferedLine(false);
+      const flushAll = hasMultipleBufferedLines();
+      flushNextBufferedLine(false, flushAll);
     });
 
     runtime.captureElement.addEventListener('input', () => {
@@ -2971,6 +3454,17 @@ const createRuntime = (
   });
 
   runtime.disposeResources = () => {
+    if (runtime.terminal) {
+      runtime.terminal.dispose();
+      runtime.terminal = null;
+    }
+    if (runtime.fitAddon) {
+      runtime.fitAddon.dispose();
+      runtime.fitAddon = null;
+    }
+    runtime.outputElement.classList.remove('terminal-chat__output--xterm');
+    runtime.shellElement.classList.remove('terminal-chat--xterm-ready');
+    runtime.outputElement.replaceChildren();
     detachThemeListener();
     applyLightPaletteOverride(false);
   };
@@ -2990,7 +3484,7 @@ export const renderTerminal = (
   if (!runtime || runtime.controlsHost !== controlsHost || runtime.themeHost !== themeHost) {
     runtime?.disposeResources?.();
     runtime?.requestDisconnect('Rebuilding terminal controls');
-    runtime = createRuntime(container, { controlsHost, themeHost });
+    runtime = createRuntime(store, container, { controlsHost, themeHost });
     runtimeMap.set(container, runtime);
   }
 

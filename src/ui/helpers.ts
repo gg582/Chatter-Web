@@ -26,7 +26,7 @@ export const formatRelative = (iso: string): string => {
 };
 
 export const escapeHtml = (text: string): string =>
-  text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+  text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#x27;');
 
 export type MobilePlatform = 'ios' | 'android' | 'postmarketos' | 'ubports' | 'blackberry';
 

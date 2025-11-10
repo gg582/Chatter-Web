@@ -24,9 +24,52 @@ async function main() {
   const publicDir = join(root, 'public');
 
   await rm(dist, { recursive: true, force: true });
+  
+  // Copy xterm.js library files BEFORE TypeScript compilation
+  await mkdir(join(dist, 'lib'), { recursive: true });
+  
+  const xtermJsSource = join(root, 'node_modules', '@xterm', 'xterm', 'lib', 'xterm.js');
+  const xtermJsDest = join(dist, 'lib', 'xterm.js');
+  try {
+    await cp(xtermJsSource, xtermJsDest);
+  } catch (error) {
+    if (error && typeof error === 'object' && 'code' in error && error.code === 'ENOENT') {
+      console.warn('xterm.js not found; skipping copy.');
+    } else {
+      throw error;
+    }
+  }
+
+  const fitAddonSource = join(root, 'node_modules', '@xterm', 'addon-fit', 'lib', 'addon-fit.js');
+  const fitAddonDest = join(dist, 'lib', 'addon-fit.js');
+  try {
+    await cp(fitAddonSource, fitAddonDest);
+  } catch (error) {
+    if (error && typeof error === 'object' && 'code' in error && error.code === 'ENOENT') {
+      console.warn('addon-fit.js not found; skipping copy.');
+    } else {
+      throw error;
+    }
+  }
+
+  // Now compile TypeScript
   await run('tsc', ['-p', 'tsconfig.build.json'], { cwd: root });
+  
   await mkdir(dist, { recursive: true });
   await cp(publicDir, dist, { recursive: true });
+
+  // Copy xterm.js CSS
+  const xtermCssSource = join(root, 'node_modules', '@xterm', 'xterm', 'css', 'xterm.css');
+  const xtermCssDest = join(dist, 'xterm.css');
+  try {
+    await cp(xtermCssSource, xtermCssDest);
+  } catch (error) {
+    if (error && typeof error === 'object' && 'code' in error && error.code === 'ENOENT') {
+      console.warn('xterm.css not found; skipping copy.');
+    } else {
+      throw error;
+    }
+  }
 
   const serverSource = join(dist, 'src', 'server.js');
   const serverDestination = join(dist, 'server.js');

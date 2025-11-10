@@ -2,6 +2,7 @@ import type { Metadata } from 'next';
 import './globals.css';
 import { IBM_Plex_Mono, Space_Grotesk } from 'next/font/google';
 import type { ReactNode } from 'react';
+import { resolveChatterRuntimeConfig } from '../src/utils/config'; // Import the new function
 
 const spaceGrotesk = Space_Grotesk({
   subsets: ['latin'],
@@ -23,10 +24,18 @@ export const metadata: Metadata = {
 };
 
 export default function RootLayout({ children }: { children: ReactNode }) {
+  const chatterConfig = resolveChatterRuntimeConfig();
+  const serialisedConfig = JSON.stringify(chatterConfig).replace(/</g, '\\u003C');
+
   return (
     <html lang="en">
       <body className={`${spaceGrotesk.variable} ${ibmPlexMono.variable}`}>
         {children}
+        <script
+          dangerouslySetInnerHTML={{
+            __html: `window.__CHATTER_CONFIG__ = Object.freeze(${serialisedConfig});`
+          }}
+        />
       </body>
     </html>
   );
