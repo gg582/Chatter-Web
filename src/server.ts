@@ -632,7 +632,7 @@ const attachSshBridge = (context: TerminalClientContext) => {
   }
 
   const target = `${sshUser}@${host}`;
-  const args = ['-tt', '-o', 'StrictHostKeyChecking=no', '-o', 'UserKnownHostsFile=/dev/null'];
+  const args = ['-tt', '-o', 'BatchMode=yes', '-o', 'StrictHostKeyChecking=no', '-o', 'UserKnownHostsFile=/dev/null'];
 
   if (port) {
     args.push('-p', String(port));
