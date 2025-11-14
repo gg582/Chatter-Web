@@ -66,7 +66,7 @@ type TargetOverrides = {
 };
 
 const normaliseProtocolName = (value: string | undefined): 'telnet' | 'ssh' =>
-  value === 'telnet' ? 'telnet' : 'ssh';
+  value === 'ssh' ? 'ssh' : 'telnet';
 
 type StoredIdentityEntry = {
   username: string;
@@ -436,11 +436,11 @@ const resolveTarget = (): TerminalTarget => {
   };
 
   const hostPlaceholder = configuredHostPlaceholder || defaultHost || 'chat.korokorok.com';
-  const portPlaceholder = defaultPort || (defaultProtocol === 'ssh' ? '22' : '23');
+  const portPlaceholder = defaultPort || (defaultProtocol === 'ssh' ? '22' : '2323');
 
   const descriptorParts: string[] = [protocol.toUpperCase()];
   if (host) {
-    const displayPort = port || defaultPort || (protocol === 'ssh' ? '22' : '23');
+    const displayPort = port || defaultPort || (protocol === 'ssh' ? '22' : '2323');
     descriptorParts.push(displayPort ? `${host}:${displayPort}` : host);
   }
   if (overridesApplied.host || overridesApplied.port || overridesApplied.protocol) {
@@ -473,7 +473,7 @@ const deriveIdentityKey = (target: TerminalTarget): string | null => {
 
   const port = target.port || target.defaults.port;
   const portSuffix = port ? `:${port}` : '';
-  return `${protocol ?? 'ssh'}://${host}${portSuffix}`;
+  return `${protocol ?? 'telnet'}://${host}${portSuffix}`;
 };
 
 const resolveSocketUrl = (container: HTMLElement): string | null => {
@@ -1080,7 +1080,7 @@ const createRuntime = (
   const socketUrl = resolveSocketUrl(container);
   const hostPlaceholderText = target.placeholders.host || 'chat.korokorok.com';
   const portPlaceholderText =
-    target.placeholders.port || (target.defaults.protocol === 'ssh' ? '22' : '23');
+    target.placeholders.port || (target.defaults.protocol === 'ssh' ? '22' : '2323');
 
   const root = container.closest<HTMLElement>('[data-chatter-root]');
   const containerDatasetPlatform = container.dataset.mobilePlatform;
@@ -1156,6 +1156,7 @@ const createRuntime = (
     } else {
       paletteAutoCommandSent = false;
       applyLightPaletteOverride(false);
+      applyPaletteDarkText(false);
     }
   };
 
@@ -2702,7 +2703,7 @@ const createRuntime = (
     if (runtime.target.defaults.host) {
       const portLabel =
         runtime.target.defaults.port ||
-        (runtime.target.defaults.protocol === 'ssh' ? '22' : runtime.target.defaults.protocol === 'telnet' ? '23' : '');
+        (runtime.target.defaults.protocol === 'ssh' ? '22' : runtime.target.defaults.protocol === 'telnet' ? '2323' : '');
       const hostLabel = portLabel ? `${runtime.target.defaults.host}:${portLabel}` : runtime.target.defaults.host;
       setTargetStatusMessage(`Server target ${hostLabel} is ready to dial.`, 'muted');
       return;
@@ -2718,8 +2719,8 @@ const createRuntime = (
         : runtime.target.defaults.protocol) ?? 'telnet';
     hostInput.placeholder = runtime.target.defaults.host || runtime.target.placeholders.host || 'bbs.example.com';
     const fallbackPort =
-      runtime.target.defaults.port || (protocolValue === 'ssh' ? '22' : protocolValue === 'telnet' ? '23' : '');
-    portInput.placeholder = fallbackPort || runtime.target.placeholders.port || '23';
+      runtime.target.defaults.port || (protocolValue === 'ssh' ? '22' : protocolValue === 'telnet' ? '2323' : '');
+    portInput.placeholder = fallbackPort || runtime.target.placeholders.port || '2323';
   };
 
   let lastAvailability = runtime.target.available;

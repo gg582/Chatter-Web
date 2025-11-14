@@ -33,8 +33,8 @@ export const resolveChatterRuntimeConfig = (): ChatterRuntimeConfig => {
   const config: ChatterRuntimeConfig = {};
 
   const { value: protocolEnv } = readEnvValue('CHATTER_BBS_PROTOCOL', 'CHATTER_TERMINAL_PROTOCOL');
-  const normalisedProtocolValue = (protocolEnv ?? 'ssh').toLowerCase();
-  const normalisedProtocol: BbsProtocol = normalisedProtocolValue === 'telnet' ? 'telnet' : 'ssh';
+  const normalisedProtocolValue = (protocolEnv ?? 'telnet').toLowerCase();
+  const normalisedProtocol: BbsProtocol = normalisedProtocolValue === 'ssh' ? 'ssh' : 'telnet';
   config.bbsProtocol = normalisedProtocol;
 
   const { value: host } = readEnvValue('CHATTER_BBS_HOST', 'CHATTER_TERMINAL_HOST');
@@ -46,7 +46,7 @@ export const resolveChatterRuntimeConfig = (): ChatterRuntimeConfig => {
   if (rawPort) {
     config.bbsPort = rawPort;
   } else {
-    config.bbsPort = normalisedProtocol === 'ssh' ? '22' : '23';
+    config.bbsPort = normalisedProtocol === 'ssh' ? '22' : '2323';
   }
 
   const { value: sshUser } = readEnvValue('CHATTER_BBS_SSH_USER', 'CHATTER_TERMINAL_SSH_USER');

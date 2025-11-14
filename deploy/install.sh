@@ -15,7 +15,7 @@ Options:
   --group GROUP        Set the service group when installing with systemd (default: www-data)
   --port PORT          Set the PORT environment variable for the service (default: 8081)
   --bbs-host HOST      Set the remote BBS host for the terminal bridge (default: bbs.chatter.example)
-  --bbs-port PORT      Set the remote BBS port (default: 23 for telnet, 22 for ssh)
+  --bbs-port PORT      Set the remote BBS port (default: 2323 for telnet, 22 for ssh)
   --bbs-protocol MODE  Select telnet or ssh for the bridge protocol (default: telnet)
   --bbs-ssh-command CMD Remote command to run after connecting via SSH
   --node PATH          Explicit path to the Node.js executable
@@ -41,7 +41,7 @@ NODE_BIN=""
 INSTALL_PREFIX="/opt/chatter-web"
 BBS_HOST="bbs.chatter.example"
 BBS_PROTOCOL="telnet"
-BBS_PORT="23"
+BBS_PORT="2323"
 BBS_PORT_SET=0
 BBS_SSH_COMMAND=""
 
@@ -160,7 +160,7 @@ if (( BBS_PORT_SET == 0 )); then
   if [[ "$BBS_PROTOCOL" == "ssh" ]]; then
     BBS_PORT="22"
   else
-    BBS_PORT="23"
+    BBS_PORT="2323"
   fi
 fi
 
