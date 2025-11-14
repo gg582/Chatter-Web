@@ -19,7 +19,7 @@ type RuntimeDefaults = {
 };
 
 const normaliseProtocolName = (value: string | undefined): 'telnet' | 'ssh' =>
-  value === 'telnet' ? 'telnet' : 'ssh';
+  value === 'ssh' ? 'ssh' : 'telnet';
 
 const readRuntimeConfig = () => {
   if (typeof window === 'undefined') {
@@ -52,7 +52,7 @@ const resolveRuntimeDefaults = (): RuntimeDefaults => {
     host ||
     'chat.korokorok.com';
 
-  const fallbackPortPlaceholder = protocol === 'telnet' ? '23' : '22';
+  const fallbackPortPlaceholder = protocol === 'telnet' ? '2323' : '22';
   const portPlaceholder = port || fallbackPortPlaceholder;
 
   return {
@@ -335,7 +335,7 @@ export const setupLoginGate = (stage: HTMLElement, store: ChatStore) => {
       return;
     }
     const protocol = protocolSelect.value.trim().toLowerCase();
-    portInput.placeholder = protocol === 'telnet' ? '23' : '22';
+    portInput.placeholder = protocol === 'telnet' ? '2323' : '22';
   };
 
   const applyStoredCredentials = () => {
@@ -359,7 +359,7 @@ export const setupLoginGate = (stage: HTMLElement, store: ChatStore) => {
         portInput.value = portValue;
       } else { // If no stored or runtime default port, set a default based on protocol
         const currentProtocol = protocolSelect ? normaliseProtocolName(protocolSelect.value.trim().toLowerCase()) : runtimeDefaults.protocol;
-        portInput.value = currentProtocol === 'telnet' ? '23' : '22';
+        portInput.value = currentProtocol === 'telnet' ? '2323' : '22';
       }
     }
     if (usernameInput) {

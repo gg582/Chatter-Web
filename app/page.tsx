@@ -40,9 +40,9 @@ export default function Home() {
               <span className="chatter-gate__fieldset-label">Connection</span>
               <label className="chatter-gate__field">
                 <span className="chatter-gate__field-label">Protocol</span>
-                <select className="chatter-gate__input" data-login-protocol required>
-                  <option value="ssh">SSH</option>
+                <select className="chatter-gate__input" data-login-protocol required defaultValue="telnet">
                   <option value="telnet">Telnet</option>
+                  <option value="ssh">SSH</option>
                 </select>
               </label>
               <label className="chatter-gate__field">
@@ -66,7 +66,7 @@ export default function Home() {
                   type="number"
                   min={1}
                   max={65535}
-                  placeholder="22"
+                  placeholder="2323"
                   data-login-port
                   required
                   inputMode="numeric"
