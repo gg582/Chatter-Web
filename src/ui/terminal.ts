@@ -1156,6 +1156,7 @@ const createRuntime = (
     } else {
       paletteAutoCommandSent = false;
       applyLightPaletteOverride(false);
+      applyPaletteDarkText(false);
     }
   };
 
