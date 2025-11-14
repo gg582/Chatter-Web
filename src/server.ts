@@ -65,9 +65,9 @@ const readBbsSettings = (options: { silent?: boolean } = {}): BbsSettings | null
   const { silent = false } = options;
   const { value: host } = readEnvValue('CHATTER_BBS_HOST', 'CHATTER_TERMINAL_HOST');
   const { value: rawProtocol } = readEnvValue('CHATTER_BBS_PROTOCOL', 'CHATTER_TERMINAL_PROTOCOL');
-  const protocolValue = (rawProtocol ?? 'ssh').toLowerCase();
-  const protocol: BbsProtocol = protocolValue === 'telnet' ? 'telnet' : 'ssh';
-  const defaultPort = protocol === 'ssh' ? 22 : 23;
+  const protocolValue = (rawProtocol ?? 'telnet').toLowerCase();
+  const protocol: BbsProtocol = protocolValue === 'ssh' ? 'ssh' : 'telnet';
+  const defaultPort = protocol === 'ssh' ? 22 : 2323;
   const { value: rawPort, source: portSource } = readEnvValue(
     'CHATTER_BBS_PORT',
     'CHATTER_TERMINAL_PORT'
@@ -318,7 +318,7 @@ const resolveRuntimeConfig = () => {
   const config: Record<string, string> = {};
   const settings = readBbsSettings({ silent: true });
   const { value: protocolEnv } = readEnvValue('CHATTER_BBS_PROTOCOL', 'CHATTER_TERMINAL_PROTOCOL');
-  const normalisedProtocolValue = (protocolEnv ?? 'ssh').toLowerCase();
+  const normalisedProtocolValue = (protocolEnv ?? 'telnet').toLowerCase();
 
   if (settings) {
     config.bbsProtocol = settings.protocol;
@@ -335,7 +335,7 @@ const resolveRuntimeConfig = () => {
     if (rawPort) {
       config.bbsPort = rawPort;
     } else {
-      config.bbsPort = normalisedProtocol === 'ssh' ? '22' : '23';
+      config.bbsPort = normalisedProtocol === 'ssh' ? '22' : '2323';
     }
     const { value: sshUser } = readEnvValue(
       'CHATTER_BBS_SSH_USER',
@@ -632,7 +632,19 @@ const attachSshBridge = (context: TerminalClientContext) => {
   }
 
   const target = `${sshUser}@${host}`;
-  const args = ['-tt', '-o', 'BatchMode=yes', '-o', 'StrictHostKeyChecking=no', '-o', 'UserKnownHostsFile=/dev/null'];
+  const args = [
+    '-tt',
+    '-o',
+    'StrictHostKeyChecking=no',
+    '-o',
+    'UserKnownHostsFile=/dev/null',
+    '-o',
+    'ServerAliveInterval=30',
+    '-o',
+    'ServerAliveCountMax=3',
+    '-o',
+    'PreferredAuthentications=keyboard-interactive,password,publickey'
+  ];
 
   if (port) {
     args.push('-p', String(port));
@@ -929,7 +941,7 @@ const handleUpgrade = (req: IncomingMessage, socket: NetSocket, head: Buffer) =>
     'CHATTER_TERMINAL_PROTOCOL'
   );
   const fallbackProtocol = (fallbackProtocolEnv ?? 'telnet').toLowerCase() === 'ssh' ? 'ssh' : 'telnet';
-  const defaultPort = fallbackProtocol === 'ssh' ? 22 : 23;
+  const defaultPort = fallbackProtocol === 'ssh' ? 22 : 2323;
 
   const sessionSettings: BbsSettings = settings
     ? { ...settings }
@@ -1000,7 +1012,7 @@ const handleUpgrade = (req: IncomingMessage, socket: NetSocket, head: Buffer) =>
   if (protocolOverride) {
     sessionSettings.protocol = protocolOverride;
     if (portOverride === null) {
-      sessionSettings.port = protocolOverride === 'ssh' ? 22 : 23;
+      sessionSettings.port = protocolOverride === 'ssh' ? 22 : 2323;
     }
   }
 
