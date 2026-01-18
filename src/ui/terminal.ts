@@ -2514,7 +2514,7 @@ const createRuntime = (
           // Use the saved line content if buffer is empty (after \r)
           // Explicit check for empty string to avoid falsy coercion
           const lineToCheck = buffer !== '' ? buffer : lastLineBuffer;
-          // Actually consume the echo entry from the queue
+          // Check and consume matching echo entry from the queue if found
           const suppressEcho = shouldSuppressOutgoingEcho(lineToCheck);
           if (!suppressEcho) {
             // Only render if we have new buffer content (no \r before \n)
@@ -2528,7 +2528,7 @@ const createRuntime = (
               handleRegularLineCommit(lineToCheck, lineElement);
             }
           }
-          // If suppressed, lineElement should already be null from \r handling or we just skip rendering
+          // If suppressed, lineElement is null from \r handling (when echo was detected) or remains null (when no rendering occurred)
         }
 
         buffer = '';
