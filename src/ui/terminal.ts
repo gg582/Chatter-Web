@@ -1590,7 +1590,10 @@ const createRuntime = (
       }
 
       // DISABLED: xterm.js output suppressed - use custom rendering in all cases
-      // This ensures we only display information from the telnet server
+      // Custom rendering ensures:
+      // - Proper echo suppression of user input via filterOutgoingEchoesFromChunk()
+      // - Complete control over displayed content
+      // - Only information from the telnet server is shown to the user
       //
       // if (runtime.terminal) {
       //   const prefix = kind === 'error' ? '\u001b[31m[ERROR] ' : kind === 'outgoing' ? '\u001b[32m> ' : '\u001b[90m';
@@ -1605,7 +1608,7 @@ const createRuntime = (
       //   return;
       // }
 
-      // Custom rendering - now used in all cases
+      // Custom rendering with echo suppression and telnet server validation
       const lines = text.split('\n');
       for (const line of lines) {
         const normalisedLine = line.trimStart();
@@ -1791,7 +1794,6 @@ const createRuntime = (
   // All output now goes through custom rendering with proper echo suppression
   // This ensures we only trust and display information from the telnet server
   //
-  // Start xterm initialization asynchronously
   // void initializeXterm();
 
   updateScrollLockState = () => {
