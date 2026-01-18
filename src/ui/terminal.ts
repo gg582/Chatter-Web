@@ -1589,21 +1589,26 @@ const createRuntime = (
         return;
       }
 
-      // Use xterm if available
-      if (runtime.terminal) {
-        const prefix = kind === 'error' ? '\u001b[31m[ERROR] ' : kind === 'outgoing' ? '\u001b[32m> ' : '\u001b[90m';
-        const suffix = kind === 'error' || kind === 'outgoing' || kind === 'info' ? '\u001b[0m' : '';
-        const lines = text.split('\n');
-        for (const line of lines) {
-          const normalisedLine = line.trimStart();
-          const preparedLine = applyColumnResetToChunk(prefix + normalisedLine + suffix, runtime);
-          runtime.terminal.writeln(preparedLine);
-          runtime.xtermColumnResetPending = true;
-        }
-        return;
-      }
+      // DISABLED: xterm.js output suppressed - use custom rendering in all cases
+      // Custom rendering ensures:
+      // - Proper echo suppression of user input via filterOutgoingEchoesFromChunk()
+      // - Complete control over displayed content
+      // - Only information from the telnet server is shown to the user
+      //
+      // if (runtime.terminal) {
+      //   const prefix = kind === 'error' ? '\u001b[31m[ERROR] ' : kind === 'outgoing' ? '\u001b[32m> ' : '\u001b[90m';
+      //   const suffix = kind === 'error' || kind === 'outgoing' || kind === 'info' ? '\u001b[0m' : '';
+      //   const lines = text.split('\n');
+      //   for (const line of lines) {
+      //     const normalisedLine = line.trimStart();
+      //     const preparedLine = applyColumnResetToChunk(prefix + normalisedLine + suffix, runtime);
+      //     runtime.terminal.writeln(preparedLine);
+      //     runtime.xtermColumnResetPending = true;
+      //   }
+      //   return;
+      // }
 
-      // Fallback to custom rendering
+      // Custom rendering with echo suppression and telnet server validation
       const lines = text.split('\n');
       for (const line of lines) {
         const normalisedLine = line.trimStart();
@@ -1785,8 +1790,11 @@ const createRuntime = (
     }
   };
 
-  // Start xterm initialization asynchronously
-  void initializeXterm();
+  // DISABLED: xterm.js initialization disabled to suppress all xterm output
+  // All output now goes through custom rendering with proper echo suppression
+  // This ensures we only trust and display information from the telnet server
+  //
+  // void initializeXterm();
 
   updateScrollLockState = () => {
     const { scrollHeight, scrollTop, clientHeight } = runtime.outputElement;
@@ -2398,36 +2406,39 @@ const createRuntime = (
       return;
     }
 
-    // Use xterm.js if available - it handles all ANSI sequences correctly
-    if (runtime.terminal) {
-      if (runtime.introSilenced) {
-        runtime.introBuffer += chunk;
-        if (runtime.introBuffer.length > INTRO_CAPTURE_LIMIT) {
-          runtime.introBuffer = runtime.introBuffer.slice(-INTRO_CAPTURE_LIMIT);
-        }
-        const markerIndex = runtime.introBuffer.indexOf(INTRO_MARKER);
-        if (markerIndex === -1) {
-          return;
-        }
-        const output = runtime.introBuffer.slice(markerIndex);
-        runtime.introBuffer = '';
-        runtime.introSilenced = false;
-        const filteredOutput = filterOutgoingEchoesFromChunk(output);
-        if (filteredOutput) {
-          const preparedOutput = applyColumnResetToChunk(filteredOutput, runtime);
-          runtime.terminal.write(preparedOutput);
-        }
-        return;
-      }
-      const filteredChunk = filterOutgoingEchoesFromChunk(chunk);
-      if (filteredChunk) {
-        const preparedChunk = applyColumnResetToChunk(filteredChunk, runtime);
-        runtime.terminal.write(preparedChunk);
-      }
-      return;
-    }
+    // DISABLED: xterm.js output is now completely suppressed in all modes
+    // Only trust and display information from the telnet server through custom rendering
+    // This ensures proper echo suppression and complete control over what is displayed
+    //
+    // if (runtime.terminal) {
+    //   if (runtime.introSilenced) {
+    //     runtime.introBuffer += chunk;
+    //     if (runtime.introBuffer.length > INTRO_CAPTURE_LIMIT) {
+    //       runtime.introBuffer = runtime.introBuffer.slice(-INTRO_CAPTURE_LIMIT);
+    //     }
+    //     const markerIndex = runtime.introBuffer.indexOf(INTRO_MARKER);
+    //     if (markerIndex === -1) {
+    //       return;
+    //     }
+    //     const output = runtime.introBuffer.slice(markerIndex);
+    //     runtime.introBuffer = '';
+    //     runtime.introSilenced = false;
+    //     const filteredOutput = filterOutgoingEchoesFromChunk(output);
+    //     if (filteredOutput) {
+    //       const preparedOutput = applyColumnResetToChunk(filteredOutput, runtime);
+    //       runtime.terminal.write(preparedOutput);
+    //     }
+    //     return;
+    //   }
+    //   const filteredChunk = filterOutgoingEchoesFromChunk(chunk);
+    //   if (filteredChunk) {
+    //     const preparedChunk = applyColumnResetToChunk(filteredChunk, runtime);
+    //     runtime.terminal.write(preparedChunk);
+    //   }
+    //   return;
+    // }
 
-    // Fallback to custom rendering for browsers that don't support xterm
+    // Custom rendering with echo suppression - now used in all cases
     if (chunk.includes('\u001b[2J')) {
       const parts = chunk.split('\u001b[2J');
       let first = true;
