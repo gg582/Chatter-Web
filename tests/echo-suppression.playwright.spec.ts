@@ -17,8 +17,8 @@ import { test, expect } from '@playwright/test';
 
 test.describe('Terminal Echo Suppression', () => {
   test.beforeEach(async ({ page }) => {
-    // Start the development server on a specific port
-    // Note: This test assumes the server is running externally
+    // Navigate to the local application server (started automatically by Playwright config)
+    // Note: The SSH server (chat.korokorok.com:2222) must be running externally
     await page.goto('http://localhost:8081');
     
     // Wait for the page to be fully loaded

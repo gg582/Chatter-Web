@@ -3142,10 +3142,15 @@ const createRuntime = (
     const trimmed = value.trim();
     
     // Register both the value and trimmed version to catch all echo variations
+    // The trimmed version catches most echoes, but some servers may echo with
+    // leading/trailing whitespace intact, so we register both forms
     if (trimmed) {
       registerOutgoingEchoCandidate(trimmed);
     }
-    // Also register the exact value if it differs from trimmed
+    // Register the exact value if it has whitespace differences from trimmed
+    // This handles cases like " hello " where the server echoes back with spaces
+    // Note: Empty strings (whitespace-only values) are intentionally registered
+    // to suppress blank line echoes from the server
     if (value && value !== trimmed) {
       registerOutgoingEchoCandidate(value);
     }
