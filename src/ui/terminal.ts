@@ -1647,6 +1647,14 @@ const createRuntime = (
     }
   };
 
+  const checkIfShouldSuppressEcho = (line: string): boolean => {
+    const normalised = normaliseEchoText(line);
+    if (!normalised) {
+      return false;
+    }
+    return pendingOutgoingEchoes.some((entry) => entry === normalised);
+  };
+
   const shouldSuppressOutgoingEcho = (line: string): boolean => {
     const normalised = normaliseEchoText(line);
     if (!normalised) {
@@ -2480,9 +2488,17 @@ const createRuntime = (
           lineElement = runtime.asciiArtBlock.element;
           runtime.incomingLineElement = runtime.asciiArtBlock.element;
         } else {
-          const target = ensureIncomingLine();
-          renderAnsiLine(target, buffer, runtime);
-          lineElement = runtime.incomingLineElement;
+          // Check if this line should be suppressed before rendering
+          // Use non-destructive check so we can still remove it on \n
+          const shouldSuppress = checkIfShouldSuppressEcho(buffer);
+          if (!shouldSuppress) {
+            const target = ensureIncomingLine();
+            renderAnsiLine(target, buffer, runtime);
+            lineElement = runtime.incomingLineElement;
+          } else {
+            // Don't render the line at all if it should be suppressed
+            lineElement = null;
+          }
         }
         lastLineBuffer = buffer; // Save the line content before clearing
         buffer = '';
@@ -2497,24 +2513,21 @@ const createRuntime = (
         } else {
           // Use the saved line content if buffer is empty (after \r)
           const lineToCheck = buffer || lastLineBuffer;
+          // Actually consume the echo entry from the queue
           const suppressEcho = shouldSuppressOutgoingEcho(lineToCheck);
-          if (suppressEcho) {
-            if (lineElement && lineElement.isConnected) {
-              const parent = lineElement.parentElement;
-              if (parent) {
-                parent.removeChild(lineElement);
-              }
-              lastRenderedLine.delete(lineElement);
-            }
-            lineElement = null;
-          } else {
-            if (buffer || !lineElement) {
+          if (!suppressEcho) {
+            // Only render if we have new buffer content (no \r before \n)
+            if (buffer) {
               const target = ensureIncomingLine();
               renderAnsiLine(target, buffer, runtime);
               lineElement = runtime.incomingLineElement;
             }
-            handleRegularLineCommit(buffer || lastLineBuffer, lineElement);
+            // Handle line commit for non-suppressed lines
+            if (lineElement) {
+              handleRegularLineCommit(lineToCheck, lineElement);
+            }
           }
+          // If suppressed, lineElement should already be null from \r handling or we just skip rendering
         }
 
         buffer = '';
