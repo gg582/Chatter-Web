@@ -3137,18 +3137,24 @@ const createRuntime = (
   };
 
   const handleUserLineSent = (value: string) => {
-    if (!value || !value.trim()) {
-      return;
+    // ALWAYS register the echo candidate for any user input, including empty strings
+    // This ensures that ALL user input from the entry field is suppressed from display
+    const trimmed = value.trim();
+    
+    // Register both the value and trimmed version to catch all echo variations
+    if (trimmed) {
+      registerOutgoingEchoCandidate(trimmed);
+    }
+    // Also register the exact value if it differs from trimmed
+    if (value && value !== trimmed) {
+      registerOutgoingEchoCandidate(value);
     }
 
-    maybeSendLightModePaletteCommand();
-
-    const trimmed = value.trim();
     if (!trimmed) {
       return;
     }
 
-    registerOutgoingEchoCandidate(trimmed);
+    maybeSendLightModePaletteCommand();
 
     const paletteMatch = trimmed.match(/^\/?palette\s+(.*)$/i);
     if (!paletteMatch) {
