@@ -10,10 +10,11 @@
     "test": "npm run build && node --test --experimental-specifier-resolution=node dist/tests/**/*.test.js"
   },
   "dependencies": {
-    "@xterm/xterm": "^5.5.0",
-    "@xterm/addon-fit": "^0.10.0"
+    "@xterm/addon-fit": "^0.10.0",
+    "@xterm/xterm": "^5.5.0"
   },
   "devDependencies": {
+    "@playwright/test": "^1.57.0",
     "@types/node": "^20.12.7",
     "typescript": "^5.4.5"
   },
