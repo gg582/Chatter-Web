@@ -2512,12 +2512,13 @@ const createRuntime = (
           handleAsciiLineCommit(buffer);
         } else {
           // Use the saved line content if buffer is empty (after \r)
-          const lineToCheck = buffer || lastLineBuffer;
+          // Explicit check for empty string to avoid falsy coercion
+          const lineToCheck = buffer !== '' ? buffer : lastLineBuffer;
           // Actually consume the echo entry from the queue
           const suppressEcho = shouldSuppressOutgoingEcho(lineToCheck);
           if (!suppressEcho) {
             // Only render if we have new buffer content (no \r before \n)
-            if (buffer) {
+            if (buffer !== '') {
               const target = ensureIncomingLine();
               renderAnsiLine(target, buffer, runtime);
               lineElement = runtime.incomingLineElement;
