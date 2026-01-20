@@ -1613,7 +1613,7 @@ const createRuntime = (
       for (const line of lines) {
         const normalisedLine = line.trimStart();
         const entry = document.createElement('pre');
-        entry.className = `terminal__line terminal__line--${kind}`;
+        entry.className = kind === 'incoming' ? 'terminal__line' : `terminal__line terminal__line--${kind}`;
         const { fragment, trailingBackground } = createAnsiFragment(normalisedLine, runtime);
         entry.append(fragment);
         applyTrailingBackground(entry, trailingBackground);
@@ -2196,7 +2196,7 @@ const createRuntime = (
     }
 
     const entry = document.createElement('pre');
-    entry.className = 'terminal__line terminal__line--incoming';
+    entry.className = 'terminal__line';
     runtime.outputElement.append(entry);
     runtime.incomingLineElement = entry;
     limitOutputLines(runtime.outputElement, runtime.maxOutputLines);
@@ -2509,6 +2509,11 @@ const createRuntime = (
           } else {
             // Don't render the line at all if it should be suppressed
             lineElement = null;
+            // Remove any partially rendered content for this line
+            if (runtime.incomingLineElement && runtime.incomingLineElement.isConnected) {
+              runtime.incomingLineElement.remove();
+              runtime.incomingLineElement = null;
+            }
           }
         }
         lastLineBuffer = buffer; // Save the line content before clearing
@@ -2537,6 +2542,12 @@ const createRuntime = (
             // Handle line commit for non-suppressed lines
             if (lineElement) {
               handleRegularLineCommit(lineToCheck, lineElement);
+            }
+          } else {
+            // If suppressed, remove any partial render
+            if (runtime.incomingLineElement && runtime.incomingLineElement.isConnected) {
+              runtime.incomingLineElement.remove();
+              runtime.incomingLineElement = null;
             }
           }
           // If suppressed, lineElement is null from \r handling (when echo was detected) or remains null (when no rendering occurred)
