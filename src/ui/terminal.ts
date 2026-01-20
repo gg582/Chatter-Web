@@ -43,29 +43,57 @@ const normaliseEchoText = (value: string): string =>
     .trim();
 
 const fuzzyMatchesEcho = (value: string, candidate: string): boolean => {
-  if (value === candidate) {
+  const cleanLine = stripAnsiSequences(value);
+  const cleanCandidate = candidate.trim();
+  if (!cleanCandidate) {
+    return false;
+  }
+
+  if (cleanLine.trim() === cleanCandidate) {
     return true;
   }
 
-  // Heuristic 1: Remove timestamps/IDs like [123], [12:30], [2024-01-01]
-  // This handles the user's request for patterns like [%d] in between
-  const withoutTags = value.replace(/\[[\d:\s-]*\]/g, '').replace(/\s+/g, ' ').trim();
-  if (withoutTags === candidate) {
-    return true;
+  // Aggressively match if the line starts with the candidate followed by optional prompt markers
+  const escaped = cleanCandidate.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  const pattern = new RegExp(`^[\\s>#$]*${escaped}[\\s>#$]*`);
+  return pattern.test(cleanLine);
+};
+
+const getSuppressedEchoRemainder = (rawLine: string, candidate: string): string | null => {
+  const cleanLine = stripAnsiSequences(rawLine);
+  const cleanCandidate = candidate.trim();
+  if (!cleanCandidate) {
+    return null;
   }
 
-  // Heuristic 2: Remove prompt markers like > or # or $ at the start
-  // This handles the user's request for > normalization
-  const withoutPrompt = value.replace(/^[\s>#$]+/, '').trim();
-  if (withoutPrompt === candidate) {
-    return true;
+  const escaped = cleanCandidate.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  const pattern = new RegExp(`^[\\s>#$]*${escaped}[\\s>#$]*`);
+  
+  const match = cleanLine.match(pattern);
+  if (!match) {
+    return null;
   }
 
-  // Heuristic 3: Remove tags first, then check for prompts again
-  // This handles cases like "[10:00] > hello" -> " > hello" -> "hello"
-  const tagsGone = value.replace(/\[[\d:\s-]*\]/g, '');
-  const clean = tagsGone.replace(/^[\s>#$]+/, '').replace(/\s+/g, ' ').trim();
-  return clean === candidate;
+  const matchedLength = match[0].length;
+  if (matchedLength >= cleanLine.length) {
+    return '';
+  }
+
+  // Map back to raw indices to preserve ANSI
+  let cleanCharsStripped = 0;
+  let rawIdx = 0;
+  while (rawIdx < rawLine.length && cleanCharsStripped < matchedLength) {
+    const remaining = rawLine.substring(rawIdx);
+    const ansiMatch = remaining.match(ANSI_ESCAPE_SEQUENCE_PATTERN);
+    if (ansiMatch && remaining.indexOf(ansiMatch[0]) === 0) {
+      rawIdx += ansiMatch[0].length;
+    } else {
+      rawIdx++;
+      cleanCharsStripped++;
+    }
+  }
+
+  return rawLine.substring(rawIdx);
 };
 
 const parseServiceDomain = (
@@ -408,7 +436,7 @@ const readRuntimeConfig = () => {
   if (typeof window === 'undefined') {
     return undefined;
   }
-  return window.__CHATTER_CONFIG__;
+  return (window as any).__CHATTER_CONFIG__;
 };
 
 type TerminalTarget = {
@@ -640,8 +668,11 @@ type TerminalRuntime = {
   identityKey: string | null;
   lastStoredUsername: string;
   echoSuppressBuffer: string;
+  echoFlushTimer: number | null;
+  writeToTerminal: (text: string) => void;
   echoSuppressActiveCandidate: string | null;
   xtermColumnResetPending: boolean;
+
   appendLine: (text: string, kind?: TerminalLineKind) => void;
   updateStatus: (label: string, state: 'disconnected' | 'connecting' | 'connected') => void;
   updateConnectAvailability?: () => void;
@@ -1595,6 +1626,8 @@ const createRuntime = (
     identityKey: null,
     lastStoredUsername: '',
     echoSuppressBuffer: '',
+    echoFlushTimer: null,
+    writeToTerminal: () => {},
     echoSuppressActiveCandidate: null,
     xtermColumnResetPending: true,
     requestDisconnect: () => false,
@@ -1686,27 +1719,43 @@ const createRuntime = (
     return pendingOutgoingEchoes.some((entry) => fuzzyMatchesEcho(normalised, entry));
   };
 
-  const shouldSuppressOutgoingEcho = (line: string): boolean => {
+  const shouldSuppressOutgoingEcho = (line: string): string | null => {
     const normalised = normaliseEchoText(line);
     if (!normalised) {
-      return false;
+      return null;
     }
-    const index = pendingOutgoingEchoes.findIndex((entry) => fuzzyMatchesEcho(normalised, entry));
+    const index = pendingOutgoingEchoes.findIndex((entry) => fuzzyMatchesEcho(line, entry));
     if (index === -1) {
-      return false;
+      return null;
     }
 
-    const matchedEntry = pendingOutgoingEchoes[index];
+    const matchedCandidate = pendingOutgoingEchoes[index];
+    const remainder = getSuppressedEchoRemainder(line, matchedCandidate);
+    
     pendingOutgoingEchoes.splice(index, 1);
 
-    if (runtime.echoSuppressActiveCandidate === matchedEntry) {
+    if (runtime.echoSuppressActiveCandidate === matchedCandidate) {
       runtime.echoSuppressActiveCandidate = pendingOutgoingEchoes[0] ?? null;
       runtime.echoSuppressBuffer = '';
     }
     if (!runtime.echoSuppressActiveCandidate && pendingOutgoingEchoes.length > 0) {
       runtime.echoSuppressActiveCandidate = pendingOutgoingEchoes[0];
     }
-    return true;
+    
+    return remainder;
+  };
+
+  const flushEchoBuffer = () => {
+    if (runtime.echoSuppressBuffer) {
+      if (runtime.terminal) {
+        runtime.writeToTerminal(runtime.echoSuppressBuffer);
+      }
+      runtime.echoSuppressBuffer = '';
+    }
+    if (runtime.echoFlushTimer) {
+      clearTimeout(runtime.echoFlushTimer);
+      runtime.echoFlushTimer = null;
+    }
   };
 
   const filterOutgoingEchoesFromChunk = (chunk: string): string => {
@@ -1714,39 +1763,74 @@ const createRuntime = (
       return '';
     }
 
+    // Append new chunk to the buffer
+    runtime.echoSuppressBuffer += chunk;
+
+    // Reset flush timer whenever new data arrives
+    if (runtime.echoFlushTimer) {
+      clearTimeout(runtime.echoFlushTimer);
+      runtime.echoFlushTimer = null;
+    }
+
+    // Split buffer into lines
+    // We treat \n as the line delimiter.
+    // The last part after the last \n is considered "incomplete" or a prompt.
+    const parts = runtime.echoSuppressBuffer.split('\n');
+    
+    // The last element is the remainder after the last newline
+    const remainder = parts.pop() ?? ''; 
+    
+    // If we only have one part (no newline found), it means the whole buffer is the remainder.
+    // In that case, parts is empty, and remainder is the whole buffer.
+    
     let result = '';
 
-    for (const char of chunk) {
-      if (!runtime.echoSuppressActiveCandidate && pendingOutgoingEchoes.length > 0) {
-        runtime.echoSuppressActiveCandidate = pendingOutgoingEchoes[0];
-      }
-
-      const active = runtime.echoSuppressActiveCandidate;
-      if (active) {
-        runtime.echoSuppressBuffer += char;
-
-        if (char === '\n') {
-          const buffer = runtime.echoSuppressBuffer;
-          const line = buffer.replace(/\r?\n$/, '');
-          const suppressed = shouldSuppressOutgoingEcho(line);
-          runtime.echoSuppressBuffer = '';
-          runtime.echoSuppressActiveCandidate = pendingOutgoingEchoes[0] ?? null;
-          if (!suppressed) {
-            result += buffer;
-          }
-        } else {
-          const normalisedPartial = normaliseEchoText(runtime.echoSuppressBuffer);
-          if (!active.startsWith(normalisedPartial)) {
-            result += runtime.echoSuppressBuffer;
-            runtime.echoSuppressBuffer = '';
-            runtime.echoSuppressActiveCandidate = pendingOutgoingEchoes[0] ?? active;
-          }
+    // Process all complete lines
+    for (const part of parts) {
+      const line = part + '\n'; // Restore the newline for context/output
+      // Check if this line matches a pending echo
+      const suppressedRemainder = shouldSuppressOutgoingEcho(part);
+      
+      if (suppressedRemainder === null) {
+        // Not an echo line, let it through
+        result += line;
+      } else {
+        // It was an echo line
+        // shouldSuppressOutgoingEcho returns the "rest" of the line if partial suppression happened
+        // or "" if fully suppressed.
+        if (suppressedRemainder) {
+          result += suppressedRemainder + '\n';
         }
-
-        continue;
       }
+    }
 
-      result += char;
+    // Now handle the remainder (the incomplete line or prompt)
+    // We keep it in the buffer if it *might* be the start of a pending echo.
+    // Otherwise, we flush it immediately to avoid lag on prompts.
+
+    // If there are no pending echoes, we have nothing to wait for.
+    if (pendingOutgoingEchoes.length === 0) {
+      result += remainder;
+      runtime.echoSuppressBuffer = '';
+    } else {
+      // Check if the remainder is a prefix of any pending echo
+      // We use a loose check: stripped remainder starts with stripped candidate or vice versa
+      const cleanRemainder = stripAnsiSequences(remainder).trim();
+      const potentialMatch = pendingOutgoingEchoes.some(candidate => {
+        const cleanCandidate = candidate.trim();
+        return cleanCandidate.startsWith(cleanRemainder) || cleanRemainder.startsWith(cleanCandidate);
+      });
+
+      if (potentialMatch) {
+        // It might be an echo coming in slowly. Keep it buffered.
+        // Set a timer to flush it if no more data comes soon (e.g., it's actually a prompt that looks like a command)
+        runtime.echoSuppressBuffer = remainder;
+        runtime.echoFlushTimer = window.setTimeout(flushEchoBuffer, 50); 
+      } else {
+        // Definitely not part of our pending echoes. Flush it.
+        result += remainder;
+        runtime.echoSuppressBuffer = '';
+      }
     }
 
     return result;
@@ -1798,8 +1882,10 @@ const createRuntime = (
 
       runtime.terminal = term;
       runtime.fitAddon = fitAddon;
+      runtime.writeToTerminal = (text: string) => term.write(text);
 
-      // Handle theme changes
+      term.open(runtime.shellElement);
+
       const updateTerminalTheme = () => {
         if (!runtime.terminal) {
           return;
