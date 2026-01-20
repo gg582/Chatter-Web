@@ -42,6 +42,32 @@ const normaliseEchoText = (value: string): string =>
     .replace(/\s+/g, ' ')
     .trim();
 
+const fuzzyMatchesEcho = (value: string, candidate: string): boolean => {
+  if (value === candidate) {
+    return true;
+  }
+
+  // Heuristic 1: Remove timestamps/IDs like [123], [12:30], [2024-01-01]
+  // This handles the user's request for patterns like [%d] in between
+  const withoutTags = value.replace(/\[[\d:\s-]*\]/g, '').replace(/\s+/g, ' ').trim();
+  if (withoutTags === candidate) {
+    return true;
+  }
+
+  // Heuristic 2: Remove prompt markers like > or # or $ at the start
+  // This handles the user's request for > normalization
+  const withoutPrompt = value.replace(/^[\s>#$]+/, '').trim();
+  if (withoutPrompt === candidate) {
+    return true;
+  }
+
+  // Heuristic 3: Remove tags first, then check for prompts again
+  // This handles cases like "[10:00] > hello" -> " > hello" -> "hello"
+  const tagsGone = value.replace(/\[[\d:\s-]*\]/g, '');
+  const clean = tagsGone.replace(/^[\s>#$]+/, '').replace(/\s+/g, ' ').trim();
+  return clean === candidate;
+};
+
 const parseServiceDomain = (
   value: string
 ): { host: string; pathPrefix: string } | null => {
@@ -1657,7 +1683,7 @@ const createRuntime = (
     if (!normalised) {
       return false;
     }
-    return pendingOutgoingEchoes.some((entry) => entry === normalised);
+    return pendingOutgoingEchoes.some((entry) => fuzzyMatchesEcho(normalised, entry));
   };
 
   const shouldSuppressOutgoingEcho = (line: string): boolean => {
@@ -1665,12 +1691,15 @@ const createRuntime = (
     if (!normalised) {
       return false;
     }
-    const index = pendingOutgoingEchoes.findIndex((entry) => entry === normalised);
+    const index = pendingOutgoingEchoes.findIndex((entry) => fuzzyMatchesEcho(normalised, entry));
     if (index === -1) {
       return false;
     }
+
+    const matchedEntry = pendingOutgoingEchoes[index];
     pendingOutgoingEchoes.splice(index, 1);
-    if (runtime.echoSuppressActiveCandidate === normalised) {
+
+    if (runtime.echoSuppressActiveCandidate === matchedEntry) {
       runtime.echoSuppressActiveCandidate = pendingOutgoingEchoes[0] ?? null;
       runtime.echoSuppressBuffer = '';
     }
