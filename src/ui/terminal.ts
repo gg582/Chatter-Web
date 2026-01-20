@@ -1613,7 +1613,7 @@ const createRuntime = (
       for (const line of lines) {
         const normalisedLine = line.trimStart();
         const entry = document.createElement('pre');
-        entry.className = kind === 'incoming' ? 'terminal__line' : `terminal__line terminal__line--${kind}`;
+        entry.className = `terminal__line terminal__line--${kind}`;
         const { fragment, trailingBackground } = createAnsiFragment(normalisedLine, runtime);
         entry.append(fragment);
         applyTrailingBackground(entry, trailingBackground);
