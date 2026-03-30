@@ -16,7 +16,7 @@ const readEnvValue = (...keys: string[]): EnvLookupResult => {
   return { value: undefined, source: undefined };
 };
 
-type BbsProtocol = 'telnet' | 'ssh';
+type BbsProtocol = 'telnet';
 
 export type ChatterRuntimeConfig = {
   bbsProtocol?: BbsProtocol;
@@ -33,8 +33,7 @@ export const resolveChatterRuntimeConfig = (): ChatterRuntimeConfig => {
   const config: ChatterRuntimeConfig = {};
 
   const { value: protocolEnv } = readEnvValue('CHATTER_BBS_PROTOCOL', 'CHATTER_TERMINAL_PROTOCOL');
-  const normalisedProtocolValue = (protocolEnv ?? 'telnet').toLowerCase();
-  const normalisedProtocol: BbsProtocol = normalisedProtocolValue === 'ssh' ? 'ssh' : 'telnet';
+  const normalisedProtocol: BbsProtocol = 'telnet';
   config.bbsProtocol = normalisedProtocol;
 
   const { value: host } = readEnvValue('CHATTER_BBS_HOST', 'CHATTER_TERMINAL_HOST');
@@ -46,7 +45,7 @@ export const resolveChatterRuntimeConfig = (): ChatterRuntimeConfig => {
   if (rawPort) {
     config.bbsPort = rawPort;
   } else {
-    config.bbsPort = normalisedProtocol === 'ssh' ? '22' : '2323';
+    config.bbsPort = '2323';
   }
 
   const { value: sshUser } = readEnvValue('CHATTER_BBS_SSH_USER', 'CHATTER_TERMINAL_SSH_USER');
@@ -68,6 +67,8 @@ export const resolveChatterRuntimeConfig = (): ChatterRuntimeConfig => {
   );
   if (hostDefault) {
     config.bbsHostDefault = hostDefault;
+  } else {
+    config.bbsHostDefault = 'chatter.pw';
   }
 
   const { value: portDefault } = readEnvValue(
@@ -76,6 +77,8 @@ export const resolveChatterRuntimeConfig = (): ChatterRuntimeConfig => {
   );
   if (portDefault) {
     config.bbsPortDefault = portDefault;
+  } else {
+    config.bbsPortDefault = '2323';
   }
 
   const { value: serviceDomain } = readEnvValue('CHATTER_WEB_SERVICE_DOMAIN');

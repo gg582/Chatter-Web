@@ -26,7 +26,7 @@ export default function Home() {
             <span className="chatter-gate__badge">Chatter BBS</span>
             <h1 className="chatter-gate__title">Bridge sign-in</h1>
             <p className="chatter-gate__subtitle">
-              Provide the bridge details below and press connect to continue.
+              UTF-8 TELNET bridge only. Fill host/port and press Join.
             </p>
           </header>
           <div className="chatter-gate__status">
@@ -37,14 +37,7 @@ export default function Home() {
           </div>
           <form className="chatter-gate__form" data-login-form>
             <div className="chatter-gate__fieldset">
-              <span className="chatter-gate__fieldset-label">Connection</span>
-              <label className="chatter-gate__field">
-                <span className="chatter-gate__field-label">Protocol</span>
-                <select className="chatter-gate__input" data-login-protocol required defaultValue="telnet">
-                  <option value="telnet">Telnet</option>
-                  <option value="ssh">SSH</option>
-                </select>
-              </label>
+              <span className="chatter-gate__fieldset-label">Connection (TELNET)</span>
               <label className="chatter-gate__field">
                 <span className="chatter-gate__field-label">Address</span>
                 <input
@@ -104,7 +97,7 @@ export default function Home() {
             </div>
             <div className="chatter-gate__actions">
               <button type="submit" className="button chatter-gate__button" data-login-connect>
-                Connect
+                Join
               </button>
             </div>
           </form>
