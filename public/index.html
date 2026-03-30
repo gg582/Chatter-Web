@@ -3,174 +3,37 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>Chatter BBS Bridge</title>
-    <meta
-      name="description"
-      content="A light lounge for Chatter BBS with a prominent terminal bridge and quick menus."
-    />
-    <link rel="preconnect" href="https://fonts.googleapis.com" />
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-    <link
-      href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;600&display=swap"
-      rel="stylesheet"
-    />
+    <title>Chatter BBS</title>
+    <meta name="description" content="Join Chatter BBS directly from a focused web terminal." />
     <link rel="stylesheet" href="./xterm.css" />
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/simple-keyboard@3.8.132/build/css/index.css" />
     <link rel="stylesheet" href="./styles.css" />
   </head>
   <body>
-    <section class="chatter-gate" data-login-screen data-state="disconnected">
-      <div class="chatter-gate__panel">
-        <header class="chatter-gate__header">
-          <span class="chatter-gate__badge">Chatter BBS</span>
-          <h1 class="chatter-gate__title">Bridge sign-in</h1>
-          <p class="chatter-gate__subtitle">
-            UTF-8 TELNET bridge only. Fill host/port and press Join.
-          </p>
-        </header>
-        <div class="chatter-gate__status">
-          <span class="chatter-gate__indicator" data-login-status-indicator aria-hidden="true"></span>
-          <span class="chatter-gate__status-label" data-login-status>Disconnected</span>
+    <main class="app">
+      <section class="join-screen" data-join-screen>
+        <button class="join-button" data-join-button>Join</button>
+      </section>
+
+      <section class="terminal-screen" data-terminal-screen hidden>
+        <div class="terminal-shell" data-terminal-container></div>
+
+        <div class="bottom-bar">
+          <button class="icon-button" data-keyboard-toggle aria-label="Toggle virtual keyboard">⌨</button>
+          <button class="exit-button" data-exit-button>EXIT</button>
         </div>
-        <form class="chatter-gate__form" data-login-form>
-          <div class="chatter-gate__fieldset">
-            <span class="chatter-gate__fieldset-label">Connection (TELNET)</span>
-            <label class="chatter-gate__field">
-              <span class="chatter-gate__field-label">Address</span>
-              <input
-                class="chatter-gate__input"
-                type="text"
-                placeholder="bbs.example.com"
-                data-login-host
-                data-login-focus
-                required
-                autocomplete="off"
-                autocapitalize="none"
-                spellcheck="false"
-              />
-            </label>
-            <label class="chatter-gate__field">
-              <span class="chatter-gate__field-label">Port</span>
-              <input
-                class="chatter-gate__input"
-                type="number"
-                min="1"
-                max="65535"
-                placeholder="2323"
-                data-login-port
-                required
-                inputmode="numeric"
-              />
-            </label>
-          </div>
-          <div class="chatter-gate__fieldset">
-            <span class="chatter-gate__fieldset-label">Identity</span>
-            <label class="chatter-gate__field">
-              <span class="chatter-gate__field-label">Username</span>
-              <input
-                class="chatter-gate__input"
-                type="text"
-                placeholder="Handle"
-                data-login-username
-                required
-                autocomplete="username"
-                autocapitalize="none"
-                spellcheck="false"
-              />
-            </label>
-            <label class="chatter-gate__field">
-              <span class="chatter-gate__field-label">Password (admins only)</span>
-              <input
-                class="chatter-gate__input"
-                type="password"
-                placeholder="Optional"
-                data-login-password
-                autocomplete="current-password"
-                autocapitalize="none"
-                spellcheck="false"
-              />
-            </label>
-          </div>
-          <div class="chatter-gate__actions">
-            <button type="submit" class="button chatter-gate__button" data-login-connect>
-              Join
-            </button>
-          </div>
-        </form>
-        <p class="chatter-gate__feedback" data-login-feedback role="status" aria-live="polite"></p>
-      </div>
-    </section>
-    <div class="chatter-stage" data-chatter-root data-view="terminal" hidden aria-hidden="true" inert>
-      <main class="chatter-stage__main">
-        <div class="chatter-stage__viewport" data-view-root>
-          <nav class="chatter-stage__nav" aria-label="View switcher">
-            <button
-              type="button"
-              class="chatter-stage__nav-button chatter-stage__nav-button--settings"
-              data-view-target="settings"
-              aria-label="Open settings"
-              aria-controls="chatter-settings-screen"
-            >
-              <span aria-hidden="true">⚙️</span>
-            </button>
-            <button
-              type="button"
-              class="chatter-stage__nav-button chatter-stage__nav-button--home"
-              data-view-target="terminal"
-              aria-label="Return to terminal"
-              aria-controls="chatter-terminal-screen"
-            >
-              <span aria-hidden="true">🏠</span>
-            </button>
-          </nav>
-          <section
-            class="chatter-stage__screen chatter-stage__screen--terminal"
-            id="chatter-terminal-screen"
-            data-view-screen="terminal"
-            aria-label="Terminal"
-          >
-            <div class="chatter-stage__terminal" data-component="terminal"></div>
-            <details class="chatter-shortcuts" data-shortcuts hidden>
-              <summary class="chatter-shortcuts__toggle">
-                <span class="chatter-shortcuts__icon" aria-hidden="true">⌘</span>
-                Keyboard shortcuts
-              </summary>
-              <section class="chatter-shortcuts__panel" data-component="cheatsheet" aria-label="Keyboard shortcuts"></section>
-            </details>
-          </section>
-          <section
-            class="chatter-stage__screen chatter-stage__screen--settings"
-            id="chatter-settings-screen"
-            data-view-screen="settings"
-            aria-label="Settings"
-            aria-hidden="true"
-          >
-            <header class="settings-screen__header">
-              <div>
-                <span class="taskbar-panel__badge">Chatter BBS</span>
-                <h1>Settings</h1>
-              </div>
-            </header>
-            <div class="taskbar-panel__intro">
-              <p>Manage your bridge connection and entry tools from here.</p>
-            </div>
-            <div class="taskbar-panel__grid settings-screen__grid">
-              <section
-                class="taskbar-panel__section taskbar-panel__section--bridge"
-                data-component="bridge-controls"
-                aria-label="Bridge controls"
-              ></section>
-              <section class="taskbar-panel__section" data-component="session"></section>
-              <section
-                class="taskbar-panel__section taskbar-panel__section--utility"
-                data-component="utility"
-                aria-label="Entry tools"
-              ></section>
-            </div>
-          </section>
-        </div>
-      </main>
-    </div>
+
+        <section class="keyboard-panel" data-keyboard-panel hidden>
+          <div class="simple-keyboard" data-keyboard></div>
+        </section>
+      </section>
+    </main>
+
     <script src="./env.js" defer></script>
+    <script src="./lib/xterm.js" defer></script>
+    <script src="./lib/addon-fit.js" defer></script>
+    <script src="https://cdn.jsdelivr.net/npm/simple-keyboard@3.8.132/build/index.min.js" defer></script>
+    <script src="https://cdn.jsdelivr.net/npm/simple-keyboard-layouts@3.2.71/build/layouts/korean.min.js" defer></script>
     <script type="module" src="./src/main.js"></script>
   </body>
 </html>
