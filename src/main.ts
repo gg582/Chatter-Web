@@ -60,6 +60,10 @@ const getGlobal = <T>(name: string): T => {
   return value as T;
 };
 
+const TARGET_HOST = 'chatter.pw';
+const TARGET_PORT = '2323';
+const TARGET_PROTOCOL = 'telnet';
+
 const enterBytes = new TextEncoder().encode('\r');
 const backspaceBytes = new TextEncoder().encode('\u007f');
 const tabBytes = new TextEncoder().encode('\t');
@@ -169,7 +173,11 @@ const connectTerminal = () => {
   fitAddon.fit();
 
   const protocol = window.location.protocol === 'https:' ? 'wss' : 'ws';
-  socket = new WebSocket(`${protocol}://${window.location.host}/terminal`);
+  const wsUrl = new URL(`${protocol}://${window.location.host}/terminal`);
+  wsUrl.searchParams.set('protocol', TARGET_PROTOCOL);
+  wsUrl.searchParams.set('host', TARGET_HOST);
+  wsUrl.searchParams.set('port', TARGET_PORT);
+  socket = new WebSocket(wsUrl);
   socket.binaryType = 'arraybuffer';
 
   socket.addEventListener('open', () => {
