@@ -9,7 +9,7 @@
 
 body {
   margin: 0;
-  background: #070707;
+  background: radial-gradient(circle at top, #111827 0%, #070707 52%, #040404 100%);
   color: #e5e7eb;
 }
 
@@ -21,6 +21,36 @@ body {
   min-height: 100dvh;
   display: grid;
   place-items: center;
+  padding: 24px;
+}
+
+.join-card {
+  width: min(460px, 100%);
+  border: 1px solid #1f2937;
+  border-radius: 18px;
+  background: rgba(5, 10, 19, 0.84);
+  padding: 28px 26px;
+  box-shadow: 0 20px 55px rgba(0, 0, 0, 0.45);
+}
+
+.eyebrow {
+  margin: 0;
+  color: #93c5fd;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  font-size: 0.8rem;
+  font-weight: 700;
+}
+
+.title {
+  margin: 8px 0 0;
+  font-size: clamp(1.7rem, 4vw, 2.4rem);
+}
+
+.subtitle {
+  margin: 12px 0 22px;
+  color: #9ca3af;
+  line-height: 1.4;
 }
 
 .join-button,
@@ -34,10 +64,12 @@ body {
 }
 
 .join-button {
-  min-width: 180px;
+  min-width: 190px;
   min-height: 58px;
   font-size: 1.1rem;
   font-weight: 600;
+  background: linear-gradient(180deg, #1d4ed8, #1e3a8a);
+  border-color: #2563eb;
 }
 
 .terminal-screen {
@@ -50,10 +82,11 @@ body {
 
 .terminal-shell {
   flex: 1;
-  border: 1px solid #1f2937;
+  border: 1px solid #334155;
   border-radius: 12px;
   background: #000;
   overflow: hidden;
+  box-shadow: 0 14px 38px rgba(0, 0, 0, 0.4);
 }
 
 .bottom-bar {
@@ -67,6 +100,14 @@ body {
   min-width: 96px;
   min-height: 44px;
   font-weight: 600;
+  transition: transform 120ms ease, border-color 120ms ease;
+}
+
+.join-button:hover,
+.exit-button:hover,
+.icon-button:hover {
+  transform: translateY(-1px);
+  border-color: #60a5fa;
 }
 
 .keyboard-panel {

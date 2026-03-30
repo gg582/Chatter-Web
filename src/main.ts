@@ -60,9 +60,10 @@ const getGlobal = <T>(name: string): T => {
   return value as T;
 };
 
-const TARGET_HOST = 'chatter.pw';
-const TARGET_PORT = '2323';
-const TARGET_PROTOCOL = 'telnet';
+const runtimeConfig = window.__CHATTER_CONFIG__ ?? {};
+const TARGET_HOST = runtimeConfig.bbsHost ?? runtimeConfig.bbsHostDefault ?? 'chatter.pw';
+const TARGET_PORT = runtimeConfig.bbsPort ?? runtimeConfig.bbsPortDefault ?? '2323';
+const TARGET_PROTOCOL = runtimeConfig.bbsProtocol === 'telnet' ? 'telnet' : 'telnet';
 
 const enterBytes = new TextEncoder().encode('\r');
 const backspaceBytes = new TextEncoder().encode('\u007f');
@@ -153,6 +154,12 @@ const cleanupSession = () => {
 };
 
 const connectTerminal = () => {
+  if (!TARGET_HOST.trim()) {
+    terminalContainer.textContent =
+      'Unable to connect: CHATTER_BBS_HOST is not configured on this server.';
+    return;
+  }
+
   const Terminal = getGlobal<XtermCtor>('Terminal');
   const fitAddonGlobal = getGlobal<Record<string, unknown>>('FitAddon');
   const FitAddon = (fitAddonGlobal.FitAddon ?? fitAddonGlobal) as FitAddonCtor;
