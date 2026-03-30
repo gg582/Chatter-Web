@@ -1888,6 +1888,11 @@ summary::-webkit-details-marker {
   gap: clamp(0.75rem, 2.5vw, 1.25rem);
 }
 
+.terminal-chat__entry-actions {
+  display: flex;
+  gap: 0.5rem;
+}
+
 .terminal-chat__keyboard {
   position: static;
   display: flex;
@@ -1901,6 +1906,10 @@ summary::-webkit-details-marker {
   width: min(100%, 720px);
   max-width: 100%;
   align-self: center;
+}
+
+.terminal-chat__keyboard-host {
+  width: 100%;
 }
 
 .terminal-chat__keyboard-grid {

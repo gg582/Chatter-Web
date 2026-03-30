@@ -207,61 +207,6 @@ const writeStoredUsername = (key: string, username: string) => {
   writeStoredIdentities(entries);
 };
 
-type EntryPreferences = {
-  showTerminateShortcut: boolean;
-};
-
-const ENTRY_PREFERENCES_STORAGE_KEY = 'chatter-terminal-entry-preferences';
-
-const defaultEntryPreferences: EntryPreferences = {
-  showTerminateShortcut: false
-};
-
-const readEntryPreferences = (): EntryPreferences => {
-  if (typeof window === 'undefined' || typeof window.localStorage === 'undefined') {
-    return { ...defaultEntryPreferences };
-  }
-
-  try {
-    const raw = window.localStorage.getItem(ENTRY_PREFERENCES_STORAGE_KEY);
-    if (!raw) {
-      return { ...defaultEntryPreferences };
-    }
-
-    const parsed = JSON.parse(raw) as unknown;
-    if (!parsed || typeof parsed !== 'object') {
-      return { ...defaultEntryPreferences };
-    }
-
-    const showTerminate = Boolean(
-      (parsed as { showTerminateShortcut?: unknown }).showTerminateShortcut
-    );
-
-    return { showTerminateShortcut: showTerminate };
-  } catch (error) {
-    console.warn('Failed to read terminal entry preferences', error);
-    return { ...defaultEntryPreferences };
-  }
-};
-
-const writeEntryPreferences = (preferences: EntryPreferences) => {
-  if (typeof window === 'undefined' || typeof window.localStorage === 'undefined') {
-    return;
-  }
-
-  try {
-    window.localStorage.setItem(
-      ENTRY_PREFERENCES_STORAGE_KEY,
-      JSON.stringify({
-        showTerminateShortcut: Boolean(preferences.showTerminateShortcut)
-      })
-    );
-  } catch (error) {
-    console.warn('Failed to persist terminal entry preferences', error);
-  }
-};
-
-
 const loadTargetOverrides = (): TargetOverrides => {
   if (typeof window === 'undefined' || typeof window.localStorage === 'undefined') {
     return {};
@@ -588,28 +533,26 @@ const keySequences: Record<string, string> = {
   Insert: '\u001b[2~'
 };
 
-const ENTRY_INPUT_GROUP = 'entry-buffer';
+const ARROW_KEY_NAMES = new Set(['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight']);
 
-const onScreenShortcuts: Record<
-  string,
-  {
-    payload: string;
-    label: string;
-    inputGroup: string;
-  }
-> = {
-  'ctrl-c': { payload: '\u0003', label: 'Copy', inputGroup: ENTRY_INPUT_GROUP },
-  'ctrl-z': { payload: '\u001a', label: 'Undo', inputGroup: ENTRY_INPUT_GROUP },
-  'ctrl-s': { payload: '\u0013', label: 'Save', inputGroup: ENTRY_INPUT_GROUP },
-  'ctrl-a': { payload: '\u0001', label: 'Select all', inputGroup: ENTRY_INPUT_GROUP },
-  'arrow-up': { payload: keySequences.ArrowUp, label: 'Arrow up', inputGroup: 'arrow-up' },
-  'arrow-down': { payload: keySequences.ArrowDown, label: 'Arrow down', inputGroup: 'arrow-down' },
-  'arrow-left': { payload: keySequences.ArrowLeft, label: 'Arrow left', inputGroup: 'arrow-left' },
-  'arrow-right': { payload: keySequences.ArrowRight, label: 'Arrow right', inputGroup: 'arrow-right' }
+const SIMPLE_KEYBOARD_CSS_URL = 'https://cdn.jsdelivr.net/npm/simple-keyboard@latest/build/css/index.css';
+const SIMPLE_KEYBOARD_SCRIPT_URL = 'https://cdn.jsdelivr.net/npm/simple-keyboard@latest/build/index.js';
+
+type SimpleKeyboardInstance = {
+  setInput: (value: string) => void;
+  destroy: () => void;
 };
 
-const ARROW_KEY_NAMES = new Set(['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight']);
-const ARROW_SHORTCUT_KEYS = new Set(['arrow-up', 'arrow-down', 'arrow-left', 'arrow-right']);
+type SimpleKeyboardConstructor = new (
+  selector: string | HTMLElement,
+  options: {
+    onChange?: (input: string) => void;
+    onKeyPress?: (button: string) => void;
+    layout?: Record<string, string[]>;
+    display?: Record<string, string>;
+    theme?: string;
+  }
+) => SimpleKeyboardInstance;
 
 let entryStatusIdCounter = 0;
 
@@ -646,7 +589,6 @@ type TerminalRuntime = {
   passwordField: HTMLElement;
   controlsHost: HTMLElement | null;
   themeHost: HTMLElement | null;
-  entryPreferences: EntryPreferences;
   binaryDecoder: TextDecoder;
   connected: boolean;
   connecting: boolean;
@@ -1287,9 +1229,6 @@ const createRuntime = (
 
   const entryStatusId = createEntryStatusId();
 
-  const entryPreferences = readEntryPreferences();
-  const showTerminateShortcut = Boolean(entryPreferences.showTerminateShortcut);
-
   const controlBarMarkup = `
         <nav class="terminal-chat__menu-bar" aria-label="Terminal bridge controls">
           <div class="terminal-chat__menu-title">
@@ -1348,14 +1287,6 @@ const createRuntime = (
                 <input type="password" id="terminal-password" class="terminal-chat__input" data-terminal-password placeholder="Optional" autocomplete="off" />
               </div>
             </form>
-            <div class="terminal-chat__menu-block terminal-chat__menu-block--entry" role="group" aria-label="Entry preferences">
-              <span class="terminal-chat__menu-block-title">Entry preferences</span>
-              <label class="terminal-chat__option">
-                <input type="checkbox" data-terminal-toggle-terminate ${showTerminateShortcut ? 'checked' : ''} />
-                <span>Show Terminate shortcut</span>
-              </label>
-              <p class="terminal-chat__hint terminal__note terminal__note--muted">Expose the Ctrl+Z shortcut button in the on-screen keyboard.</p>
-            </div>
           </div>
         </nav>`;
 
@@ -1379,21 +1310,23 @@ const createRuntime = (
         <div class="terminal-chat__entry-region">
           <div class="terminal-chat__entry-main">
             <div class="terminal-chat__keyboard" id="${entryStatusId}-kbd" data-terminal-kbd hidden>
-              <div class="terminal-chat__keyboard-grid">
-                <button type="button" data-terminal-kbd-key="ctrl-c" data-terminal-kbd-group="entry-buffer">Cancel</button>
-                <button type="button" data-terminal-kbd-key="ctrl-z" data-terminal-kbd-group="entry-buffer" data-terminal-terminate-shortcut ${showTerminateShortcut ? '' : 'hidden'}>Terminate</button>
-                <button type="button" data-terminal-kbd-key="ctrl-s" data-terminal-kbd-group="entry-buffer">Save</button>
-                <button type="button" data-terminal-kbd-key="ctrl-a" data-terminal-kbd-group="entry-buffer">Abort</button>
-                <button type="button" data-terminal-kbd-key="arrow-up" data-terminal-kbd-group="arrow-up">↑</button>
-                <button type="button" data-terminal-kbd-key="arrow-down" data-terminal-kbd-group="arrow-down">↓</button>
-                <button type="button" data-terminal-kbd-key="arrow-left" data-terminal-kbd-group="arrow-left">←</button>
-                <button type="button" data-terminal-kbd-key="arrow-right" data-terminal-kbd-group="arrow-right">→</button>
-              </div>
-              <p class="terminal-chat__keyboard-foot">Shortcuts send immediately. Keep composing in the buffer above.</p>
+              <div class="terminal-chat__keyboard-host" data-terminal-kbd-host></div>
+              <p class="terminal-chat__keyboard-foot">Toggle keyboard and type commands directly from touch devices.</p>
             </div>
             <section class="terminal-chat__panel-section terminal-chat__panel-section--entry terminal__entry" data-terminal-entry>
               <div class="terminal-chat__entry-head">
-                <button type="button" class="terminal-chat__focus" data-terminal-focus>Focus</button>
+                <div class="terminal-chat__entry-actions">
+                  <button type="button" class="terminal-chat__focus" data-terminal-focus>Focus</button>
+                  <button
+                    type="button"
+                    class="terminal-chat__focus"
+                    data-terminal-kbd-toggle
+                    aria-expanded="false"
+                    aria-controls="${entryStatusId}-kbd"
+                  >
+                    Keyboard
+                  </button>
+                </div>
                 <p
                   id="${entryStatusId}"
                   class="terminal-chat__entry-status terminal__entry-status"
@@ -1467,7 +1400,6 @@ const createRuntime = (
   const targetStatus = query<HTMLElement>('[data-terminal-target-status]');
   const keyboardToggleButton = query<HTMLButtonElement>('[data-terminal-kbd-toggle]');
   const keyboardPanel = query<HTMLElement>('[data-terminal-kbd]');
-  const terminateToggle = query<HTMLInputElement>('[data-terminal-toggle-terminate]');
   const entryElement = query<HTMLElement>('[data-terminal-entry]');
   const entryForm = entryElement?.querySelector<HTMLFormElement>('[data-terminal-entry-form]');
   const entryBufferElement = entryElement?.querySelector<HTMLTextAreaElement>('[data-terminal-entry-buffer]');
@@ -1606,7 +1538,6 @@ const createRuntime = (
     passwordField,
     controlsHost,
     themeHost,
-    entryPreferences: { ...entryPreferences },
     mobilePlatform,
     binaryDecoder: new TextDecoder(),
     socketUrl: typeof socketUrl === 'string' && socketUrl.trim() ? socketUrl.trim() : null,
@@ -2130,39 +2061,6 @@ const createRuntime = (
     });
   };
 
-      const conditionallyVisibleKeys = new Set(['arrow-up', 'arrow-down', 'arrow-left', 'arrow-right']);
-      const keyboardButtons = Array.from(
-        keyboardPanel.querySelectorAll<HTMLButtonElement>('[data-terminal-kbd-key]')
-      );
-  const terminateShortcutButton = keyboardPanel.querySelector<HTMLButtonElement>(
-    '[data-terminal-terminate-shortcut]'
-  );
-
-  const applyTerminateShortcutVisibility = (visible: boolean) => {
-    if (terminateShortcutButton) {
-      terminateShortcutButton.hidden = !visible;
-    }
-    runtime.entryPreferences.showTerminateShortcut = visible;
-  };
-
-  applyTerminateShortcutVisibility(showTerminateShortcut);
-
-  if (terminateToggle) {
-    terminateToggle.checked = showTerminateShortcut;
-    terminateToggle.addEventListener('change', () => {
-      const visible = terminateToggle.checked;
-      applyTerminateShortcutVisibility(visible);
-      writeEntryPreferences(runtime.entryPreferences);
-      setEntryStatus(
-        visible
-          ? 'Terminate shortcut enabled. The on-screen Ctrl+Z key is now visible.'
-          : 'Terminate shortcut hidden from the on-screen keyboard.',
-        'muted'
-      );
-    });
-  }
-
-
   const KEEP_ALIVE_INTERVAL_MS = 20000;
   const KEEP_ALIVE_PAYLOAD = new Uint8Array([0]);
   let keepAliveTimer: number | null = null;
@@ -2214,35 +2112,131 @@ const createRuntime = (
     container.classList.add('terminal-chat--keyboard-open');
   };
 
+  const ensureExternalKeyboardAssets = (() => {
+    let pending: Promise<SimpleKeyboardConstructor | null> | null = null;
+
+    return () => {
+      if (typeof window === 'undefined') {
+        return Promise.resolve(null);
+      }
+
+      if (!document.querySelector(`link[data-terminal-simple-kbd-css]`)) {
+        const link = document.createElement('link');
+        link.rel = 'stylesheet';
+        link.href = SIMPLE_KEYBOARD_CSS_URL;
+        link.dataset.terminalSimpleKbdCss = 'true';
+        document.head.append(link);
+      }
+
+      const existing = (window as Window & { SimpleKeyboard?: SimpleKeyboardConstructor }).SimpleKeyboard;
+      if (existing) {
+        return Promise.resolve(existing);
+      }
+
+      if (pending) {
+        return pending;
+      }
+
+      pending = new Promise((resolve) => {
+        const script = document.createElement('script');
+        script.src = SIMPLE_KEYBOARD_SCRIPT_URL;
+        script.async = true;
+        script.onload = () => {
+          const ctor = (window as Window & { SimpleKeyboard?: SimpleKeyboardConstructor }).SimpleKeyboard;
+          resolve(ctor ?? null);
+        };
+        script.onerror = () => resolve(null);
+        document.head.append(script);
+      });
+
+      return pending;
+    };
+  })();
+
+  const keyboardHost = query<HTMLElement>('[data-terminal-kbd-host]');
+  let virtualKeyboard: SimpleKeyboardInstance | null = null;
+  let syncingVirtualKeyboard = false;
+
+  const syncVirtualKeyboardInput = () => {
+    if (!virtualKeyboard || syncingVirtualKeyboard) {
+      return;
+    }
+    virtualKeyboard.setInput(runtime.captureElement.value);
+  };
+
+  const handleVirtualKeyPress = (button: string) => {
+    if (button === '{enter}') {
+      flushNextBufferedLine(true);
+      syncVirtualKeyboardInput();
+      return;
+    }
+    if (button === '{bksp}') {
+      return;
+    }
+    if (button === '{arrowleft}' || button === '{arrowright}' || button === '{arrowup}' || button === '{arrowdown}') {
+      const map: Record<string, string> = {
+        '{arrowleft}': keySequences.ArrowLeft,
+        '{arrowright}': keySequences.ArrowRight,
+        '{arrowup}': keySequences.ArrowUp,
+        '{arrowdown}': keySequences.ArrowDown
+      };
+      const payload = map[button];
+      if (payload) {
+        sendTextPayload(payload);
+      }
+    }
+  };
+
+  const mountVirtualKeyboard = async () => {
+    if (!keyboardHost) {
+      return;
+    }
+    const ctor = await ensureExternalKeyboardAssets();
+    if (!ctor || virtualKeyboard) {
+      return;
+    }
+
+    virtualKeyboard = new ctor(keyboardHost, {
+      onChange: (input) => {
+        syncingVirtualKeyboard = true;
+        runtime.captureElement.value = input;
+        syncingVirtualKeyboard = false;
+        updateEntryControls();
+        scheduleEntryResize();
+      },
+      onKeyPress: handleVirtualKeyPress,
+      theme: 'hg-theme-default terminal-chat__simple-keyboard',
+      layout: {
+        default: [
+          '1 2 3 4 5 6 7 8 9 0 {bksp}',
+          'q w e r t y u i o p',
+          'a s d f g h j k l {enter}',
+          'z x c v b n m . /',
+          '{space} {arrowleft} {arrowright} {arrowup} {arrowdown}'
+        ]
+      },
+      display: {
+        '{bksp}': '⌫',
+        '{enter}': '⏎',
+        '{space}': 'Space',
+        '{arrowleft}': '←',
+        '{arrowright}': '→',
+        '{arrowup}': '↑',
+        '{arrowdown}': '↓'
+      }
+    });
+
+    syncVirtualKeyboardInput();
+  };
+
   let keyboardOpen = false;
   const setKeyboardOpen = (open: boolean) => {
     keyboardOpen = open;
-    if (keyboardToggleButton) {
-      keyboardPanel.hidden = !open;
-      keyboardToggleButton.setAttribute('aria-expanded', open ? 'true' : 'false');
-      container.classList.toggle('terminal-chat--keyboard-open', open);
-    } else {
-      revealKeyboardPanel();
-    }
-
-    // New logic to control individual button visibility
-    const showConditionalButtons = open || runtime.mobilePlatform;
-    for (const button of keyboardButtons) {
-      const key = button.dataset.terminalKbdKey;
-      if (key && conditionallyVisibleKeys.has(key)) {
-        button.hidden = !showConditionalButtons;
-      }
-    }
-
-    if (open && keyboardButtons.length > 0) {
-      keyboardButtons[0].focus();
-    } else if (
-      !open &&
-      keyboardToggleButton &&
-      document.activeElement &&
-      keyboardPanel.contains(document.activeElement)
-    ) {
-      keyboardToggleButton.focus();
+    keyboardPanel.hidden = !open;
+    keyboardToggleButton?.setAttribute('aria-expanded', open ? 'true' : 'false');
+    container.classList.toggle('terminal-chat--keyboard-open', open);
+    if (open) {
+      void mountVirtualKeyboard();
     }
   };
 
@@ -2250,54 +2244,13 @@ const createRuntime = (
     keyboardToggleButton.addEventListener('click', () => {
       setKeyboardOpen(!keyboardOpen);
     });
-
-    keyboardPanel.addEventListener('keydown', (event) => {
-      if (event.key === 'Escape') {
-        event.preventDefault();
-        setKeyboardOpen(false);
-        keyboardToggleButton.focus();
-      }
-    });
   } else {
     revealKeyboardPanel();
     keyboardOpen = true;
+    void mountVirtualKeyboard();
   }
 
-  keyboardButtons.forEach((button) => {
-    button.addEventListener('click', (event) => {
-      event.preventDefault();
-      const shortcutKey = button.dataset.terminalKbdKey;
-      if (!shortcutKey) {
-        return;
-      }
-      const shortcut = onScreenShortcuts[shortcutKey];
-      if (!shortcut) {
-        return;
-      }
-      const buttonGroup = button.dataset.terminalKbdGroup?.trim();
-      const inputGroup = buttonGroup || shortcut.inputGroup;
-      const sent = sendTextPayload(shortcut.payload);
-      if (sent) {
-        setEntryStatus(`${shortcut.label} sent to the bridge.`, 'muted');
-        if (ARROW_SHORTCUT_KEYS.has(shortcutKey)) {
-          resetOutputScroll();
-        }
-        if (inputGroup === ENTRY_INPUT_GROUP) {
-          focusCapture();
-        } else if (typeof button.focus === 'function') {
-          try {
-            button.focus({ preventScroll: true });
-          } catch (error) {
-            try {
-              button.focus();
-            } catch (fallbackError) {
-              // Ignore focus errors for unsupported environments.
-            }
-          }
-        }
-      }
-    });
-  });
+  runtime.captureElement.addEventListener('input', syncVirtualKeyboardInput);
 
   function ensureIncomingLine(): HTMLPreElement {
     if (runtime.asciiArtBlock) {
@@ -3638,6 +3591,10 @@ const createRuntime = (
   });
 
   runtime.disposeResources = () => {
+    if (virtualKeyboard) {
+      virtualKeyboard.destroy();
+      virtualKeyboard = null;
+    }
     if (runtime.terminal) {
       runtime.terminal.dispose();
       runtime.terminal = null;
