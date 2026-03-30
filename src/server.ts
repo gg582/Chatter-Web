@@ -91,14 +91,8 @@ const readBbsSettings = (options: { silent?: boolean } = {}): BbsSettings | null
   }
 
   const { value: sshUser } = readEnvValue('CHATTER_BBS_SSH_USER', 'CHATTER_TERMINAL_SSH_USER');
-  const { value: sshPassword } = readEnvValue(
-    'CHATTER_BBS_SSH_PASSWORD',
-    'CHATTER_TERMINAL_SSH_PASSWORD'
-  );
-  const { value: sshCommand } = readEnvValue(
-    'CHATTER_BBS_SSH_COMMAND',
-    'CHATTER_TERMINAL_SSH_COMMAND'
-  );
+  const { value: sshPassword } = readEnvValue('CHATTER_BBS_SSH_PASSWORD', 'CHATTER_TERMINAL_SSH_PASSWORD');
+  const { value: sshCommand } = readEnvValue('CHATTER_BBS_SSH_COMMAND', 'CHATTER_TERMINAL_SSH_COMMAND');
 
   return {
     host,
@@ -171,11 +165,10 @@ const normaliseProtocolOverride = (
   }
 
   const lower = trimmed.toLowerCase();
-  if (lower !== 'ssh' && lower !== 'telnet') {
+  if (lower !== 'telnet') {
     return { present: true, valid: false, protocol: null };
   }
-
-  return { present: true, valid: true, protocol: lower as BbsProtocol };
+  return { present: true, valid: true, protocol: 'telnet' };
 };
 
 const stripIpv6Brackets = (value: string): string =>

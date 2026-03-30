@@ -1,0 +1,16 @@
+services:
+  chatter-web:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: chatter-web
+    restart: unless-stopped
+    environment:
+      HOST: 0.0.0.0
+      PORT: 8081
+      CHATTER_BBS_PROTOCOL: telnet
+      CHATTER_BBS_HOST: chatter.pw
+      CHATTER_BBS_PORT: 2323
+    ports:
+      - "8081:8081"
+    user: "33:33"

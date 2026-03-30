@@ -15,9 +15,9 @@ Options:
   --group GROUP        Set the service group when installing with systemd (default: www-data)
   --port PORT          Set the PORT environment variable for the service (default: 8081)
   --bbs-host HOST      Set the remote BBS host for the terminal bridge (default: bbs.chatter.example)
-  --bbs-port PORT      Set the remote BBS port (default: 2323 for telnet, 22 for ssh)
-  --bbs-protocol MODE  Select telnet or ssh for the bridge protocol (default: telnet)
-  --bbs-ssh-command CMD Remote command to run after connecting via SSH
+  --bbs-port PORT      Set the remote BBS TELNET port (default: 2323)
+  --bbs-protocol MODE  TELNET only (must be telnet, default: telnet)
+  --bbs-ssh-command CMD Ignored in TELNET-only mode (kept for backward compatibility)
   --node PATH          Explicit path to the Node.js executable
   --prefix PATH        Destination directory for the compiled assets (default: /opt/chatter-web)
   --help               Show this message
@@ -39,7 +39,7 @@ SERVICE_GROUP="www-data"
 SERVICE_PORT="8081"
 NODE_BIN=""
 INSTALL_PREFIX="/opt/chatter-web"
-BBS_HOST="bbs.chatter.example"
+BBS_HOST="chatter.pw"
 BBS_PROTOCOL="telnet"
 BBS_PORT="2323"
 BBS_PORT_SET=0
@@ -151,17 +151,13 @@ if [[ -z "${BBS_HOST// /}" ]]; then
 fi
 
 BBS_PROTOCOL=${BBS_PROTOCOL,,}
-if [[ "$BBS_PROTOCOL" != "telnet" && "$BBS_PROTOCOL" != "ssh" ]]; then
-  echo "Error: --bbs-protocol must be either telnet or ssh." >&2
+if [[ "$BBS_PROTOCOL" != "telnet" ]]; then
+  echo "Error: --bbs-protocol must be telnet." >&2
   exit 1
 fi
 
 if (( BBS_PORT_SET == 0 )); then
-  if [[ "$BBS_PROTOCOL" == "ssh" ]]; then
-    BBS_PORT="22"
-  else
-    BBS_PORT="2323"
-  fi
+  BBS_PORT="2323"
 fi
 
 if ! command -v npm >/dev/null 2>&1; then

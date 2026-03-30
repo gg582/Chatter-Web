@@ -1303,8 +1303,8 @@ const createRuntime = (
                 <span class="terminal-chat__menu-status-label" data-terminal-status data-state="disconnected">Disconnected</span>
               </div>
               <div class="terminal-chat__menu-actions">
-                <button type="button" class="terminal-chat__menu-button" data-terminal-connect>Connect</button>
-                <button type="button" class="terminal-chat__menu-button" data-terminal-disconnect disabled>Disconnect</button>
+                <button type="button" class="terminal-chat__menu-button" data-terminal-connect>Join</button>
+                <button type="button" class="terminal-chat__menu-button" data-terminal-disconnect disabled>Exit</button>
               </div>
               <div class="terminal-chat__menu-endpoint">
                 <span class="terminal-chat__menu-endpoint-label">Target</span>
@@ -1318,9 +1318,8 @@ const createRuntime = (
               <form class="terminal-chat__target-form" data-terminal-target-form>
                 <label class="terminal-chat__field">
                   <span class="terminal-chat__field-label">Protocol</span>
-                  <select class="terminal-chat__input" data-terminal-protocol>
-                    <option value="ssh">SSH</option>
-                    <option value="telnet">Telnet</option>
+                  <select class="terminal-chat__input" data-terminal-protocol disabled>
+                    <option value="telnet">TELNET</option>
                   </select>
                 </label>
                 <label class="terminal-chat__field">
@@ -2707,10 +2706,7 @@ const createRuntime = (
   }
 
   const collectOverridesFromInputs = (): { overrides: TargetOverrides; errors: string[] } => {
-    const protocolValue =
-      (protocolSelect.value === 'ssh' || protocolSelect.value === 'telnet'
-        ? protocolSelect.value
-        : runtime.target.defaults.protocol) ?? 'telnet';
+    const protocolValue = 'telnet';
     const hostValue = hostInput.value.trim();
     const portValue = portInput.value.trim();
     const errors: string[] = [];
@@ -2732,7 +2728,7 @@ const createRuntime = (
 
     const overrides: TargetOverrides = {};
 
-    if ((protocolValue === 'ssh' || protocolValue === 'telnet') && protocolValue !== runtime.target.defaults.protocol) {
+    if (protocolValue !== runtime.target.defaults.protocol) {
       overrides.protocol = protocolValue;
     }
 
@@ -2755,7 +2751,7 @@ const createRuntime = (
     runtime.usernameField.style.display = '';
     runtime.usernameInput.disabled = false;
     const placeholder =
-      runtime.target.protocol === 'ssh'
+      false
         ? 'Enter your SSH username'
         : 'Enter your BBS handle';
     runtime.usernameInput.placeholder = placeholder;
@@ -2796,7 +2792,7 @@ const createRuntime = (
   };
 
   const syncPasswordField = () => {
-    if (runtime.target.protocol === 'ssh') {
+    if (false) {
       runtime.passwordField.style.display = '';
       runtime.passwordInput.disabled = false;
     } else {
@@ -2854,7 +2850,7 @@ const createRuntime = (
     if (runtime.target.defaults.host) {
       const portLabel =
         runtime.target.defaults.port ||
-        (runtime.target.defaults.protocol === 'ssh' ? '22' : runtime.target.defaults.protocol === 'telnet' ? '2323' : '');
+        '2323';
       const hostLabel = portLabel ? `${runtime.target.defaults.host}:${portLabel}` : runtime.target.defaults.host;
       setTargetStatusMessage(`Server target ${hostLabel} is ready to dial.`, 'muted');
       return;
@@ -2864,13 +2860,10 @@ const createRuntime = (
   };
 
   const updateFormPlaceholders = () => {
-    const protocolValue =
-      (protocolSelect.value === 'ssh' || protocolSelect.value === 'telnet'
-        ? protocolSelect.value
-        : runtime.target.defaults.protocol) ?? 'telnet';
+    const protocolValue = 'telnet';
     hostInput.placeholder = runtime.target.defaults.host || runtime.target.placeholders.host || 'bbs.example.com';
     const fallbackPort =
-      runtime.target.defaults.port || (protocolValue === 'ssh' ? '22' : protocolValue === 'telnet' ? '2323' : '');
+      runtime.target.defaults.port || '2323';
     portInput.placeholder = fallbackPort || runtime.target.placeholders.port || '2323';
   };
 
@@ -2959,7 +2952,7 @@ const createRuntime = (
       runtime.updateStatus('Connecting…', 'connecting');
       runtime.connecting = true;
       setConnectButtonsDisabled(true);
-      setEntryStatus('Connecting to the bridge… buffered commands will send once ready.', 'muted');
+      setEntryStatus('Joining TELNET bridge… buffered commands will send once ready.', 'muted');
       updateEntryControls();
       try {
         const socketUrl = new URL(socketUrlText);
@@ -2997,10 +2990,11 @@ const createRuntime = (
           runtime.connecting = false;
           runtime.connected = true;
           runtime.updateStatus('Connected', 'connected');
+          sendTextPayload('/retro off\n');
           setDisconnectButtonsDisabled(false);
           focusCapture();
           updateConnectAvailability();
-          setEntryStatus('Connected. Press Enter to forward the next line.', 'muted');
+          setEntryStatus('Connected via TELNET. Sent /retro off automatically.', 'muted');
           updateEntryControls();
           resetLightPaletteAutoState();
         });
@@ -3121,10 +3115,10 @@ const createRuntime = (
       updateEntryControls();
       statusApplied = true;
 
-      const modeSent = sendDisconnectSequence('/mode command\r');
-      const exitSent = modeSent && sendDisconnectSequence('exit\r');
+      const retroSent = sendDisconnectSequence('/retro off\r');
+      const exitSent = sendDisconnectSequence('EXIT\r');
 
-      if (modeSent && exitSent) {
+      if (retroSent || exitSent) {
         if (typeof window !== 'undefined') {
           window.setTimeout(() => {
             if (socket.readyState === WebSocket.OPEN) {

@@ -1,7 +1,6 @@
 # Chatter-Web
 
-A standalone TypeScript front-end for the Chatter BBS control deck. The project mirrors every `/help` command with a matching
-GUI workflow so the SSH client and the browser stay feature-aligned. The codebase avoids external npm dependencies so it can
+A standalone TypeScript front-end for the Chatter BBS control deck, now focused on a UTF-8 TELNET terminal experience. The codebase avoids external npm dependencies so it can
 build and test in constrained environments.
 
 ## Getting started
@@ -28,9 +27,7 @@ npm run build
 npm start
 ```
 
-`npm start` launches the bundled Node static server (`dist/server.js`). It listens on `0.0.0.0:8081` by default so the
-dashboard is immediately available at http://localhost:8081. Override the defaults with environment variables such as
-`PORT=8081 HOST=127.0.0.1 npm start` when required.
+`npm start` launches the bundled Node static server (`dist/server.js`). It listens on `0.0.0.0:8081` by default so the dashboard is immediately available at http://localhost:8081.
 
 Run `npm run build` whenever the TypeScript sources change so the server can serve the latest assets.
 
@@ -50,8 +47,16 @@ into the generated systemd unit via `deploy/install.sh`:
 - `CHATTER_BBS_HOST_PLACEHOLDER` – customise the host placeholder shown in the Connection options drawer when no host is
   configured on the server.
 
-The terminal keeps optional overrides, including the SSH username prompt, inside the Connection options drawer so the primary
-controls stay compact. Expand the drawer to save local overrides or to enter the SSH username before connecting.
+The terminal is TELNET-only and uses UTF-8 input/output. Join triggers `/retro off` as the first command automatically.
+
+
+## Docker Compose deployment
+
+```bash
+docker compose up -d --build
+```
+
+This launches the app as `www-data` and exposes port `8081`. Default BBS target is `chatter.pw:2323` over TELNET.
 
 ## Systemd integration
 
@@ -81,8 +86,7 @@ ownership to match the service user when `--systemd` is enabled. It then writes 
 `--prefix` to override the defaults that land in the generated unit. Use `--bbs-host`, `--bbs-port`, and `--bbs-protocol`
 (`telnet` or `ssh`) to bake the terminal bridge configuration into the unit. The installer writes
 `CHATTER_BBS_HOST`, `CHATTER_BBS_PORT`, `CHATTER_BBS_PROTOCOL`, and any provided `CHATTER_BBS_SSH_COMMAND` so the in-browser
-terminal immediately dials the chosen BBS without exposing manual URL entry. The SSH username is collected directly in the
-browser before connecting, matching the expectations of the legacy client.
+terminal immediately dials the chosen BBS without exposing manual URL entry. Only TELNET mode is supported in this deployment path.
 
 The default installation prefix is `/opt/chatter-web`, so run the script with elevated privileges (for example via
 `sudo`) when targeting system locations. Supply a writable `--prefix` to stage the bundle for a single user without
