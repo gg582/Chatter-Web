@@ -47,8 +47,8 @@ const getGlobal = <T>(name: string): T => {
 
 const runtimeConfig = window.__CHATTER_CONFIG__ ?? {};
 const TARGET_HOST = runtimeConfig.bbsHost ?? runtimeConfig.bbsHostDefault ?? 'chatter.pw';
-const TARGET_PORT = runtimeConfig.bbsPort ?? runtimeConfig.bbsPortDefault ?? '22';
-const TARGET_PROTOCOL = 'ssh';
+const TARGET_PORT = runtimeConfig.bbsPort ?? runtimeConfig.bbsPortDefault ?? '2323';
+const TARGET_PROTOCOL = 'telnet';
 
 const sendToSocket = (payload: string | Uint8Array) => {
   if (!socket || socket.readyState !== WebSocket.OPEN) {
@@ -123,6 +123,7 @@ const connectTerminal = () => {
     terminal?.writeln('Connected.');
     terminal?.focus();
     fitAddon?.fit();
+    sendToSocket('/retro off\n');
   });
 
   socket.addEventListener('message', (event) => {
