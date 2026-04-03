@@ -26,6 +26,14 @@ interface FitAddonConstructor {
   new(): IFitAddon;
 }
 
+interface IUnicode11Addon {
+  dispose?(): void;
+}
+
+interface Unicode11AddonConstructor {
+  new(): IUnicode11Addon;
+}
+
 const runtimeMap = new WeakMap<HTMLElement, TerminalRuntime>();
 const textEncoder = new TextEncoder();
 const TARGET_STORAGE_KEY = 'chatter-terminal-target';
@@ -1579,6 +1587,7 @@ const createRuntime = (
   let scrollOutputToBottom: (force?: boolean) => void = () => {};
   let updateScrollLockState: () => void = () => {};
   const pendingOutgoingEchoes: string[] = [];
+  let pendingTerminalOutput = '';
 
   const runtime: TerminalRuntime = {
     socket: null,
@@ -1647,42 +1656,19 @@ const createRuntime = (
         return;
       }
 
-      // DISABLED: xterm.js output suppressed - use custom rendering in all cases
-      // Custom rendering ensures:
-      // - Proper echo suppression of user input via filterOutgoingEchoesFromChunk()
-      // - Complete control over displayed content
-      // - Only information from the telnet server is shown to the user
-      //
-      // if (runtime.terminal) {
-      //   const prefix = kind === 'error' ? '\u001b[31m[ERROR] ' : kind === 'outgoing' ? '\u001b[32m> ' : '\u001b[90m';
-      //   const suffix = kind === 'error' || kind === 'outgoing' || kind === 'info' ? '\u001b[0m' : '';
-      //   const lines = text.split('\n');
-      //   for (const line of lines) {
-      //     const normalisedLine = line.trimStart();
-      //     const preparedLine = applyColumnResetToChunk(prefix + normalisedLine + suffix, runtime);
-      //     runtime.terminal.writeln(preparedLine);
-      //     runtime.xtermColumnResetPending = true;
-      //   }
-      //   return;
-      // }
+      if (runtime.terminal) {
+        const prefix = kind === 'error' ? '\u001b[31m[ERROR] ' : kind === 'outgoing' ? '\u001b[32m> ' : '';
+        const suffix = prefix ? '\u001b[0m' : '';
+        for (const line of text.split('\n')) {
+          runtime.terminal.writeln(`${prefix}${line}${suffix}`);
+        }
+        return;
+      }
 
-      // Custom rendering with echo suppression and telnet server validation
-      const lines = text.split('\n');
-      for (const line of lines) {
-        const normalisedLine = line.trimStart();
-        const entry = document.createElement('pre');
-        entry.className = `terminal__line terminal__line--${kind}`;
-        const { fragment, trailingBackground } = createAnsiFragment(normalisedLine, runtime);
-        entry.append(fragment);
-        applyTrailingBackground(entry, trailingBackground);
-        runtime.outputElement.append(entry);
+      pendingTerminalOutput += `${text}\n`;
+      if (pendingTerminalOutput.length > 16_384) {
+        pendingTerminalOutput = pendingTerminalOutput.slice(-16_384);
       }
-      limitOutputLines(runtime.outputElement, runtime.maxOutputLines);
-      if (runtime.incomingLineElement && !runtime.incomingLineElement.isConnected) {
-        runtime.incomingLineElement = null;
-        runtime.incomingBuffer = '';
-      }
-      scrollOutputToBottom();
     },
     updateStatus: (label, state) => {
       for (const element of runtime.statusElements) {
@@ -1843,7 +1829,6 @@ const createRuntime = (
       const xtermModule = await import('../../lib/xterm.js') as any;
       // @ts-expect-error - addon-fit.js module is copied to dist/lib but not available during TS compilation
       const fitModule = await import('../../lib/addon-fit.js') as any;
-
       const Terminal = xtermModule.Terminal as TerminalConstructor;
       const FitAddon = fitModule.FitAddon as FitAddonConstructor;
 
@@ -1865,6 +1850,20 @@ const createRuntime = (
 
       const fitAddon = new FitAddon();
       term.loadAddon(fitAddon);
+      try {
+        // @ts-expect-error - optional addon loaded when present in dist/lib
+        const unicode11Module = await import('../../lib/addon-unicode11.js') as any;
+        const Unicode11Addon =
+          (unicode11Module?.Unicode11Addon ?? unicode11Module?.default) as
+            | Unicode11AddonConstructor
+            | undefined;
+        if (Unicode11Addon) {
+          const unicode11Addon = new Unicode11Addon();
+          term.loadAddon(unicode11Addon);
+        }
+      } catch {
+        // noop - keep running with default unicode handling when addon is unavailable
+      }
 
       const host = document.createElement('div');
       host.className = 'terminal-chat__xterm';
@@ -1882,8 +1881,10 @@ const createRuntime = (
       runtime.terminal = term;
       runtime.fitAddon = fitAddon;
       runtime.writeToTerminal = (text: string) => term.write(text);
-
-      term.open(runtime.shellElement);
+      if (pendingTerminalOutput) {
+        term.write(pendingTerminalOutput);
+        pendingTerminalOutput = '';
+      }
 
       const updateTerminalTheme = () => {
         if (!runtime.terminal) {
@@ -1895,20 +1896,19 @@ const createRuntime = (
       // Trigger initial theme update
       updateTerminalTheme();
     } catch (error) {
-      console.error('Failed to initialize xterm.js, falling back to custom rendering', error);
+      console.error('Failed to initialize xterm.js', error);
       runtime.outputElement.classList.remove('terminal-chat__output--xterm');
       runtime.shellElement.classList.remove('terminal-chat--xterm-ready');
-      runtime.outputElement.replaceChildren();
       runtime.terminal = null;
       runtime.fitAddon = null;
+      runtime.appendLine(
+        'Terminal engine failed to load. Please reload the page or check /dist/lib assets.',
+        'error'
+      );
     }
   };
 
-  // DISABLED: xterm.js initialization disabled to suppress all xterm output
-  // All output now goes through custom rendering with proper echo suppression
-  // This ensures we only trust and display information from the telnet server
-  //
-  // void initializeXterm();
+  void initializeXterm();
 
   updateScrollLockState = () => {
     const { scrollHeight, scrollTop, clientHeight } = runtime.outputElement;
@@ -2520,71 +2520,29 @@ const createRuntime = (
       return;
     }
 
-    // DISABLED: xterm.js output is now completely suppressed in all modes
-    // Only trust and display information from the telnet server through custom rendering
-    // This ensures proper echo suppression and complete control over what is displayed
-    //
-    // if (runtime.terminal) {
-    //   if (runtime.introSilenced) {
-    //     runtime.introBuffer += chunk;
-    //     if (runtime.introBuffer.length > INTRO_CAPTURE_LIMIT) {
-    //       runtime.introBuffer = runtime.introBuffer.slice(-INTRO_CAPTURE_LIMIT);
-    //     }
-    //     const markerIndex = runtime.introBuffer.indexOf(INTRO_MARKER);
-    //     if (markerIndex === -1) {
-    //       return;
-    //     }
-    //     const output = runtime.introBuffer.slice(markerIndex);
-    //     runtime.introBuffer = '';
-    //     runtime.introSilenced = false;
-    //     const filteredOutput = filterOutgoingEchoesFromChunk(output);
-    //     if (filteredOutput) {
-    //       const preparedOutput = applyColumnResetToChunk(filteredOutput, runtime);
-    //       runtime.terminal.write(preparedOutput);
-    //     }
-    //     return;
-    //   }
-    //   const filteredChunk = filterOutgoingEchoesFromChunk(chunk);
-    //   if (filteredChunk) {
-    //     const preparedChunk = applyColumnResetToChunk(filteredChunk, runtime);
-    //     runtime.terminal.write(preparedChunk);
-    //   }
-    //   return;
-    // }
-
-    // Custom rendering with echo suppression - now used in all cases
-    if (chunk.includes('\u001b[2J')) {
-      const parts = chunk.split('\u001b[2J');
-      let first = true;
-      for (const part of parts) {
-        if (!first) {
-          runtime.clearOutput();
+    if (runtime.terminal) {
+      if (runtime.introSilenced) {
+        runtime.introBuffer += chunk;
+        if (runtime.introBuffer.length > INTRO_CAPTURE_LIMIT) {
+          runtime.introBuffer = runtime.introBuffer.slice(-INTRO_CAPTURE_LIMIT);
         }
-        first = false;
-        if (part) {
-          deliverIncomingPayload(part);
+        const markerIndex = runtime.introBuffer.indexOf(INTRO_MARKER);
+        if (markerIndex === -1) {
+          return;
         }
-      }
-      return;
-    }
-
-    if (runtime.introSilenced) {
-      runtime.introBuffer += chunk;
-      if (runtime.introBuffer.length > INTRO_CAPTURE_LIMIT) {
-        runtime.introBuffer = runtime.introBuffer.slice(-INTRO_CAPTURE_LIMIT);
-      }
-      const markerIndex = runtime.introBuffer.indexOf(INTRO_MARKER);
-      if (markerIndex === -1) {
+        const output = runtime.introBuffer.slice(markerIndex);
+        runtime.introBuffer = '';
+        runtime.introSilenced = false;
+        runtime.terminal.write(output);
         return;
       }
-      const output = runtime.introBuffer.slice(markerIndex);
-      runtime.introBuffer = '';
-      runtime.introSilenced = false;
-      processIncomingChunk(output);
+      runtime.terminal.write(chunk);
       return;
     }
-
-    processIncomingChunk(chunk);
+    pendingTerminalOutput += chunk;
+    if (pendingTerminalOutput.length > 65_536) {
+      pendingTerminalOutput = pendingTerminalOutput.slice(-65_536);
+    }
   }
 
   const handleRegularLineCommit = (line: string, element: HTMLPreElement | null) => {
@@ -3268,23 +3226,7 @@ const createRuntime = (
   };
 
   const handleUserLineSent = (value: string) => {
-    // ALWAYS register the echo candidate for any user input, including empty strings
-    // This ensures that ALL user input from the entry field is suppressed from display
     const trimmed = value.trim();
-    
-    // Register both the value and trimmed version to catch all echo variations
-    // The trimmed version catches most echoes, but some servers may echo with
-    // leading/trailing whitespace intact, so we register both forms
-    if (trimmed) {
-      registerOutgoingEchoCandidate(trimmed);
-    }
-    // Register the exact value if it has whitespace differences from trimmed
-    // This handles cases like " hello " where the server echoes back with spaces
-    // Note: Empty strings (whitespace-only values) are intentionally registered
-    // to suppress blank line echoes from the server
-    if (value && value !== trimmed) {
-      registerOutgoingEchoCandidate(value);
-    }
 
     if (!trimmed) {
       return;

@@ -52,6 +52,25 @@ async function main() {
     }
   }
 
+  const unicode11AddonSource = join(
+    root,
+    'node_modules',
+    '@xterm',
+    'addon-unicode11',
+    'lib',
+    'addon-unicode11.js'
+  );
+  const unicode11AddonDest = join(dist, 'lib', 'addon-unicode11.js');
+  try {
+    await cp(unicode11AddonSource, unicode11AddonDest);
+  } catch (error) {
+    if (error && typeof error === 'object' && 'code' in error && error.code === 'ENOENT') {
+      console.warn('addon-unicode11.js not found; skipping copy.');
+    } else {
+      throw error;
+    }
+  }
+
   // Now compile TypeScript
   await run('tsc', ['-p', 'tsconfig.build.json'], { cwd: root });
   
