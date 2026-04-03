@@ -1587,6 +1587,7 @@ const createRuntime = (
   let scrollOutputToBottom: (force?: boolean) => void = () => {};
   let updateScrollLockState: () => void = () => {};
   const pendingOutgoingEchoes: string[] = [];
+  let pendingTerminalOutput = '';
 
   const runtime: TerminalRuntime = {
     socket: null,
@@ -1655,42 +1656,19 @@ const createRuntime = (
         return;
       }
 
-      // DISABLED: xterm.js output suppressed - use custom rendering in all cases
-      // Custom rendering ensures:
-      // - Proper echo suppression of user input via filterOutgoingEchoesFromChunk()
-      // - Complete control over displayed content
-      // - Only information from the telnet server is shown to the user
-      //
-      // if (runtime.terminal) {
-      //   const prefix = kind === 'error' ? '\u001b[31m[ERROR] ' : kind === 'outgoing' ? '\u001b[32m> ' : '\u001b[90m';
-      //   const suffix = kind === 'error' || kind === 'outgoing' || kind === 'info' ? '\u001b[0m' : '';
-      //   const lines = text.split('\n');
-      //   for (const line of lines) {
-      //     const normalisedLine = line.trimStart();
-      //     const preparedLine = applyColumnResetToChunk(prefix + normalisedLine + suffix, runtime);
-      //     runtime.terminal.writeln(preparedLine);
-      //     runtime.xtermColumnResetPending = true;
-      //   }
-      //   return;
-      // }
+      if (runtime.terminal) {
+        const prefix = kind === 'error' ? '\u001b[31m[ERROR] ' : kind === 'outgoing' ? '\u001b[32m> ' : '';
+        const suffix = prefix ? '\u001b[0m' : '';
+        for (const line of text.split('\n')) {
+          runtime.terminal.writeln(`${prefix}${line}${suffix}`);
+        }
+        return;
+      }
 
-      // Custom rendering with echo suppression and telnet server validation
-      const lines = text.split('\n');
-      for (const line of lines) {
-        const normalisedLine = line.trimStart();
-        const entry = document.createElement('pre');
-        entry.className = `terminal__line terminal__line--${kind}`;
-        const { fragment, trailingBackground } = createAnsiFragment(normalisedLine, runtime);
-        entry.append(fragment);
-        applyTrailingBackground(entry, trailingBackground);
-        runtime.outputElement.append(entry);
+      pendingTerminalOutput += `${text}\n`;
+      if (pendingTerminalOutput.length > 16_384) {
+        pendingTerminalOutput = pendingTerminalOutput.slice(-16_384);
       }
-      limitOutputLines(runtime.outputElement, runtime.maxOutputLines);
-      if (runtime.incomingLineElement && !runtime.incomingLineElement.isConnected) {
-        runtime.incomingLineElement = null;
-        runtime.incomingBuffer = '';
-      }
-      scrollOutputToBottom();
     },
     updateStatus: (label, state) => {
       for (const element of runtime.statusElements) {
@@ -1903,6 +1881,10 @@ const createRuntime = (
       runtime.terminal = term;
       runtime.fitAddon = fitAddon;
       runtime.writeToTerminal = (text: string) => term.write(text);
+      if (pendingTerminalOutput) {
+        term.write(pendingTerminalOutput);
+        pendingTerminalOutput = '';
+      }
 
       const updateTerminalTheme = () => {
         if (!runtime.terminal) {
@@ -1914,12 +1896,15 @@ const createRuntime = (
       // Trigger initial theme update
       updateTerminalTheme();
     } catch (error) {
-      console.error('Failed to initialize xterm.js, falling back to custom rendering', error);
+      console.error('Failed to initialize xterm.js', error);
       runtime.outputElement.classList.remove('terminal-chat__output--xterm');
       runtime.shellElement.classList.remove('terminal-chat--xterm-ready');
-      runtime.outputElement.replaceChildren();
       runtime.terminal = null;
       runtime.fitAddon = null;
+      runtime.appendLine(
+        'Terminal engine failed to load. Please reload the page or check /dist/lib assets.',
+        'error'
+      );
     }
   };
 
@@ -2554,40 +2539,10 @@ const createRuntime = (
       runtime.terminal.write(chunk);
       return;
     }
-
-    // Custom rendering with echo suppression - now used in all cases
-    if (chunk.includes('\u001b[2J')) {
-      const parts = chunk.split('\u001b[2J');
-      let first = true;
-      for (const part of parts) {
-        if (!first) {
-          runtime.clearOutput();
-        }
-        first = false;
-        if (part) {
-          deliverIncomingPayload(part);
-        }
-      }
-      return;
+    pendingTerminalOutput += chunk;
+    if (pendingTerminalOutput.length > 65_536) {
+      pendingTerminalOutput = pendingTerminalOutput.slice(-65_536);
     }
-
-    if (runtime.introSilenced) {
-      runtime.introBuffer += chunk;
-      if (runtime.introBuffer.length > INTRO_CAPTURE_LIMIT) {
-        runtime.introBuffer = runtime.introBuffer.slice(-INTRO_CAPTURE_LIMIT);
-      }
-      const markerIndex = runtime.introBuffer.indexOf(INTRO_MARKER);
-      if (markerIndex === -1) {
-        return;
-      }
-      const output = runtime.introBuffer.slice(markerIndex);
-      runtime.introBuffer = '';
-      runtime.introSilenced = false;
-      processIncomingChunk(output);
-      return;
-    }
-
-    processIncomingChunk(chunk);
   }
 
   const handleRegularLineCommit = (line: string, element: HTMLPreElement | null) => {
