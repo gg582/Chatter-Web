@@ -1852,7 +1852,7 @@ summary::-webkit-details-marker {
   border: none;
   border-radius: 0;
   background: transparent;
-  max-height: max(320px, calc(100vh - 12rem));
+  max-height: max(320px, calc(100vh - 4rem));
 }
 
 .terminal-chat__output {
