@@ -166,7 +166,7 @@ const connectTerminal = () => {
   });
 
   socket.addEventListener('close', () => {
-    terminal?.writeln('\r\nDisconnected. Use Rejoin or Exit.');
+    terminal?.writeln('\r\nDisconnected. Use Join or Exit.');
   });
 
   terminal.onData((data) => {
