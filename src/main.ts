@@ -36,6 +36,26 @@ let socket: WebSocket | null = null;
 let terminal: XtermTerminal | null = null;
 let fitAddon: FitAddon | null = null;
 let resizeObserver: ResizeObserver | null = null;
+let retroCommandSent = false;
+let joinMessageBuffer = '';
+let socketTextDecoder = new TextDecoder();
+const JOIN_MESSAGE_TRIGGER = 'has joined the chat';
+
+const maybeTriggerRetroOff = (chunk: string) => {
+  if (retroCommandSent || !chunk) {
+    return;
+  }
+
+  joinMessageBuffer += chunk.toLowerCase();
+  if (joinMessageBuffer.length > 2048) {
+    joinMessageBuffer = joinMessageBuffer.slice(-2048);
+  }
+
+  if (joinMessageBuffer.includes(JOIN_MESSAGE_TRIGGER)) {
+    sendToSocket('/retro off\n');
+    retroCommandSent = true;
+  }
+};
 
 const getGlobal = <T>(name: string): T => {
   const value = (window as unknown as Record<string, unknown>)[name];
@@ -83,6 +103,9 @@ const cleanupSession = () => {
   terminal = null;
 
   terminalContainer.innerHTML = '';
+  retroCommandSent = false;
+  joinMessageBuffer = '';
+  socketTextDecoder = new TextDecoder();
 };
 
 const connectTerminal = () => {
@@ -123,16 +146,23 @@ const connectTerminal = () => {
     terminal?.writeln('Connected.');
     terminal?.focus();
     fitAddon?.fit();
-    sendToSocket('/retro off\n');
+    retroCommandSent = false;
+    joinMessageBuffer = '';
+    socketTextDecoder = new TextDecoder();
   });
 
   socket.addEventListener('message', (event) => {
     if (event.data instanceof ArrayBuffer) {
-      terminal?.write(new Uint8Array(event.data));
+      const bytes = new Uint8Array(event.data);
+      terminal?.write(bytes);
+      const decoded = socketTextDecoder.decode(bytes, { stream: true });
+      maybeTriggerRetroOff(decoded);
       return;
     }
 
-    terminal?.writeln(String(event.data));
+    const text = String(event.data);
+    terminal?.writeln(text);
+    maybeTriggerRetroOff(text);
   });
 
   socket.addEventListener('close', () => {

@@ -11,14 +11,18 @@ body {
   margin: 0;
   background: radial-gradient(circle at top, #111827 0%, #070707 52%, #040404 100%);
   color: #e5e7eb;
+  height: 100dvh;
+  overflow: hidden;
 }
 
 .app {
-  min-height: 100dvh;
+  height: 100dvh;
+  position: relative;
 }
 
 .join-screen {
-  min-height: 100dvh;
+  position: absolute;
+  inset: 0;
   display: grid;
   place-items: center;
   padding: 24px;
@@ -72,15 +76,16 @@ body {
 }
 
 .terminal-screen {
-  min-height: 100dvh;
+  position: absolute;
+  inset: 0;
   display: grid;
   place-items: center;
   padding: 24px;
 }
 
 .terminal-card {
-  width: min(980px, 100%);
-  height: min(86dvh, 760px);
+  width: min(980px, 94vw);
+  height: min(72dvh, 640px);
   border: 1px solid #1f2937;
   border-radius: 18px;
   background: rgba(5, 10, 19, 0.9);
