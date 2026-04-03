@@ -18,7 +18,7 @@ const joinScreen = document.querySelector<HTMLElement>('[data-join-screen]');
 const terminalScreen = document.querySelector<HTMLElement>('[data-terminal-screen]');
 const terminalContainer = document.querySelector<HTMLElement>('[data-terminal-container]');
 const joinButton = document.querySelector<HTMLButtonElement>('[data-join-button]');
-const rejoinButton = document.querySelector<HTMLButtonElement>('[data-rejoin-button]');
+const joinAgainButton = document.querySelector<HTMLButtonElement>('[data-join-again-button]');
 const exitButton = document.querySelector<HTMLButtonElement>('[data-exit-button]');
 
 if (
@@ -26,7 +26,7 @@ if (
   !terminalScreen ||
   !terminalContainer ||
   !joinButton ||
-  !rejoinButton ||
+  !joinAgainButton ||
   !exitButton
 ) {
   throw new Error('Required DOM nodes are missing.');
@@ -188,7 +188,7 @@ joinButton.addEventListener('click', () => {
   connectTerminal();
 });
 
-rejoinButton.addEventListener('click', () => {
+joinAgainButton.addEventListener('click', () => {
   cleanupSession();
   openTerminalScreen();
   connectTerminal();
