@@ -26,6 +26,14 @@ interface FitAddonConstructor {
   new(): IFitAddon;
 }
 
+interface IUnicode11Addon {
+  dispose?(): void;
+}
+
+interface Unicode11AddonConstructor {
+  new(): IUnicode11Addon;
+}
+
 const runtimeMap = new WeakMap<HTMLElement, TerminalRuntime>();
 const textEncoder = new TextEncoder();
 const TARGET_STORAGE_KEY = 'chatter-terminal-target';
@@ -1843,7 +1851,6 @@ const createRuntime = (
       const xtermModule = await import('../../lib/xterm.js') as any;
       // @ts-expect-error - addon-fit.js module is copied to dist/lib but not available during TS compilation
       const fitModule = await import('../../lib/addon-fit.js') as any;
-
       const Terminal = xtermModule.Terminal as TerminalConstructor;
       const FitAddon = fitModule.FitAddon as FitAddonConstructor;
 
@@ -1865,6 +1872,20 @@ const createRuntime = (
 
       const fitAddon = new FitAddon();
       term.loadAddon(fitAddon);
+      try {
+        // @ts-expect-error - optional addon loaded when present in dist/lib
+        const unicode11Module = await import('../../lib/addon-unicode11.js') as any;
+        const Unicode11Addon =
+          (unicode11Module?.Unicode11Addon ?? unicode11Module?.default) as
+            | Unicode11AddonConstructor
+            | undefined;
+        if (Unicode11Addon) {
+          const unicode11Addon = new Unicode11Addon();
+          term.loadAddon(unicode11Addon);
+        }
+      } catch {
+        // noop - keep running with default unicode handling when addon is unavailable
+      }
 
       const host = document.createElement('div');
       host.className = 'terminal-chat__xterm';
@@ -1882,8 +1903,6 @@ const createRuntime = (
       runtime.terminal = term;
       runtime.fitAddon = fitAddon;
       runtime.writeToTerminal = (text: string) => term.write(text);
-
-      term.open(runtime.shellElement);
 
       const updateTerminalTheme = () => {
         if (!runtime.terminal) {
@@ -1904,11 +1923,7 @@ const createRuntime = (
     }
   };
 
-  // DISABLED: xterm.js initialization disabled to suppress all xterm output
-  // All output now goes through custom rendering with proper echo suppression
-  // This ensures we only trust and display information from the telnet server
-  //
-  // void initializeXterm();
+  void initializeXterm();
 
   updateScrollLockState = () => {
     const { scrollHeight, scrollTop, clientHeight } = runtime.outputElement;
@@ -2520,37 +2535,25 @@ const createRuntime = (
       return;
     }
 
-    // DISABLED: xterm.js output is now completely suppressed in all modes
-    // Only trust and display information from the telnet server through custom rendering
-    // This ensures proper echo suppression and complete control over what is displayed
-    //
-    // if (runtime.terminal) {
-    //   if (runtime.introSilenced) {
-    //     runtime.introBuffer += chunk;
-    //     if (runtime.introBuffer.length > INTRO_CAPTURE_LIMIT) {
-    //       runtime.introBuffer = runtime.introBuffer.slice(-INTRO_CAPTURE_LIMIT);
-    //     }
-    //     const markerIndex = runtime.introBuffer.indexOf(INTRO_MARKER);
-    //     if (markerIndex === -1) {
-    //       return;
-    //     }
-    //     const output = runtime.introBuffer.slice(markerIndex);
-    //     runtime.introBuffer = '';
-    //     runtime.introSilenced = false;
-    //     const filteredOutput = filterOutgoingEchoesFromChunk(output);
-    //     if (filteredOutput) {
-    //       const preparedOutput = applyColumnResetToChunk(filteredOutput, runtime);
-    //       runtime.terminal.write(preparedOutput);
-    //     }
-    //     return;
-    //   }
-    //   const filteredChunk = filterOutgoingEchoesFromChunk(chunk);
-    //   if (filteredChunk) {
-    //     const preparedChunk = applyColumnResetToChunk(filteredChunk, runtime);
-    //     runtime.terminal.write(preparedChunk);
-    //   }
-    //   return;
-    // }
+    if (runtime.terminal) {
+      if (runtime.introSilenced) {
+        runtime.introBuffer += chunk;
+        if (runtime.introBuffer.length > INTRO_CAPTURE_LIMIT) {
+          runtime.introBuffer = runtime.introBuffer.slice(-INTRO_CAPTURE_LIMIT);
+        }
+        const markerIndex = runtime.introBuffer.indexOf(INTRO_MARKER);
+        if (markerIndex === -1) {
+          return;
+        }
+        const output = runtime.introBuffer.slice(markerIndex);
+        runtime.introBuffer = '';
+        runtime.introSilenced = false;
+        runtime.terminal.write(output);
+        return;
+      }
+      runtime.terminal.write(chunk);
+      return;
+    }
 
     // Custom rendering with echo suppression - now used in all cases
     if (chunk.includes('\u001b[2J')) {
@@ -3268,23 +3271,7 @@ const createRuntime = (
   };
 
   const handleUserLineSent = (value: string) => {
-    // ALWAYS register the echo candidate for any user input, including empty strings
-    // This ensures that ALL user input from the entry field is suppressed from display
     const trimmed = value.trim();
-    
-    // Register both the value and trimmed version to catch all echo variations
-    // The trimmed version catches most echoes, but some servers may echo with
-    // leading/trailing whitespace intact, so we register both forms
-    if (trimmed) {
-      registerOutgoingEchoCandidate(trimmed);
-    }
-    // Register the exact value if it has whitespace differences from trimmed
-    // This handles cases like " hello " where the server echoes back with spaces
-    // Note: Empty strings (whitespace-only values) are intentionally registered
-    // to suppress blank line echoes from the server
-    if (value && value !== trimmed) {
-      registerOutgoingEchoCandidate(value);
-    }
 
     if (!trimmed) {
       return;
