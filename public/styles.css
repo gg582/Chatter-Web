@@ -11,14 +11,18 @@ body {
   margin: 0;
   background: radial-gradient(circle at top, #111827 0%, #070707 52%, #040404 100%);
   color: #e5e7eb;
+  height: 100dvh;
+  overflow: hidden;
 }
 
 .app {
-  min-height: 100dvh;
+  height: 100dvh;
+  position: relative;
 }
 
 .join-screen {
-  min-height: 100dvh;
+  position: absolute;
+  inset: 0;
   display: grid;
   place-items: center;
   padding: 24px;
@@ -54,8 +58,7 @@ body {
 }
 
 .join-button,
-.exit-button,
-.icon-button {
+.action-button {
   border: 1px solid #374151;
   color: #f9fafb;
   background: #111827;
@@ -73,11 +76,43 @@ body {
 }
 
 .terminal-screen {
-  min-height: 100dvh;
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+}
+
+.terminal-card {
+  width: min(980px, 94vw);
+  height: min(72dvh, 640px);
+  border: 1px solid #1f2937;
+  border-radius: 18px;
+  background: rgba(5, 10, 19, 0.9);
+  padding: 14px;
+  box-shadow: 0 20px 55px rgba(0, 0, 0, 0.45);
   display: flex;
   flex-direction: column;
-  padding: 10px;
   gap: 10px;
+}
+
+.terminal-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.terminal-title {
+  margin: 0;
+  font-size: 0.95rem;
+  color: #93c5fd;
+  letter-spacing: 0.02em;
+}
+
+.terminal-actions {
+  display: flex;
+  gap: 8px;
 }
 
 .terminal-shell {
@@ -86,17 +121,11 @@ body {
   border-radius: 12px;
   background: #000;
   overflow: hidden;
+  min-height: 0;
   box-shadow: 0 14px 38px rgba(0, 0, 0, 0.4);
 }
 
-.bottom-bar {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-}
-
-.icon-button,
-.exit-button {
+.action-button {
   min-width: 96px;
   min-height: 44px;
   font-weight: 600;
@@ -104,19 +133,7 @@ body {
 }
 
 .join-button:hover,
-.exit-button:hover,
-.icon-button:hover {
+.action-button:hover {
   transform: translateY(-1px);
   border-color: #60a5fa;
-}
-
-.keyboard-panel {
-  border: 1px solid #1f2937;
-  border-radius: 12px;
-  padding: 8px;
-  background: #0b1220;
-}
-
-.simple-keyboard.hg-theme-default {
-  background: transparent;
 }
