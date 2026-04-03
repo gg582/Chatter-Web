@@ -56,7 +56,7 @@ async function main() {
   await run('tsc', ['-p', 'tsconfig.build.json'], { cwd: root });
   
   await mkdir(dist, { recursive: true });
-  await cp(publicDir, dist, { recursive: true });
+  await cp(join(publicDir, '.'), dist, { recursive: true });
 
   // Copy xterm.js CSS
   const xtermCssSource = join(root, 'node_modules', '@xterm', 'xterm', 'css', 'xterm.css');
