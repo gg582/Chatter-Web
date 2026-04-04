@@ -11,14 +11,20 @@ type ViewName = 'terminal' | 'settings';
 const isViewName = (value: string | undefined): value is ViewName =>
   value === 'terminal' || value === 'settings';
 
-const setupViewSwitcher = (root: HTMLElement) => {
+const setupViewSwitcher = (root: HTMLElement, options?: { enableTouchGestures?: boolean }) => {
   const screens = Array.from(root.querySelectorAll<HTMLElement>('[data-view-screen]'));
   if (!screens.length) {
     return () => {};
   }
 
   const buttons = Array.from(root.querySelectorAll<HTMLElement>('[data-view-target]'));
+  const enableTouchGestures = Boolean(options?.enableTouchGestures);
+  const viewport = enableTouchGestures
+    ? root.querySelector<HTMLElement>('[data-view-root]')
+    : null;
   let current: ViewName = isViewName(root.dataset.view) ? root.dataset.view : 'terminal';
+  let touchStartX: number | null = null;
+  let touchStartY: number | null = null;
 
   const apply = () => {
     root.dataset.view = current;
@@ -44,19 +50,68 @@ const setupViewSwitcher = (root: HTMLElement) => {
     });
   };
 
+  const setView = (nextView: ViewName) => {
+    if (nextView === current) {
+      return;
+    }
+    current = nextView;
+    apply();
+  };
+
   const handleClick = (event: Event) => {
     const button = event.currentTarget as HTMLElement;
     const target = button.dataset.viewTarget;
-    if (!isViewName(target) || target === current) {
+    if (!isViewName(target)) {
       return;
     }
-    current = target;
-    apply();
+    setView(target);
+  };
+
+  const handleTouchStart = (event: TouchEvent) => {
+    if (event.touches.length !== 1) {
+      touchStartX = null;
+      touchStartY = null;
+      return;
+    }
+    const touch = event.touches[0];
+    touchStartX = touch.clientX;
+    touchStartY = touch.clientY;
+  };
+
+  const handleTouchEnd = (event: TouchEvent) => {
+    if (touchStartX === null || touchStartY === null || event.changedTouches.length !== 1) {
+      touchStartX = null;
+      touchStartY = null;
+      return;
+    }
+
+    const touch = event.changedTouches[0];
+    const deltaX = touch.clientX - touchStartX;
+    const deltaY = touch.clientY - touchStartY;
+    const absX = Math.abs(deltaX);
+    const absY = Math.abs(deltaY);
+    const threshold = 48;
+
+    touchStartX = null;
+    touchStartY = null;
+
+    if (Math.max(absX, absY) < threshold) {
+      return;
+    }
+
+    const isHorizontalGesture = absX >= absY;
+    const isForward = isHorizontalGesture ? deltaX < 0 : deltaY < 0;
+    setView(isForward ? 'settings' : 'terminal');
   };
 
   buttons.forEach((button) => {
     button.addEventListener('click', handleClick);
   });
+
+  if (viewport && enableTouchGestures) {
+    viewport.addEventListener('touchstart', handleTouchStart, { passive: true });
+    viewport.addEventListener('touchend', handleTouchEnd, { passive: true });
+  }
 
   apply();
 
@@ -64,6 +119,10 @@ const setupViewSwitcher = (root: HTMLElement) => {
     buttons.forEach((button) => {
       button.removeEventListener('click', handleClick);
     });
+    if (viewport && enableTouchGestures) {
+      viewport.removeEventListener('touchstart', handleTouchStart);
+      viewport.removeEventListener('touchend', handleTouchEnd);
+    }
     screens.forEach((screen) => {
       screen.classList.remove('is-active');
       screen.removeAttribute('aria-hidden');
@@ -71,6 +130,7 @@ const setupViewSwitcher = (root: HTMLElement) => {
     });
   };
 };
+
 
 export const mountChatter = (root: HTMLElement) => {
   const store = new ChatStore();
@@ -110,7 +170,9 @@ export const mountChatter = (root: HTMLElement) => {
     throw new Error('Failed to mount the Chatter UI.');
   }
 
-  const detachViewSwitcher = setupViewSwitcher(root);
+  const detachViewSwitcher = setupViewSwitcher(root, {
+    enableTouchGestures: Boolean(mobilePlatform)
+  });
   const themeToggle = setupThemeToggle(root);
 
   let runtime: ReturnType<typeof renderTerminal> | null = null;
