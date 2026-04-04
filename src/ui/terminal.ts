@@ -3138,6 +3138,16 @@ const createRuntime = (
     focusCapture();
   });
 
+  const handleMobileViewportTouch = () => {
+    if (!runtime.mobilePlatform) {
+      return;
+    }
+    focusCapture();
+  };
+
+  viewport.addEventListener('touchstart', handleMobileViewportTouch, { passive: true });
+  runtime.outputElement.addEventListener('touchstart', handleMobileViewportTouch, { passive: true });
+
   runtime.captureElement.addEventListener('focus', () => {
     runtime.viewport.classList.add('terminal__viewport--focused');
     runtime.entryElement.classList.add('terminal__entry--focused');
