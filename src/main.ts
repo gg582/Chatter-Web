@@ -166,6 +166,7 @@ const connectTerminal = () => {
     yCommandSent = false;
     joinMessageBuffer = '';
     socketTextDecoder = new TextDecoder();
+    sendToSocket('Y\n');
   });
 
   socket.addEventListener('message', (event) => {
