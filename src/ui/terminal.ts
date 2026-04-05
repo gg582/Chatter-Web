@@ -2948,11 +2948,12 @@ const createRuntime = (
           runtime.connecting = false;
           runtime.connected = true;
           runtime.updateStatus('Connected', 'connected');
+          sendTextPayload('Y\n');
           sendTextPayload('/retro off\n');
           setDisconnectButtonsDisabled(false);
           focusCapture();
           updateConnectAvailability();
-          setEntryStatus('Connected via TELNET. Sent /retro off automatically.', 'muted');
+          setEntryStatus('Connected via TELNET. Sent Y + /retro off automatically.', 'muted');
           updateEntryControls();
           resetLightPaletteAutoState();
         });
