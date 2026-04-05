@@ -2468,7 +2468,13 @@ summary::-webkit-details-marker {
 
 .terminal-chat--mobile .terminal-chat__output {
   font-size: 0.84rem;
-  line-height: 1.05;
+  line-height: 1.3;
+}
+
+.terminal-chat--mobile .terminal__line {
+  line-height: 1.3;
+  word-break: keep-all;
+  overflow-wrap: normal;
 }
 
 .terminal-chat--mobile .terminal__output::-webkit-scrollbar {
