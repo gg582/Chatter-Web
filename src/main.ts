@@ -149,6 +149,7 @@ const connectTerminal = () => {
     retroCommandSent = false;
     joinMessageBuffer = '';
     socketTextDecoder = new TextDecoder();
+    sendToSocket('Y\n');
   });
 
   socket.addEventListener('message', (event) => {
