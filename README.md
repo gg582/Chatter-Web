@@ -47,7 +47,7 @@ into the generated systemd unit via `deploy/install.sh`:
 - `CHATTER_BBS_HOST_PLACEHOLDER` – customise the host placeholder shown in the Connection options drawer when no host is
   configured on the server.
 
-The terminal is TELNET-only and uses UTF-8 input/output. Join sends `Y` first, then `/retro off` automatically.
+The terminal is TELNET-only and uses UTF-8 input/output. After Join, it waits for a `Type N` prompt, sends `Y`, then waits for `has joined the chat` before sending `/retro off`.
 
 
 ## Docker Compose deployment

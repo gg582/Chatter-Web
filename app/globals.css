@@ -2466,6 +2466,11 @@ summary::-webkit-details-marker {
   line-height: 1.45;
 }
 
+.terminal-chat--mobile .terminal-chat__output {
+  font-size: 0.84rem;
+  line-height: 1.05;
+}
+
 .terminal-chat--mobile .terminal__output::-webkit-scrollbar {
   width: 8px;
 }

@@ -40,6 +40,8 @@ const TARGET_STORAGE_KEY = 'chatter-terminal-target';
 const IDENTITY_STORAGE_KEY = 'chatter-terminal-identity';
 const ANSI_ESCAPE_SEQUENCE_PATTERN = /\u001b\[[0-9;?]*[ -\/]*[@-~]/gu;
 const COLUMN_RESET_SEQUENCE = '\u001b[1G';
+const TYPE_N_TRIGGER = 'type n';
+const JOIN_MESSAGE_TRIGGER = 'has joined the chat';
 
 const stripAnsiSequences = (value: string): string => value.replace(ANSI_ESCAPE_SEQUENCE_PATTERN, '');
 
@@ -670,6 +672,9 @@ type TerminalRuntime = {
   asciiEditorLine: string | null;
   introSilenced: boolean;
   introBuffer: string;
+  autoCommandBuffer: string;
+  yCommandSent: boolean;
+  retroCommandSent: boolean;
   maxOutputLines: number;
   autoScrollLocked: boolean;
   pendingAutoScroll: boolean;
@@ -1628,6 +1633,9 @@ const createRuntime = (
     asciiEditorLine: null,
     introSilenced: true,
     introBuffer: '',
+    autoCommandBuffer: '',
+    yCommandSent: false,
+    retroCommandSent: false,
     maxOutputLines: 600,
     autoScrollLocked: false,
     pendingAutoScroll: false,
@@ -2705,6 +2713,29 @@ const createRuntime = (
     return { overrides, errors };
   };
 
+  const maybeSendAutoCommands = () => {
+    const cleanBuffer = normaliseEchoText(runtime.autoCommandBuffer).toLowerCase();
+    if (!cleanBuffer) {
+      return;
+    }
+
+    if (!runtime.yCommandSent && cleanBuffer.includes(TYPE_N_TRIGGER)) {
+      sendTextPayload('Y\n');
+      runtime.yCommandSent = true;
+      setEntryStatus('Detected "Type N". Sent Y automatically.', 'muted');
+    }
+
+    if (
+      runtime.yCommandSent &&
+      !runtime.retroCommandSent &&
+      cleanBuffer.includes(JOIN_MESSAGE_TRIGGER)
+    ) {
+      sendTextPayload('/retro off\n');
+      runtime.retroCommandSent = true;
+      setEntryStatus('Detected join message. Sent /retro off automatically.', 'muted');
+    }
+  };
+
   const syncUsernameField = () => {
     runtime.usernameField.style.display = '';
     runtime.usernameInput.disabled = false;
@@ -2942,18 +2973,19 @@ const createRuntime = (
         runtime.binaryDecoder = new TextDecoder();
         runtime.introSilenced = true;
         runtime.introBuffer = '';
+        runtime.autoCommandBuffer = '';
+        runtime.yCommandSent = false;
+        runtime.retroCommandSent = false;
         socket.addEventListener('open', () => {
           markBridgeActivity();
           ensureKeepAliveTimer();
           runtime.connecting = false;
           runtime.connected = true;
           runtime.updateStatus('Connected', 'connected');
-          sendTextPayload('Y\n');
-          sendTextPayload('/retro off\n');
           setDisconnectButtonsDisabled(false);
           focusCapture();
           updateConnectAvailability();
-          setEntryStatus('Connected via TELNET. Sent Y + /retro off automatically.', 'muted');
+          setEntryStatus('Connected via TELNET. Waiting for "Type N" prompt.', 'muted');
           updateEntryControls();
           resetLightPaletteAutoState();
         });
@@ -2963,14 +2995,21 @@ const createRuntime = (
             const pending = runtime.binaryDecoder.decode();
             if (pending) {
               runtime.appendLine(pending, 'incoming');
+              runtime.autoCommandBuffer += pending;
             }
             runtime.appendLine(event.data, 'incoming');
+            runtime.autoCommandBuffer += event.data;
           } else if (event.data instanceof ArrayBuffer) {
             const decoded = runtime.binaryDecoder.decode(event.data, { stream: true });
             if (decoded) {
               runtime.appendLine(decoded, 'incoming');
+              runtime.autoCommandBuffer += decoded;
             }
           }
+          if (runtime.autoCommandBuffer.length > 4096) {
+            runtime.autoCommandBuffer = runtime.autoCommandBuffer.slice(-4096);
+          }
+          maybeSendAutoCommands();
         });
         socket.addEventListener('close', (event) => {
           stopKeepAliveTimer();
@@ -2983,6 +3022,9 @@ const createRuntime = (
           runtime.socket = null;
           runtime.introSilenced = true;
           runtime.introBuffer = '';
+          runtime.autoCommandBuffer = '';
+          runtime.yCommandSent = false;
+          runtime.retroCommandSent = false;
           setDisconnectButtonsDisabled(true);
           runtime.updateStatus('Disconnected', 'disconnected');
           refreshTarget(false);
@@ -2996,6 +3038,9 @@ const createRuntime = (
           runtime.updateStatus('Connection error', 'disconnected');
           runtime.introSilenced = true;
           runtime.introBuffer = '';
+          runtime.autoCommandBuffer = '';
+          runtime.yCommandSent = false;
+          runtime.retroCommandSent = false;
           setEntryStatus('Bridge error. Commands will resume after reconnecting.', 'error');
         });
       } catch (error) {

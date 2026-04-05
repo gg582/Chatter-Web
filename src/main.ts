@@ -37,21 +37,36 @@ let terminal: XtermTerminal | null = null;
 let fitAddon: FitAddon | null = null;
 let resizeObserver: ResizeObserver | null = null;
 let retroCommandSent = false;
+let yCommandSent = false;
 let joinMessageBuffer = '';
 let socketTextDecoder = new TextDecoder();
+const TYPE_N_TRIGGER = 'type n';
 const JOIN_MESSAGE_TRIGGER = 'has joined the chat';
+const ANSI_ESCAPE_SEQUENCE_PATTERN = /\u001b\[[0-9;?]*[ -/]*[@-~]/gu;
 
-const maybeTriggerRetroOff = (chunk: string) => {
-  if (retroCommandSent || !chunk) {
+const normaliseTriggerText = (value: string): string =>
+  value
+    .replace(ANSI_ESCAPE_SEQUENCE_PATTERN, '')
+    .replace(/\r/g, ' ')
+    .replace(/\s+/g, ' ')
+    .toLowerCase();
+
+const maybeTriggerAutoCommands = (chunk: string) => {
+  if (!chunk) {
     return;
   }
 
-  joinMessageBuffer += chunk.toLowerCase();
+  joinMessageBuffer += normaliseTriggerText(chunk);
   if (joinMessageBuffer.length > 2048) {
     joinMessageBuffer = joinMessageBuffer.slice(-2048);
   }
 
-  if (joinMessageBuffer.includes(JOIN_MESSAGE_TRIGGER)) {
+  if (!yCommandSent && joinMessageBuffer.includes(TYPE_N_TRIGGER)) {
+    sendToSocket('Y\n');
+    yCommandSent = true;
+  }
+
+  if (yCommandSent && !retroCommandSent && joinMessageBuffer.includes(JOIN_MESSAGE_TRIGGER)) {
     sendToSocket('/retro off\n');
     retroCommandSent = true;
   }
@@ -104,6 +119,7 @@ const cleanupSession = () => {
 
   terminalContainer.innerHTML = '';
   retroCommandSent = false;
+  yCommandSent = false;
   joinMessageBuffer = '';
   socketTextDecoder = new TextDecoder();
 };
@@ -147,6 +163,7 @@ const connectTerminal = () => {
     terminal?.focus();
     fitAddon?.fit();
     retroCommandSent = false;
+    yCommandSent = false;
     joinMessageBuffer = '';
     socketTextDecoder = new TextDecoder();
     sendToSocket('Y\n');
@@ -157,13 +174,13 @@ const connectTerminal = () => {
       const bytes = new Uint8Array(event.data);
       terminal?.write(bytes);
       const decoded = socketTextDecoder.decode(bytes, { stream: true });
-      maybeTriggerRetroOff(decoded);
+      maybeTriggerAutoCommands(decoded);
       return;
     }
 
     const text = String(event.data);
     terminal?.writeln(text);
-    maybeTriggerRetroOff(text);
+    maybeTriggerAutoCommands(text);
   });
 
   socket.addEventListener('close', () => {
