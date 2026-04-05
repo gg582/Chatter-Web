@@ -866,18 +866,12 @@ const createAnsiFragment = (line: string, runtime: TerminalRuntime): ParsedAnsiL
     if (!segment) {
       return;
     }
-    // Custom trim to remove spaces and tabs, but preserve \r
-    const trimmedSegment = segment.replace(/^[ \t]+|[ \t]+$/g, '');
-
-    if (!trimmedSegment) { // If the segment was only whitespace (spaces/tabs), skip it.
-      return;
-    }
 
     // Always create a span element, even for unstyled text
     // This ensures consistent rendering and styling inheritance
     const span = document.createElement('span');
     span.className = 'terminal__segment';
-    span.textContent = trimmedSegment;
+    span.textContent = segment;
     
     if (state.color) {
       span.style.color = state.color;
