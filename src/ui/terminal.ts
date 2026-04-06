@@ -2329,6 +2329,15 @@ const createRuntime = (
       return;
     }
 
+    const viewportHeight = resolveViewportHeight();
+    if (viewportHeight > 0) {
+      runtime.shellElement.style.height = `${viewportHeight}px`;
+      runtime.shellElement.style.minHeight = `${viewportHeight}px`;
+    } else {
+      runtime.shellElement.style.removeProperty('height');
+      runtime.shellElement.style.removeProperty('min-height');
+    }
+
     runtime.viewport.style.removeProperty('height');
     runtime.viewport.style.removeProperty('max-height');
     runtime.viewport.style.removeProperty('min-height');
@@ -2370,6 +2379,11 @@ const createRuntime = (
         } catch (error) {
           console.warn('Failed to fit terminal on resize', error);
         }
+      }
+      runtime.clearOutput();
+      if (isSocketOpen()) {
+        sendTextPayload(keySequences.ArrowUp);
+        sendTextPayload(keySequences.ArrowDown);
       }
     };
     window.addEventListener('resize', handleResize);
