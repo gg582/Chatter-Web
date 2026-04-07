@@ -20,6 +20,7 @@ const ANSI_ESCAPE_SEQUENCE_PATTERN = /\u001b\[[0-9;?]*[ -/]*[@-~]/gu;
 const TYPE_N_TRIGGER = 'type n';
 const NICKNAME_TRIGGER = 'enter id (nickname required)';
 const CONFIRM_NICKNAME_TRIGGER = 'are you sure with a name';
+const DUPLICATE_NICKNAME_TRIGGER = 'already in use';
 
 const terminalScreen = document.querySelector<HTMLElement>('[data-terminal-screen]');
 const terminalContainer = document.querySelector<HTMLElement>('[data-terminal-container]');
@@ -38,6 +39,8 @@ let typeNConfirmed = false;
 let nicknameSubmitted = false;
 let nicknameConfirmed = false;
 let pendingNickname = '';
+const attemptedNicknames = new Set<string>();
+let duplicateNicknameDetected = false;
 
 const normaliseTriggerText = (value: string): string =>
   value
@@ -66,6 +69,13 @@ const sendToSocket = (payload: string | Uint8Array) => {
   socket.send(payload);
 };
 
+const choosePendingNickname = () => {
+  const generatedNickname = pickRandomNickname(attemptedNicknames);
+  pendingNickname =
+    generatedNickname.length >= 8 ? generatedNickname : `${generatedNickname}-guest`;
+  attemptedNicknames.add(pendingNickname.toLowerCase());
+};
+
 const maybeSendAutoInputs = (chunk: string) => {
   if (!chunk) {
     return;
@@ -89,6 +99,10 @@ const maybeSendAutoInputs = (chunk: string) => {
   if (nicknameSubmitted && !nicknameConfirmed && autoInputBuffer.includes(CONFIRM_NICKNAME_TRIGGER)) {
     sendToSocket('Y\n');
     nicknameConfirmed = true;
+  }
+
+  if (autoInputBuffer.includes(DUPLICATE_NICKNAME_TRIGGER)) {
+    duplicateNicknameDetected = true;
   }
 };
 
@@ -159,8 +173,8 @@ const connectTerminal = () => {
     typeNConfirmed = false;
     nicknameSubmitted = false;
     nicknameConfirmed = false;
-    const generatedNickname = pickRandomNickname();
-    pendingNickname = generatedNickname.length >= 8 ? generatedNickname : `${generatedNickname}-guest`;
+    duplicateNicknameDetected = false;
+    choosePendingNickname();
   });
 
   socket.addEventListener('message', (event) => {
@@ -179,6 +193,18 @@ const connectTerminal = () => {
 
   socket.addEventListener('close', () => {
     terminal?.writeln('\r\nDisconnected.');
+    const shouldRetry = duplicateNicknameDetected;
+    duplicateNicknameDetected = false;
+    socket = null;
+    if (shouldRetry) {
+      terminal?.writeln('Nickname already in use. Retrying with a new nickname...');
+      window.setTimeout(() => {
+        if (socket !== null) {
+          return;
+        }
+        connectTerminal();
+      }, 120);
+    }
   });
 
   terminal.onData((data) => {
