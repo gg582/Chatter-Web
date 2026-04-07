@@ -1,3 +1,5 @@
+import { pickRandomNickname } from './data/nicknames.js';
+
 type XtermTerminal = {
   open: (host: HTMLElement) => void;
   write: (data: string | Uint8Array) => void;
@@ -14,21 +16,10 @@ type XtermCtor = new (options?: Record<string, unknown>) => XtermTerminal;
 type FitAddon = { fit: () => void; dispose: () => void };
 type FitAddonCtor = new () => FitAddon;
 
-const joinScreen = document.querySelector<HTMLElement>('[data-join-screen]');
 const terminalScreen = document.querySelector<HTMLElement>('[data-terminal-screen]');
 const terminalContainer = document.querySelector<HTMLElement>('[data-terminal-container]');
-const joinButton = document.querySelector<HTMLButtonElement>('[data-join-button]');
-const joinAgainButton = document.querySelector<HTMLButtonElement>('[data-join-again-button]');
-const exitButton = document.querySelector<HTMLButtonElement>('[data-exit-button]');
 
-if (
-  !joinScreen ||
-  !terminalScreen ||
-  !terminalContainer ||
-  !joinButton ||
-  !joinAgainButton ||
-  !exitButton
-) {
+if (!terminalScreen || !terminalContainer) {
   throw new Error('Required DOM nodes are missing.');
 }
 
@@ -36,41 +27,7 @@ let socket: WebSocket | null = null;
 let terminal: XtermTerminal | null = null;
 let fitAddon: FitAddon | null = null;
 let resizeObserver: ResizeObserver | null = null;
-let retroCommandSent = false;
-let yCommandSent = false;
-let joinMessageBuffer = '';
 let socketTextDecoder = new TextDecoder();
-const TYPE_N_TRIGGER = 'type n';
-const JOIN_MESSAGE_TRIGGER = 'has joined the chat';
-const ANSI_ESCAPE_SEQUENCE_PATTERN = /\u001b\[[0-9;?]*[ -/]*[@-~]/gu;
-
-const normaliseTriggerText = (value: string): string =>
-  value
-    .replace(ANSI_ESCAPE_SEQUENCE_PATTERN, '')
-    .replace(/\r/g, ' ')
-    .replace(/\s+/g, ' ')
-    .toLowerCase();
-
-const maybeTriggerAutoCommands = (chunk: string) => {
-  if (!chunk) {
-    return;
-  }
-
-  joinMessageBuffer += normaliseTriggerText(chunk);
-  if (joinMessageBuffer.length > 2048) {
-    joinMessageBuffer = joinMessageBuffer.slice(-2048);
-  }
-
-  if (!yCommandSent && joinMessageBuffer.includes(TYPE_N_TRIGGER)) {
-    sendToSocket('Y\n');
-    yCommandSent = true;
-  }
-
-  if (yCommandSent && !retroCommandSent && joinMessageBuffer.includes(JOIN_MESSAGE_TRIGGER)) {
-    sendToSocket('/retro off\n');
-    retroCommandSent = true;
-  }
-};
 
 const getGlobal = <T>(name: string): T => {
   const value = (window as unknown as Record<string, unknown>)[name];
@@ -92,17 +49,11 @@ const sendToSocket = (payload: string | Uint8Array) => {
   socket.send(payload);
 };
 
-const openTerminalScreen = () => {
-  joinScreen.hidden = true;
-  terminalScreen.hidden = false;
-};
-
-const openJoinScreen = () => {
-  terminalScreen.hidden = true;
-  joinScreen.hidden = false;
-};
-
 const cleanupSession = () => {
+  if (socket && socket.readyState === WebSocket.OPEN) {
+    sendToSocket('EXIT\n');
+  }
+
   if (socket) {
     socket.close();
     socket = null;
@@ -118,16 +69,14 @@ const cleanupSession = () => {
   terminal = null;
 
   terminalContainer.innerHTML = '';
-  retroCommandSent = false;
-  yCommandSent = false;
-  joinMessageBuffer = '';
   socketTextDecoder = new TextDecoder();
 };
 
 const connectTerminal = () => {
+  terminalScreen.hidden = false;
+
   if (!TARGET_HOST.trim()) {
-    terminalContainer.textContent =
-      'Unable to connect: CHATTER_BBS_HOST is not configured on this server.';
+    terminalContainer.textContent = 'Unable to connect: CHATTER_BBS_HOST is not configured on this server.';
     return;
   }
 
@@ -162,28 +111,27 @@ const connectTerminal = () => {
     terminal?.writeln('Connected.');
     terminal?.focus();
     fitAddon?.fit();
-    retroCommandSent = false;
-    yCommandSent = false;
-    joinMessageBuffer = '';
     socketTextDecoder = new TextDecoder();
+
+    const nickname = pickRandomNickname();
+    sendToSocket(`${nickname}\n`);
+    sendToSocket('Y\n');
   });
 
   socket.addEventListener('message', (event) => {
     if (event.data instanceof ArrayBuffer) {
       const bytes = new Uint8Array(event.data);
       terminal?.write(bytes);
-      const decoded = socketTextDecoder.decode(bytes, { stream: true });
-      maybeTriggerAutoCommands(decoded);
+      socketTextDecoder.decode(bytes, { stream: true });
       return;
     }
 
     const text = String(event.data);
     terminal?.writeln(text);
-    maybeTriggerAutoCommands(text);
   });
 
   socket.addEventListener('close', () => {
-    terminal?.writeln('\r\nDisconnected. Use Join or Exit.');
+    terminal?.writeln('\r\nDisconnected.');
   });
 
   terminal.onData((data) => {
@@ -200,20 +148,5 @@ const connectTerminal = () => {
   resizeObserver.observe(terminalContainer);
 };
 
-joinButton.addEventListener('click', () => {
-  openTerminalScreen();
-  connectTerminal();
-});
-
-joinAgainButton.addEventListener('click', () => {
-  cleanupSession();
-  openTerminalScreen();
-  connectTerminal();
-});
-
-exitButton.addEventListener('click', () => {
-  cleanupSession();
-  openJoinScreen();
-});
-
+connectTerminal();
 window.addEventListener('beforeunload', cleanupSession);
