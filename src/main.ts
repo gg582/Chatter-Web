@@ -16,6 +16,11 @@ type XtermCtor = new (options?: Record<string, unknown>) => XtermTerminal;
 type FitAddon = { fit: () => void; dispose: () => void };
 type FitAddonCtor = new () => FitAddon;
 
+const ANSI_ESCAPE_SEQUENCE_PATTERN = /\u001b\[[0-9;?]*[ -/]*[@-~]/gu;
+const TYPE_N_TRIGGER = 'type n';
+const NICKNAME_TRIGGER = 'enter id (nickname required)';
+const CONFIRM_NICKNAME_TRIGGER = 'are you sure with a name';
+
 const terminalScreen = document.querySelector<HTMLElement>('[data-terminal-screen]');
 const terminalContainer = document.querySelector<HTMLElement>('[data-terminal-container]');
 
@@ -28,6 +33,18 @@ let terminal: XtermTerminal | null = null;
 let fitAddon: FitAddon | null = null;
 let resizeObserver: ResizeObserver | null = null;
 let socketTextDecoder = new TextDecoder();
+let autoInputBuffer = '';
+let typeNConfirmed = false;
+let nicknameSubmitted = false;
+let nicknameConfirmed = false;
+let pendingNickname = '';
+
+const normaliseTriggerText = (value: string): string =>
+  value
+    .replace(ANSI_ESCAPE_SEQUENCE_PATTERN, '')
+    .replace(/\r/g, ' ')
+    .replace(/\s+/g, ' ')
+    .toLowerCase();
 
 const getGlobal = <T>(name: string): T => {
   const value = (window as unknown as Record<string, unknown>)[name];
@@ -47,6 +64,32 @@ const sendToSocket = (payload: string | Uint8Array) => {
     return;
   }
   socket.send(payload);
+};
+
+const maybeSendAutoInputs = (chunk: string) => {
+  if (!chunk) {
+    return;
+  }
+
+  autoInputBuffer += normaliseTriggerText(chunk);
+  if (autoInputBuffer.length > 4096) {
+    autoInputBuffer = autoInputBuffer.slice(-4096);
+  }
+
+  if (!typeNConfirmed && autoInputBuffer.includes(TYPE_N_TRIGGER)) {
+    sendToSocket('Y\n');
+    typeNConfirmed = true;
+  }
+
+  if (typeNConfirmed && !nicknameSubmitted && autoInputBuffer.includes(NICKNAME_TRIGGER)) {
+    sendToSocket(`${pendingNickname}\n`);
+    nicknameSubmitted = true;
+  }
+
+  if (nicknameSubmitted && !nicknameConfirmed && autoInputBuffer.includes(CONFIRM_NICKNAME_TRIGGER)) {
+    sendToSocket('Y\n');
+    nicknameConfirmed = true;
+  }
 };
 
 const cleanupSession = () => {
@@ -112,22 +155,25 @@ const connectTerminal = () => {
     terminal?.focus();
     fitAddon?.fit();
     socketTextDecoder = new TextDecoder();
-
-    const nickname = pickRandomNickname();
-    sendToSocket(`${nickname}\n`);
-    sendToSocket('Y\n');
+    autoInputBuffer = '';
+    typeNConfirmed = false;
+    nicknameSubmitted = false;
+    nicknameConfirmed = false;
+    pendingNickname = pickRandomNickname();
   });
 
   socket.addEventListener('message', (event) => {
     if (event.data instanceof ArrayBuffer) {
       const bytes = new Uint8Array(event.data);
       terminal?.write(bytes);
-      socketTextDecoder.decode(bytes, { stream: true });
+      const decoded = socketTextDecoder.decode(bytes, { stream: true });
+      maybeSendAutoInputs(decoded);
       return;
     }
 
     const text = String(event.data);
     terminal?.writeln(text);
+    maybeSendAutoInputs(text);
   });
 
   socket.addEventListener('close', () => {
