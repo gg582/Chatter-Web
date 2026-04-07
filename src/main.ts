@@ -159,7 +159,8 @@ const connectTerminal = () => {
     typeNConfirmed = false;
     nicknameSubmitted = false;
     nicknameConfirmed = false;
-    pendingNickname = pickRandomNickname();
+    const generatedNickname = pickRandomNickname();
+    pendingNickname = generatedNickname.length >= 8 ? generatedNickname : `${generatedNickname}-guest`;
   });
 
   socket.addEventListener('message', (event) => {
