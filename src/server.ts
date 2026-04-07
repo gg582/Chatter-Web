@@ -876,7 +876,8 @@ async function handleRequest(req: IncomingMessage, res: import('node:http').Serv
     res.statusCode = 200;
     res.setHeader('Content-Type', contentType);
     res.setHeader('Content-Length', stats.size);
-    if (extension === '.html') {
+    if (extension === '.html' || extension === '.js') {
+      // Keep HTML/JS fresh so clients pick up login flow changes without hard refresh.
       res.setHeader('Cache-Control', 'no-cache');
     } else {
       res.setHeader('Cache-Control', 'public, max-age=31536000, immutable');
