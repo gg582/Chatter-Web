@@ -7,8 +7,9 @@
 
 :root {
   color-scheme: dark;
-  font-family: 'IBM Plex Mono', 'Courier New', monospace;
-  --terminal-title-font: 'ThreeKingdoms3Font', 'IBM Plex Mono', 'Courier New', monospace;
+  --terminal-fallback-font: 'IBM Plex Mono', 'Courier New', monospace;
+  --terminal-title-font: 'ThreeKingdoms3Font', var(--terminal-fallback-font);
+  font-family: var(--terminal-fallback-font);
   --terminal-green: #98f5b2;
   --terminal-green-soft: #62d987;
   --terminal-green-dim: #1f3b2a;
