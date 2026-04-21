@@ -1,6 +1,13 @@
+@font-face {
+  font-family: 'ThreeKingdoms3Font';
+  src: url('https://cdn.jsdelivr.net/gh/projectnoonnu/noonfonts_eight@1.0/Sam3KRFont.woff') format('woff');
+  font-weight: normal;
+  font-display: swap;
+}
+
 :root {
   color-scheme: dark;
-  font-family: Inter, "Segoe UI", sans-serif;
+  font-family: 'ThreeKingdoms3Font', 'IBM Plex Mono', 'Courier New', monospace;
 }
 
 * {
@@ -9,10 +16,13 @@
 
 body {
   margin: 0;
-  background: radial-gradient(circle at top, #111827 0%, #070707 52%, #040404 100%);
-  color: #e5e7eb;
+  background:
+    radial-gradient(circle at top, rgba(73, 255, 126, 0.08) 0%, transparent 48%),
+    linear-gradient(180deg, #071108 0%, #030603 56%, #020402 100%);
+  color: #b9f5c7;
   height: 100dvh;
   overflow: hidden;
+  text-shadow: 0 0 8px rgba(107, 255, 156, 0.22);
 }
 
 .app {
@@ -86,11 +96,15 @@ body {
 .terminal-card {
   width: min(980px, 94vw);
   height: min(72dvh, 640px);
-  border: 1px solid #1f2937;
+  border: 1px solid #245830;
   border-radius: 18px;
-  background: rgba(5, 10, 19, 0.9);
+  background:
+    linear-gradient(180deg, rgba(10, 24, 11, 0.96) 0%, rgba(4, 12, 5, 0.98) 100%);
   padding: 14px;
-  box-shadow: 0 20px 55px rgba(0, 0, 0, 0.45);
+  box-shadow:
+    0 0 0 1px rgba(98, 255, 150, 0.14),
+    0 24px 60px rgba(0, 0, 0, 0.56),
+    inset 0 0 24px rgba(72, 255, 133, 0.06);
   display: flex;
   flex-direction: column;
   gap: 10px;
@@ -106,8 +120,9 @@ body {
 .terminal-title {
   margin: 0;
   font-size: 0.95rem;
-  color: #93c5fd;
-  letter-spacing: 0.02em;
+  color: #86ffae;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
 }
 
 .terminal-actions {
@@ -117,12 +132,26 @@ body {
 
 .terminal-shell {
   flex: 1;
-  border: 1px solid #334155;
+  border: 1px solid #2d6b3a;
   border-radius: 12px;
-  background: #000;
+  background:
+    repeating-linear-gradient(
+      180deg,
+      rgba(111, 255, 161, 0.045) 0px,
+      rgba(111, 255, 161, 0.045) 1px,
+      transparent 2px,
+      transparent 4px
+    ),
+    #020402;
   overflow: hidden;
   min-height: 0;
-  box-shadow: 0 14px 38px rgba(0, 0, 0, 0.4);
+  box-shadow:
+    inset 0 0 24px rgba(66, 255, 125, 0.08),
+    0 14px 38px rgba(0, 0, 0, 0.45);
+}
+
+.terminal-shell .xterm {
+  font-family: 'ThreeKingdoms3Font', 'IBM Plex Mono', 'Courier New', monospace;
 }
 
 .action-button {
