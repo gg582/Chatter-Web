@@ -1839,12 +1839,12 @@ const createRuntime = (
         cursorStyle: 'block',
         scrollback: 10000,
         fontSize: 14,
-        fontFamily: '"IBM Plex Mono", "Courier New", Courier, monospace',
+        fontFamily: '"ThreeKingdoms3Font", "IBM Plex Mono", "Courier New", Courier, monospace',
         theme: {
-          background: currentTheme === 'dark' ? '#1a1a1a' : '#ffffff',
-          foreground: currentTheme === 'dark' ? '#e0e0e0' : '#000000',
-          cursor: currentTheme === 'dark' ? '#00ff00' : '#000000',
-          selection: currentTheme === 'dark' ? 'rgba(255, 255, 255, 0.3)' : 'rgba(0, 0, 0, 0.3)'
+          background: currentTheme === 'dark' ? '#050a05' : '#f6fff7',
+          foreground: currentTheme === 'dark' ? '#9cffb7' : '#173220',
+          cursor: currentTheme === 'dark' ? '#ceffdc' : '#173220',
+          selection: currentTheme === 'dark' ? 'rgba(147, 255, 180, 0.35)' : 'rgba(18, 44, 26, 0.26)'
         },
         convertEol: false,
         disableStdin: true

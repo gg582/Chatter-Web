@@ -1,6 +1,17 @@
+@font-face {
+  font-family: 'ThreeKingdoms3Font';
+  src: url('https://cdn.jsdelivr.net/gh/projectnoonnu/noonfonts_eight@1.0/Sam3KRFont.woff') format('woff');
+  font-weight: normal;
+  font-display: swap;
+}
+
 :root {
   color-scheme: dark;
-  font-family: Inter, "Segoe UI", sans-serif;
+  font-family: 'ThreeKingdoms3Font', 'IBM Plex Mono', 'Courier New', monospace;
+  --terminal-green: #88ffb1;
+  --terminal-green-soft: #4dcc80;
+  --terminal-green-dim: #2d6b44;
+  --terminal-bg: #030903;
 }
 
 * {
@@ -9,15 +20,36 @@
 
 body {
   margin: 0;
-  background: radial-gradient(circle at top, #111827 0%, #070707 52%, #040404 100%);
-  color: #e5e7eb;
+  background:
+    radial-gradient(circle at 16% 10%, rgba(126, 255, 166, 0.12) 0%, transparent 34%),
+    radial-gradient(circle at 86% 94%, rgba(87, 255, 145, 0.08) 0%, transparent 40%),
+    linear-gradient(180deg, #061006 0%, #040804 44%, #020502 100%);
+  color: #b9f5c7;
   height: 100dvh;
   overflow: hidden;
+  text-shadow: 0 0 10px rgba(107, 255, 156, 0.22);
 }
 
 .app {
   height: 100dvh;
   position: relative;
+  isolation: isolate;
+}
+
+.app::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background:
+    repeating-linear-gradient(
+      180deg,
+      rgba(128, 255, 172, 0.03) 0,
+      rgba(128, 255, 172, 0.03) 1px,
+      transparent 2px,
+      transparent 4px
+    );
+  opacity: 0.4;
 }
 
 .join-screen {
@@ -30,19 +62,19 @@ body {
 
 .join-card {
   width: min(460px, 100%);
-  border: 1px solid #1f2937;
-  border-radius: 18px;
-  background: rgba(5, 10, 19, 0.84);
+  border: 1px solid var(--terminal-green-dim);
+  border-radius: 16px;
+  background: linear-gradient(180deg, rgba(13, 31, 15, 0.96) 0%, rgba(6, 16, 7, 0.98) 100%);
   padding: 28px 26px;
-  box-shadow: 0 20px 55px rgba(0, 0, 0, 0.45);
+  box-shadow: 0 30px 70px rgba(0, 0, 0, 0.52), inset 0 1px 0 rgba(194, 255, 217, 0.2);
 }
 
 .eyebrow {
   margin: 0;
-  color: #93c5fd;
-  letter-spacing: 0.08em;
+  color: #95ffc0;
+  letter-spacing: 0.14em;
   text-transform: uppercase;
-  font-size: 0.8rem;
+  font-size: 0.72rem;
   font-weight: 700;
 }
 
@@ -53,26 +85,28 @@ body {
 
 .subtitle {
   margin: 12px 0 22px;
-  color: #9ca3af;
-  line-height: 1.4;
+  color: #b3e9c4;
+  line-height: 1.5;
 }
 
 .join-button,
 .action-button {
-  border: 1px solid #374151;
-  color: #f9fafb;
-  background: #111827;
-  border-radius: 10px;
+  border: 1px solid #387f50;
+  color: #dbffe8;
+  background: linear-gradient(180deg, #12381f 0%, #0b2012 100%);
+  border-radius: 8px;
   cursor: pointer;
+  font-family: 'ThreeKingdoms3Font', 'IBM Plex Mono', 'Courier New', monospace;
 }
 
 .join-button {
   min-width: 190px;
   min-height: 58px;
   font-size: 1.1rem;
-  font-weight: 600;
-  background: linear-gradient(180deg, #1d4ed8, #1e3a8a);
-  border-color: #2563eb;
+  letter-spacing: 0.04em;
+  background: linear-gradient(180deg, #194b29 0%, #0f2e1a 100%);
+  border-color: #49b770;
+  box-shadow: 0 8px 22px rgba(0, 0, 0, 0.35), inset 0 1px 0 rgba(176, 255, 206, 0.3);
 }
 
 .terminal-screen {
@@ -86,28 +120,53 @@ body {
 .terminal-card {
   width: min(980px, 94vw);
   height: min(72dvh, 640px);
-  border: 1px solid #1f2937;
-  border-radius: 18px;
-  background: rgba(5, 10, 19, 0.9);
-  padding: 14px;
-  box-shadow: 0 20px 55px rgba(0, 0, 0, 0.45);
+  border: 1px solid var(--terminal-green-dim);
+  border-radius: 16px;
+  background: linear-gradient(180deg, rgba(14, 30, 15, 0.98) 0%, rgba(5, 12, 5, 0.98) 100%);
+  padding: 0;
+  box-shadow:
+    0 0 0 1px rgba(98, 255, 150, 0.12),
+    0 36px 85px rgba(0, 0, 0, 0.62),
+    inset 0 1px 0 rgba(190, 255, 214, 0.22),
+    inset 0 -30px 60px rgba(0, 0, 0, 0.4);
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  overflow: hidden;
+  backdrop-filter: blur(3px);
 }
 
 .terminal-header {
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  gap: 12px;
+  justify-content: center;
+  gap: 10px;
+  padding: 11px 16px;
+  border-bottom: 1px solid #1b4527;
+  background: linear-gradient(180deg, rgba(18, 42, 20, 0.95) 0%, rgba(10, 24, 12, 0.95) 100%);
+  position: relative;
+}
+
+.terminal-header::before {
+  content: '';
+  position: absolute;
+  left: 12px;
+  width: 36px;
+  height: 10px;
+  border-radius: 999px;
+  background:
+    radial-gradient(circle at 5px 50%, #ff6f7f 0 3px, transparent 3.3px),
+    radial-gradient(circle at 18px 50%, #ffd56f 0 3px, transparent 3.3px),
+    radial-gradient(circle at 31px 50%, #7effa4 0 3px, transparent 3.3px);
+  opacity: 0.9;
 }
 
 .terminal-title {
   margin: 0;
-  font-size: 0.95rem;
-  color: #93c5fd;
-  letter-spacing: 0.02em;
+  font-size: 0.82rem;
+  color: var(--terminal-green);
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  text-align: center;
 }
 
 .terminal-actions {
@@ -117,23 +176,70 @@ body {
 
 .terminal-shell {
   flex: 1;
-  border: 1px solid #334155;
-  border-radius: 12px;
-  background: #000;
+  border-top: 1px solid rgba(126, 255, 169, 0.16);
+  border-radius: 0 0 16px 16px;
+  padding: 14px;
+  background:
+    radial-gradient(circle at 50% 0%, rgba(102, 255, 155, 0.08), transparent 48%),
+    repeating-linear-gradient(
+      180deg,
+      rgba(111, 255, 161, 0.032) 0px,
+      rgba(111, 255, 161, 0.032) 1px,
+      transparent 2px,
+      transparent 4px
+    ),
+    var(--terminal-bg);
   overflow: hidden;
   min-height: 0;
-  box-shadow: 0 14px 38px rgba(0, 0, 0, 0.4);
+  box-shadow: inset 0 0 22px rgba(66, 255, 125, 0.08), inset 0 0 2px rgba(113, 255, 165, 0.22);
+}
+
+.terminal-shell .xterm {
+  font-family: 'ThreeKingdoms3Font', 'IBM Plex Mono', 'Courier New', monospace;
+  color: var(--terminal-green);
+  letter-spacing: 0.02em;
+}
+
+.terminal-shell .xterm-viewport {
+  scrollbar-color: #2f8550 #071207;
+}
+
+.terminal-shell .xterm-screen canvas {
+  filter: saturate(1.08) contrast(1.05);
 }
 
 .action-button {
   min-width: 96px;
   min-height: 44px;
-  font-weight: 600;
-  transition: transform 120ms ease, border-color 120ms ease;
+  letter-spacing: 0.04em;
+  transition: transform 120ms ease, border-color 120ms ease, box-shadow 120ms ease;
+  box-shadow: inset 0 1px 0 rgba(176, 255, 206, 0.28);
 }
 
 .join-button:hover,
 .action-button:hover {
-  transform: translateY(-1px);
-  border-color: #60a5fa;
+  transform: translateY(-1px) scale(1.01);
+  border-color: #7affac;
+  box-shadow: 0 0 16px rgba(122, 255, 172, 0.18), inset 0 1px 0 rgba(193, 255, 215, 0.35);
+}
+
+.join-button:focus-visible,
+.action-button:focus-visible {
+  outline: 2px solid #8dffb8;
+  outline-offset: 2px;
+}
+
+@media (max-width: 768px) {
+  .terminal-screen {
+    padding: 14px;
+  }
+
+  .terminal-card {
+    width: 100%;
+    height: min(78dvh, 680px);
+  }
+
+  .terminal-shell {
+    padding: 10px;
+  }
 }
