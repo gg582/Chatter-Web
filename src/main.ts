@@ -143,7 +143,7 @@ const connectTerminal = () => {
 
   terminal = new Terminal({
     cursorBlink: true,
-    fontFamily: 'ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace',
+    fontFamily: '"ThreeKingdoms3Font", "IBM Plex Mono", "Courier New", monospace',
     fontSize: 16,
     theme: {
       background: '#000000',

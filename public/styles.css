@@ -7,11 +7,14 @@
 
 :root {
   color-scheme: dark;
-  font-family: 'ThreeKingdoms3Font', 'IBM Plex Mono', 'Courier New', monospace;
-  --terminal-green: #88ffb1;
-  --terminal-green-soft: #4dcc80;
-  --terminal-green-dim: #2d6b44;
-  --terminal-bg: #030903;
+  font-family: 'IBM Plex Mono', 'Courier New', monospace;
+  --terminal-title-font: 'ThreeKingdoms3Font', 'IBM Plex Mono', 'Courier New', monospace;
+  --terminal-green: #98f5b2;
+  --terminal-green-soft: #62d987;
+  --terminal-green-dim: #1f3b2a;
+  --terminal-bg: #050a06;
+  --surface-0: #070d09;
+  --surface-1: #0d1711;
 }
 
 * {
@@ -20,36 +23,17 @@
 
 body {
   margin: 0;
-  background:
-    radial-gradient(circle at 16% 10%, rgba(126, 255, 166, 0.12) 0%, transparent 34%),
-    radial-gradient(circle at 86% 94%, rgba(87, 255, 145, 0.08) 0%, transparent 40%),
-    linear-gradient(180deg, #061006 0%, #040804 44%, #020502 100%);
-  color: #b9f5c7;
+  background: #050906;
+  color: #c7f4d6;
   height: 100dvh;
   overflow: hidden;
-  text-shadow: 0 0 10px rgba(107, 255, 156, 0.22);
+  text-shadow: none;
 }
 
 .app {
   height: 100dvh;
   position: relative;
   isolation: isolate;
-}
-
-.app::before {
-  content: '';
-  position: absolute;
-  inset: 0;
-  pointer-events: none;
-  background:
-    repeating-linear-gradient(
-      180deg,
-      rgba(128, 255, 172, 0.03) 0,
-      rgba(128, 255, 172, 0.03) 1px,
-      transparent 2px,
-      transparent 4px
-    );
-  opacity: 0.4;
 }
 
 .join-screen {
@@ -120,19 +104,14 @@ body {
 .terminal-card {
   width: min(980px, 94vw);
   height: min(72dvh, 640px);
-  border: 1px solid var(--terminal-green-dim);
-  border-radius: 16px;
-  background: linear-gradient(180deg, rgba(14, 30, 15, 0.98) 0%, rgba(5, 12, 5, 0.98) 100%);
+  border: 1px solid #1f3828;
+  border-radius: 6px;
+  background: var(--surface-0);
   padding: 0;
-  box-shadow:
-    0 0 0 1px rgba(98, 255, 150, 0.12),
-    0 36px 85px rgba(0, 0, 0, 0.62),
-    inset 0 1px 0 rgba(190, 255, 214, 0.22),
-    inset 0 -30px 60px rgba(0, 0, 0, 0.4);
+  box-shadow: 0 10px 28px rgba(0, 0, 0, 0.35);
   display: flex;
   flex-direction: column;
   overflow: hidden;
-  backdrop-filter: blur(3px);
 }
 
 .terminal-header {
@@ -141,31 +120,18 @@ body {
   justify-content: center;
   gap: 10px;
   padding: 11px 16px;
-  border-bottom: 1px solid #1b4527;
-  background: linear-gradient(180deg, rgba(18, 42, 20, 0.95) 0%, rgba(10, 24, 12, 0.95) 100%);
+  border-bottom: 1px solid #1b2f23;
+  background: var(--surface-1);
   position: relative;
-}
-
-.terminal-header::before {
-  content: '';
-  position: absolute;
-  left: 12px;
-  width: 36px;
-  height: 10px;
-  border-radius: 999px;
-  background:
-    radial-gradient(circle at 5px 50%, #ff6f7f 0 3px, transparent 3.3px),
-    radial-gradient(circle at 18px 50%, #ffd56f 0 3px, transparent 3.3px),
-    radial-gradient(circle at 31px 50%, #7effa4 0 3px, transparent 3.3px);
-  opacity: 0.9;
 }
 
 .terminal-title {
   margin: 0;
+  font-family: var(--terminal-title-font);
   font-size: 0.82rem;
-  color: var(--terminal-green);
-  letter-spacing: 0.14em;
-  text-transform: uppercase;
+  color: #d2ffe0;
+  letter-spacing: 0.08em;
+  text-transform: none;
   text-align: center;
 }
 
@@ -176,26 +142,17 @@ body {
 
 .terminal-shell {
   flex: 1;
-  border-top: 1px solid rgba(126, 255, 169, 0.16);
-  border-radius: 0 0 16px 16px;
+  border-top: 1px solid #16281d;
+  border-radius: 0;
   padding: 14px;
-  background:
-    radial-gradient(circle at 50% 0%, rgba(102, 255, 155, 0.08), transparent 48%),
-    repeating-linear-gradient(
-      180deg,
-      rgba(111, 255, 161, 0.032) 0px,
-      rgba(111, 255, 161, 0.032) 1px,
-      transparent 2px,
-      transparent 4px
-    ),
-    var(--terminal-bg);
+  background: var(--terminal-bg);
   overflow: hidden;
   min-height: 0;
-  box-shadow: inset 0 0 22px rgba(66, 255, 125, 0.08), inset 0 0 2px rgba(113, 255, 165, 0.22);
+  box-shadow: inset 0 0 0 1px rgba(53, 99, 70, 0.28);
 }
 
 .terminal-shell .xterm {
-  font-family: 'ThreeKingdoms3Font', 'IBM Plex Mono', 'Courier New', monospace;
+  font-family: var(--terminal-title-font);
   color: var(--terminal-green);
   letter-spacing: 0.02em;
 }
@@ -205,7 +162,7 @@ body {
 }
 
 .terminal-shell .xterm-screen canvas {
-  filter: saturate(1.08) contrast(1.05);
+  filter: none;
 }
 
 .action-button {
