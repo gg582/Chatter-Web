@@ -3128,7 +3128,7 @@ const createRuntime = (
       statusApplied = true;
 
       const retroSent = sendDisconnectSequence('/retro off\r');
-      const exitSent = sendDisconnectSequence('EXIT\r');
+      const exitSent = sendDisconnectSequence('/exit\r');
 
       if (retroSent || exitSent) {
         if (typeof window !== 'undefined') {

@@ -108,7 +108,7 @@ const maybeSendAutoInputs = (chunk: string) => {
 
 const cleanupSession = () => {
   if (socket && socket.readyState === WebSocket.OPEN) {
-    sendToSocket('EXIT\n');
+    sendToSocket('/exit\n');
   }
 
   if (socket) {
