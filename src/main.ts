@@ -143,11 +143,19 @@ const connectTerminal = () => {
 
   terminal = new Terminal({
     cursorBlink: true,
-    fontFamily: "'ThreeKingdoms3Font', 'IBM Plex Mono', 'Courier New', monospace",
+    fontFamily:
+      "'ThreeKingdoms3Font', 'Noto Sans Mono CJK KR', 'Noto Sans KR', 'IBM Plex Mono', 'Courier New', monospace",
     fontSize: 16,
     theme: {
-      background: '#000000',
-      foreground: '#d1d5db'
+      background: '#020409',
+      foreground: '#f2f5fb',
+      cursor: '#dce8ff',
+      selectionBackground: '#36588d',
+      black: '#5c6a84',
+      blue: '#7aa2f7',
+      brightBlue: '#9ec1ff',
+      white: '#f2f5fb',
+      brightWhite: '#ffffff'
     }
   });
 
