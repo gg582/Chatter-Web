@@ -7,15 +7,20 @@
 
 :root {
   color-scheme: dark;
-  --terminal-fallback-font: 'IBM Plex Mono', 'Courier New', monospace;
-  --terminal-title-font: 'ThreeKingdoms3Font', var(--terminal-fallback-font);
+  --terminal-fallback-font: 'ThreeKingdoms3Font', 'Noto Sans Mono CJK KR', 'Noto Sans KR', 'IBM Plex Mono', 'Courier New', monospace;
+  --terminal-title-font: var(--terminal-fallback-font);
   font-family: var(--terminal-fallback-font);
-  --terminal-green: #98f5b2;
-  --terminal-green-soft: #62d987;
-  --terminal-green-dim: #1f3b2a;
-  --terminal-bg: #050a06;
-  --surface-0: #070d09;
-  --surface-1: #0d1711;
+  --accent-blue: #2d57a1;
+  --accent-blue-bright: #5f88d6;
+  --accent-blue-deep: #16263f;
+  --ink-white: #f2f5fb;
+  --ink-gray: #c1c8d8;
+  --panel-gray: #9da9bf;
+  --panel-dark: #222b39;
+  --terminal-bg: #020409;
+  --surface-0: #111827;
+  --surface-1: #2b3549;
+  --border-dark: #0b0f18;
 }
 
 * {
@@ -24,8 +29,8 @@
 
 body {
   margin: 0;
-  background: #050906;
-  color: #c7f4d6;
+  background: #060a12;
+  color: var(--ink-white);
   height: 100dvh;
   overflow: hidden;
   text-shadow: none;
@@ -47,16 +52,16 @@ body {
 
 .join-card {
   width: min(460px, 100%);
-  border: 1px solid var(--terminal-green-dim);
-  border-radius: 16px;
-  background: linear-gradient(180deg, rgba(13, 31, 15, 0.96) 0%, rgba(6, 16, 7, 0.98) 100%);
+  border: 2px solid var(--border-dark);
+  border-radius: 0;
+  background: linear-gradient(180deg, #3c4963 0%, #242d3c 100%);
   padding: 28px 26px;
-  box-shadow: 0 30px 70px rgba(0, 0, 0, 0.52), inset 0 1px 0 rgba(194, 255, 217, 0.2);
+  box-shadow: 6px 6px 0 #0a0f18, inset 1px 1px 0 rgba(255, 255, 255, 0.25);
 }
 
 .eyebrow {
   margin: 0;
-  color: #95ffc0;
+  color: #d8e4ff;
   letter-spacing: 0.14em;
   text-transform: uppercase;
   font-size: 0.72rem;
@@ -70,28 +75,28 @@ body {
 
 .subtitle {
   margin: 12px 0 22px;
-  color: #b3e9c4;
+  color: var(--ink-gray);
   line-height: 1.5;
 }
 
 .join-button,
 .action-button {
-  border: 1px solid #387f50;
-  color: #dbffe8;
-  background: linear-gradient(180deg, #12381f 0%, #0b2012 100%);
-  border-radius: 8px;
+  border: 2px solid #0f1520;
+  color: var(--ink-white);
+  background: linear-gradient(180deg, #7486a6 0%, #3b4a63 100%);
+  border-radius: 0;
   cursor: pointer;
-  font-family: 'ThreeKingdoms3Font', 'IBM Plex Mono', 'Courier New', monospace;
+  font-family: var(--terminal-fallback-font);
 }
 
 .join-button {
   min-width: 190px;
   min-height: 58px;
-  font-size: 1.1rem;
+  font-size: 1rem;
   letter-spacing: 0.04em;
-  background: linear-gradient(180deg, #194b29 0%, #0f2e1a 100%);
-  border-color: #49b770;
-  box-shadow: 0 8px 22px rgba(0, 0, 0, 0.35), inset 0 1px 0 rgba(176, 255, 206, 0.3);
+  background: linear-gradient(180deg, #7288ad 0%, #455673 100%);
+  border-color: #151b27;
+  box-shadow: 3px 3px 0 #0a0f18, inset 1px 1px 0 rgba(255, 255, 255, 0.2);
 }
 
 .terminal-screen {
@@ -105,11 +110,11 @@ body {
 .terminal-card {
   width: min(980px, 94vw);
   height: min(72dvh, 640px);
-  border: 1px solid #1f3828;
-  border-radius: 6px;
+  border: 2px solid #080c14;
+  border-radius: 0;
   background: var(--surface-0);
   padding: 0;
-  box-shadow: 0 10px 28px rgba(0, 0, 0, 0.35);
+  box-shadow: 8px 8px 0 #060b14;
   display: flex;
   flex-direction: column;
   overflow: hidden;
@@ -121,7 +126,7 @@ body {
   justify-content: center;
   gap: 10px;
   padding: 11px 16px;
-  border-bottom: 1px solid #1b2f23;
+  border-bottom: 2px solid #0e1522;
   background: var(--surface-1);
   position: relative;
 }
@@ -130,7 +135,7 @@ body {
   margin: 0;
   font-family: var(--terminal-title-font);
   font-size: 0.82rem;
-  color: #d2ffe0;
+  color: var(--ink-white);
   letter-spacing: 0.08em;
   text-transform: none;
   text-align: center;
@@ -143,23 +148,23 @@ body {
 
 .terminal-shell {
   flex: 1;
-  border-top: 1px solid #16281d;
+  border-top: 2px solid #0e1522;
   border-radius: 0;
   padding: 14px;
   background: var(--terminal-bg);
   overflow: hidden;
   min-height: 0;
-  box-shadow: inset 0 0 0 1px rgba(53, 99, 70, 0.28);
+  box-shadow: inset 0 0 0 2px rgba(71, 95, 137, 0.7);
 }
 
 .terminal-shell .xterm {
-  font-family: var(--terminal-title-font);
-  color: var(--terminal-green);
+  font-family: var(--terminal-fallback-font);
+  color: var(--ink-white);
   letter-spacing: 0.02em;
 }
 
 .terminal-shell .xterm-viewport {
-  scrollbar-color: #2f8550 #071207;
+  scrollbar-color: var(--accent-blue-bright) #040813;
 }
 
 .terminal-shell .xterm-screen canvas {
@@ -171,19 +176,19 @@ body {
   min-height: 44px;
   letter-spacing: 0.04em;
   transition: transform 120ms ease, border-color 120ms ease, box-shadow 120ms ease;
-  box-shadow: inset 0 1px 0 rgba(176, 255, 206, 0.28);
+  box-shadow: 2px 2px 0 #0a0f18, inset 1px 1px 0 rgba(255, 255, 255, 0.16);
 }
 
 .join-button:hover,
 .action-button:hover {
-  transform: translateY(-1px) scale(1.01);
-  border-color: #7affac;
-  box-shadow: 0 0 16px rgba(122, 255, 172, 0.18), inset 0 1px 0 rgba(193, 255, 215, 0.35);
+  transform: translateY(-1px);
+  border-color: #d7e4ff;
+  box-shadow: 3px 3px 0 #0a0f18, inset 1px 1px 0 rgba(255, 255, 255, 0.22);
 }
 
 .join-button:focus-visible,
 .action-button:focus-visible {
-  outline: 2px solid #8dffb8;
+  outline: 2px solid #d7e4ff;
   outline-offset: 2px;
 }
 
