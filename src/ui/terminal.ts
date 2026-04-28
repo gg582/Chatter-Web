@@ -654,6 +654,8 @@ type TerminalRuntime = {
   usernameField: HTMLElement;
   passwordInput: HTMLInputElement;
   passwordField: HTMLElement;
+  nicknameForm: HTMLFormElement;
+  nicknameInput: HTMLInputElement;
   controlsHost: HTMLElement | null;
   themeHost: HTMLElement | null;
   entryPreferences: EntryPreferences;
@@ -1380,56 +1382,94 @@ const createRuntime = (
     <section class="${shellClasses.join(' ')}" data-terminal-shell>
       <div class="terminal-chat__fullscreen">
         ${controlsHost ? '' : controlBarMarkup}
-        <div class="terminal-chat__viewport terminal__viewport" data-terminal-viewport>
-          <div class="terminal-chat__output terminal__output" data-terminal-output></div>
-        </div>
-        <div class="terminal-chat__entry-region">
-          <div class="terminal-chat__entry-main">
-            <div class="terminal-chat__keyboard" id="${entryStatusId}-kbd" data-terminal-kbd hidden>
-              <div class="terminal-chat__keyboard-grid">
-                <button type="button" data-terminal-kbd-key="ctrl-c" data-terminal-kbd-group="entry-buffer">Cancel</button>
-                <button type="button" data-terminal-kbd-key="ctrl-z" data-terminal-kbd-group="entry-buffer" data-terminal-terminate-shortcut ${showTerminateShortcut ? '' : 'hidden'}>Terminate</button>
-                <button type="button" data-terminal-kbd-key="ctrl-s" data-terminal-kbd-group="entry-buffer">Save</button>
-                <button type="button" data-terminal-kbd-key="ctrl-a" data-terminal-kbd-group="entry-buffer">Abort</button>
-                <button type="button" data-terminal-kbd-key="arrow-up" data-terminal-kbd-group="arrow-up">↑</button>
-                <button type="button" data-terminal-kbd-key="arrow-down" data-terminal-kbd-group="arrow-down">↓</button>
-                <button type="button" data-terminal-kbd-key="arrow-left" data-terminal-kbd-group="arrow-left">←</button>
-                <button type="button" data-terminal-kbd-key="arrow-right" data-terminal-kbd-group="arrow-right">→</button>
+        <section class="terminal-chat__window">
+          <header class="terminal-chat__window-header" aria-label="Terminal window header">
+            <div class="terminal-chat__window-title">
+              <span class="terminal-chat__window-badge">CHT-98</span>
+              <div class="terminal-chat__window-copy">
+                <span class="terminal-chat__window-heading">Retro Terminal</span>
+                <span class="terminal-chat__window-subtitle" data-terminal-endpoint>${escapeHtml(target.description)}</span>
               </div>
-              <p class="terminal-chat__keyboard-foot">Shortcuts send immediately. Keep composing in the buffer above.</p>
             </div>
-            <section class="terminal-chat__panel-section terminal-chat__panel-section--entry terminal__entry" data-terminal-entry>
-              <div class="terminal-chat__entry-head">
-                <button type="button" class="terminal-chat__focus" data-terminal-focus>Focus</button>
-                <p
-                  id="${entryStatusId}"
-                  class="terminal-chat__entry-status terminal__entry-status"
-                  role="status"
-                  aria-live="polite"
-                  data-terminal-entry-status
-                >${escapeHtml(entryInstructions)}</p>
+            <div class="terminal-chat__window-controls">
+              <div class="terminal-chat__window-status" role="group" aria-label="Connection status">
+                <span class="terminal-chat__indicator" data-terminal-indicator data-state="disconnected"></span>
+                <span class="terminal-chat__menu-status-label" data-terminal-status data-state="disconnected">Disconnected</span>
               </div>
-              <form class="terminal-chat__entry-form" data-terminal-entry-form>
-                <label class="terminal-chat__entry-field">
-                  <span class="terminal-chat__entry-label">Command buffer</span>
-                  <textarea
-                    class="terminal-chat__entry-textarea terminal__capture"
-                    data-terminal-capture
-                    data-terminal-entry-buffer
-                    rows="1"
-                    placeholder=""
-                    aria-describedby="${entryStatusId}"
-                    aria-label="Command buffer"
+              <form class="terminal-chat__nickname-form" data-terminal-nickname-form>
+                <label class="terminal-chat__nickname-field" for="terminal-header-nickname">
+                  <span class="terminal-chat__nickname-label">Nickname</span>
+                  <input
+                    type="text"
+                    id="terminal-header-nickname"
+                    class="terminal-chat__nickname-input"
+                    data-terminal-nickname
+                    placeholder="handle"
                     autocomplete="off"
                     autocorrect="off"
                     autocapitalize="off"
                     spellcheck="false"
-                  ></textarea>
+                  />
                 </label>
+                <button type="submit" class="terminal-chat__menu-button terminal-chat__menu-button--primary">OK</button>
               </form>
-            </section>
+              <div class="terminal-chat__window-actions">
+                <button type="button" class="terminal-chat__menu-button terminal-chat__menu-button--primary" data-terminal-connect>Join</button>
+                <button type="button" class="terminal-chat__menu-button" data-terminal-disconnect disabled>Exit</button>
+              </div>
+            </div>
+          </header>
+          <div class="terminal-chat__viewport terminal__viewport" data-terminal-viewport>
+            <div class="terminal-chat__output terminal__output" data-terminal-output></div>
           </div>
-        </div>
+          <div class="terminal-chat__entry-region">
+            <div class="terminal-chat__entry-main">
+              <div class="terminal-chat__keyboard" id="${entryStatusId}-kbd" data-terminal-kbd hidden>
+                <div class="terminal-chat__keyboard-grid">
+                  <button type="button" data-terminal-kbd-key="ctrl-c" data-terminal-kbd-group="entry-buffer">Cancel</button>
+                  <button type="button" data-terminal-kbd-key="ctrl-z" data-terminal-kbd-group="entry-buffer" data-terminal-terminate-shortcut ${showTerminateShortcut ? '' : 'hidden'}>Terminate</button>
+                  <button type="button" data-terminal-kbd-key="ctrl-s" data-terminal-kbd-group="entry-buffer">Save</button>
+                  <button type="button" data-terminal-kbd-key="ctrl-a" data-terminal-kbd-group="entry-buffer">Abort</button>
+                  <button type="button" data-terminal-kbd-key="arrow-up" data-terminal-kbd-group="arrow-up">↑</button>
+                  <button type="button" data-terminal-kbd-key="arrow-down" data-terminal-kbd-group="arrow-down">↓</button>
+                  <button type="button" data-terminal-kbd-key="arrow-left" data-terminal-kbd-group="arrow-left">←</button>
+                  <button type="button" data-terminal-kbd-key="arrow-right" data-terminal-kbd-group="arrow-right">→</button>
+                </div>
+                <p class="terminal-chat__keyboard-foot">Shortcuts send immediately. Keep composing in the buffer above.</p>
+              </div>
+              <section class="terminal-chat__panel-section terminal-chat__panel-section--entry terminal__entry" data-terminal-entry>
+                <div class="terminal-chat__entry-head">
+                  <button type="button" class="terminal-chat__focus" data-terminal-focus>Focus</button>
+                  <p
+                    id="${entryStatusId}"
+                    class="terminal-chat__entry-status terminal__entry-status"
+                    role="status"
+                    aria-live="polite"
+                    data-terminal-entry-status
+                  >${escapeHtml(entryInstructions)}</p>
+                </div>
+                <form class="terminal-chat__entry-form" data-terminal-entry-form>
+                  <label class="terminal-chat__entry-field">
+                    <span class="terminal-chat__entry-label">Command buffer</span>
+                    <textarea
+                      class="terminal-chat__entry-textarea terminal__capture"
+                      data-terminal-capture
+                      data-terminal-entry-buffer
+                      rows="1"
+                      placeholder=""
+                      aria-describedby="${entryStatusId}"
+                      aria-label="Command buffer"
+                      autocomplete="off"
+                      autocorrect="off"
+                      autocapitalize="off"
+                      spellcheck="false"
+                    ></textarea>
+                  </label>
+                </form>
+              </section>
+            </div>
+          </div>
+        </section>
       </div>
     </section>
   `;
@@ -1466,6 +1506,8 @@ const createRuntime = (
   const usernameField = query<HTMLElement>('[data-terminal-username-field]');
   const passwordInput = query<HTMLInputElement>('[data-terminal-password]');
   const passwordField = query<HTMLElement>('[data-terminal-password-field]');
+  const nicknameForm = query<HTMLFormElement>('[data-terminal-nickname-form]');
+  const nicknameInput = query<HTMLInputElement>('[data-terminal-nickname]');
   const targetForm = query<HTMLFormElement>('[data-terminal-target-form]');
   const protocolSelect = query<HTMLSelectElement>('[data-terminal-protocol]');
   const hostInput = query<HTMLInputElement>('[data-terminal-host]');
@@ -1501,6 +1543,8 @@ const createRuntime = (
     !usernameField ||
     !passwordInput ||
     !passwordField ||
+    !nicknameForm ||
+    !nicknameInput ||
     !keyboardPanel ||
     !targetForm ||
     !protocolSelect ||
@@ -1612,6 +1656,8 @@ const createRuntime = (
     usernameField,
     passwordInput,
     passwordField,
+    nicknameForm,
+    nicknameInput,
     controlsHost,
     themeHost,
     entryPreferences: { ...entryPreferences },
@@ -2772,6 +2818,24 @@ const createRuntime = (
     }
   };
 
+  let lastNicknameSeed = '';
+
+  const syncNicknameField = (preferredValue?: string) => {
+    const seededValue =
+      preferredValue?.trim() ||
+      runtime.usernameInput.value.trim() ||
+      runtime.lastStoredUsername ||
+      runtime.target.defaultUsername ||
+      '';
+    const currentValue = runtime.nicknameInput.value.trim();
+
+    if (!currentValue || currentValue === lastNicknameSeed) {
+      runtime.nicknameInput.value = seededValue;
+    }
+
+    lastNicknameSeed = seededValue;
+  };
+
   const hasUsername = () => runtime.usernameInput.value.trim().length > 0;
 
   const persistIdentity = () => {
@@ -2872,6 +2936,7 @@ const createRuntime = (
     runtime.target = resolveTarget();
     runtime.endpointElement.textContent = runtime.target.description;
     syncUsernameField();
+    syncNicknameField();
     syncPasswordField();
 
     if (announce && runtime.target.available && !previousAvailability) {
@@ -3641,6 +3706,42 @@ const createRuntime = (
   runtime.usernameInput.addEventListener('input', () => {
     updateConnectAvailability();
     persistIdentity();
+    syncNicknameField(runtime.usernameInput.value);
+  });
+
+  runtime.nicknameForm.addEventListener('submit', (event) => {
+    event.preventDefault();
+
+    const nickname = runtime.nicknameInput.value.trim();
+    if (!nickname) {
+      setEntryStatus('Enter a nickname before sending /nick.', 'error');
+      runtime.nicknameInput.focus();
+      return;
+    }
+
+    runtime.usernameInput.value = nickname;
+    persistIdentity();
+    updateConnectAvailability();
+    syncNicknameField(nickname);
+
+    if (!isSocketOpen()) {
+      setEntryStatus('Nickname saved for the next connection. Connect first to send /nick.', 'muted');
+      return;
+    }
+
+    const payload = `/nick ${nickname}\n`;
+    const sent = sendTextPayload(payload);
+    if (!sent) {
+      return;
+    }
+
+    handleUserLineSent(`/nick ${nickname}`);
+    setEntryStatus(`Sent /nick ${nickname}`, 'default');
+    try {
+      runtime.nicknameInput.select();
+    } catch (error) {
+      runtime.nicknameInput.focus();
+    }
   });
 
   runtime.disposeResources = () => {
