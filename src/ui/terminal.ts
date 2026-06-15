@@ -3729,19 +3729,19 @@ const createRuntime = (
       return;
     }
 
-    const payload = `/nick ${nickname}\n`;
-    const sent = sendTextPayload(payload);
-    if (!sent) {
-      return;
-    }
-
-    handleUserLineSent(`/nick ${nickname}`);
-    setEntryStatus(`Sent /nick ${nickname}`, 'default');
+    // Changing the nickname should be typed/sent in the chat input window.
+    runtime.captureElement.value = `/nick ${nickname}`;
+    scheduleEntryResize();
+    
     try {
-      runtime.nicknameInput.select();
+      const len = runtime.captureElement.value.length;
+      runtime.captureElement.setSelectionRange(len, len);
     } catch (error) {
-      runtime.nicknameInput.focus();
+      // Ignore selection errors
     }
+    
+    runtime.captureElement.focus();
+    setEntryStatus('Command prepared. Press Enter in the chat input to change your nickname.', 'default');
   });
 
   runtime.disposeResources = () => {
