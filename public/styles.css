@@ -123,9 +123,9 @@ body {
 .terminal-header {
   display: flex;
   align-items: center;
-  justify-content: center;
-  gap: 10px;
-  padding: 11px 16px;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 8px 16px;
   border-bottom: 2px solid #0e1522;
   background: var(--surface-1);
   position: relative;
@@ -138,7 +138,46 @@ body {
   color: var(--ink-white);
   letter-spacing: 0.08em;
   text-transform: none;
-  text-align: center;
+}
+
+.nickname-area {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: rgba(0, 0, 0, 0.35);
+  border: 1px solid #1c273a;
+  padding: 5px 10px;
+  border-radius: 4px;
+  transition: border-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+.nickname-area:focus-within {
+  border-color: var(--accent-blue-bright);
+  box-shadow: 0 0 4px rgba(95, 136, 214, 0.4);
+}
+
+.nickname-label {
+  font-family: var(--terminal-fallback-font);
+  font-size: 0.72rem;
+  color: var(--panel-gray);
+  letter-spacing: 0.05em;
+  user-select: none;
+  font-weight: bold;
+}
+
+.nickname-input {
+  background: transparent;
+  border: none;
+  color: var(--ink-white);
+  font-family: var(--terminal-fallback-font);
+  font-size: 0.78rem;
+  width: 110px;
+  padding: 0;
+  outline: none;
+}
+
+.nickname-input::placeholder {
+  color: #4a576d;
 }
 
 .terminal-actions {

@@ -72,6 +72,7 @@ declare module 'node:net' {
     end(): void;
     destroy(): void;
     setNoDelay(noDelay: boolean): void;
+    setKeepAlive(enable?: boolean, initialDelay?: number): void;
   }
   export function connect(options: any, callback?: () => void): Socket;
   export function isIP(input: string): number;

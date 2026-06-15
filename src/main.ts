@@ -42,6 +42,8 @@ let pendingNickname = '';
 const attemptedNicknames = new Set<string>();
 let duplicateNicknameDetected = false;
 
+const nicknameInput = document.querySelector<HTMLInputElement>('#nickname-input');
+
 const normaliseTriggerText = (value: string): string =>
   value
     .replace(ANSI_ESCAPE_SEQUENCE_PATTERN, '')
@@ -70,10 +72,17 @@ const sendToSocket = (payload: string | Uint8Array) => {
 };
 
 const choosePendingNickname = () => {
+  if (nicknameInput && nicknameInput.value.trim()) {
+    pendingNickname = nicknameInput.value.trim();
+    return;
+  }
   const generatedNickname = pickRandomNickname(attemptedNicknames);
   pendingNickname =
     generatedNickname.length >= 8 ? generatedNickname : `${generatedNickname}-guest`;
   attemptedNicknames.add(pendingNickname.toLowerCase());
+  if (nicknameInput) {
+    nicknameInput.value = pendingNickname;
+  }
 };
 
 const maybeSendAutoInputs = (chunk: string) => {
@@ -228,6 +237,33 @@ const connectTerminal = () => {
   });
   resizeObserver.observe(terminalContainer);
 };
+
+if (nicknameInput) {
+  const handleNicknameChange = () => {
+    const newNick = nicknameInput.value.trim();
+    if (!newNick) {
+      nicknameInput.value = pendingNickname;
+      return;
+    }
+    if (newNick === pendingNickname) {
+      return;
+    }
+    pendingNickname = newNick;
+    if (socket && socket.readyState === WebSocket.OPEN && nicknameConfirmed) {
+      sendToSocket(`/nick ${newNick}\n`);
+    }
+  };
+
+  nicknameInput.addEventListener('keydown', (event) => {
+    if (event.key === 'Enter') {
+      handleNicknameChange();
+      nicknameInput.blur();
+      terminal?.focus();
+    }
+  });
+
+  nicknameInput.addEventListener('blur', handleNicknameChange);
+}
 
 connectTerminal();
 window.addEventListener('beforeunload', cleanupSession);

@@ -223,6 +223,9 @@ if (( INSTALL_SERVICE )); then
 
   SERVICE_PATH="/etc/systemd/system/${SERVICE_NAME}.service"
 
+  echo "Setting permissions of $INSTALL_PREFIX..."
+  chmod -R u+rwX,g+rX,o+rX "$INSTALL_PREFIX"
+
   echo "Setting ownership of $INSTALL_PREFIX to $SERVICE_USER:$SERVICE_GROUP..."
   chown -R "$SERVICE_USER:$SERVICE_GROUP" "$INSTALL_PREFIX"
 
@@ -241,7 +244,7 @@ After=network.target
 [Service]
 Type=simple
 WorkingDirectory=$INSTALL_PREFIX
-ExecStart=\"$NODE_BIN\" \"$START_SCRIPT\"
+ExecStart=$NODE_BIN $START_SCRIPT
 Restart=on-failure
 Environment=PORT=$SERVICE_PORT
 Environment=CHATTER_BBS_HOST=$BBS_HOST

@@ -59,6 +59,7 @@ type TerminalClientContext = {
   sentClose: boolean;
   bridge: TerminalBridge | null;
   settings: BbsSettings;
+  pingTimer?: NodeJS.Timeout;
 };
 
 const readBbsSettings = (options: { silent?: boolean } = {}): BbsSettings | null => {
@@ -509,6 +510,13 @@ const sendPongFrame = (context: TerminalClientContext, payload: Buffer) => {
   context.socket.write(createFrame(payload, 0x0a));
 };
 
+const sendPingFrame = (context: TerminalClientContext, payload: Buffer = Buffer.alloc(0)) => {
+  if (context.closed) {
+    return;
+  }
+  context.socket.write(createFrame(payload, 0x09));
+};
+
 const createCloseFrame = (code: number, reason: string) => {
   const reasonBuffer = Buffer.from(reason, 'utf8');
   const payload = Buffer.alloc(2 + reasonBuffer.length);
@@ -518,6 +526,10 @@ const createCloseFrame = (code: number, reason: string) => {
 };
 
 const disposeBridge = (context: TerminalClientContext) => {
+  if (context.pingTimer) {
+    clearInterval(context.pingTimer);
+    delete context.pingTimer;
+  }
   if (context.bridge) {
     try {
       context.bridge.dispose();
@@ -552,6 +564,7 @@ const attachTelnetBridge = (context: TerminalClientContext) => {
   const { host, port } = context.settings;
   sendTextFrame(context, `Dialling TELNET ${host}:${port} …`);
   const remote = connect({ host, port });
+  remote.setKeepAlive(true, 10000);
   remote.setNoDelay(true);
 
   let telnetPromptBuffer = '';
@@ -1064,6 +1077,7 @@ const handleUpgrade = (req: IncomingMessage, socket: NetSocket, head: Buffer) =>
   );
 
   socket.setNoDelay(true);
+  socket.setKeepAlive(true, 10000);
 
   const context: TerminalClientContext = {
     socket,
@@ -1073,6 +1087,27 @@ const handleUpgrade = (req: IncomingMessage, socket: NetSocket, head: Buffer) =>
     bridge: null,
     settings: sessionSettings
   };
+
+  context.pingTimer = setInterval(() => {
+    if (context.closed) {
+      if (context.pingTimer) {
+        clearInterval(context.pingTimer);
+      }
+      return;
+    }
+    try {
+      sendPingFrame(context);
+    } catch (error) {
+      console.warn('Failed to send WebSocket Ping to client', error);
+    }
+    if (context.bridge && context.bridge.protocol === 'telnet') {
+      try {
+        context.bridge.write(Buffer.from([0]));
+      } catch (error) {
+        console.warn('Failed to send keep-alive to telnet BBS', error);
+      }
+    }
+  }, 15000);
 
   socket.on('data', (chunk: Buffer) => {
     if (context.closed) {
