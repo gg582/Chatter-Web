@@ -118,7 +118,7 @@ export const commandGroups: CommandGroup[] = [
         ui: 'Messaging → History tools → Message lookup.'
       },
       {
-        command: '/pm <username> <message>',
+        command: '/pm <username>|<message>',
         description: 'Send a private message to a user.',
         ui: 'Messaging → Private messages → Compose form.'
       },

@@ -9,7 +9,7 @@ const commandEntries: CommandEntry[] = [
   { command: 'help', description: 'show this message' },
   { command: 'exit', description: 'leave the chat' },
   { command: 'nick <name>', description: 'change your display name' },
-  { command: 'pm <username> <message>', description: 'send a private message' },
+  { command: 'pm <username>|<message>', description: 'send a private message' },
   { command: 'motd', description: 'view the message of the day' },
   { command: 'status <message|clear>', description: 'set your profile status' },
   { command: 'showstatus <username>', description: "view someone else's status" },

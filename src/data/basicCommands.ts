@@ -16,7 +16,7 @@ export const basicCommands: string[] = [
   '/pair',
   'Regular messages',
   '/reply <message-id|r<reply-id>> <text>',
-  '/pm <username> <message>',
+  '/pm <username>|<message>',
   '/chat <message-id>',
   '/good|/sad|/cool|/angry|/checked|/love|/wtf <id>',
   '/delete-msg <id|start-end>'
